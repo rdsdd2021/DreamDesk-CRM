@@ -270,7 +270,7 @@ export function EnhancedLeadDrawer({
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto p-0 flex flex-col">
         {/* Drawer Header */}
-        <div className="p-6 pb-4 bg-muted/40 border-b">
+        <div className="p-4 sm:p-6 pb-4 bg-muted/40 border-b">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <span className="font-mono text-xs font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">
@@ -467,7 +467,7 @@ export function EnhancedLeadDrawer({
         </div>
 
         {/* Multi-Tab Navigation */}
-        <div className="p-6 flex-1 space-y-4">
+        <div className="p-3.5 sm:p-6 flex-1 space-y-4 pb-28 sm:pb-6">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
             <TabsList className="grid grid-cols-4 h-9">
               <TabsTrigger value="overview" className="text-xs">
@@ -1008,6 +1008,42 @@ export function EnhancedLeadDrawer({
               </div>
             </TabsContent>
           </Tabs>
+        </div>
+
+        {/* Sticky Mobile Quick Actions Bar (Finger-friendly for telecallers & counselors) */}
+        <div className="sticky bottom-0 left-0 right-0 p-3 bg-card/95 backdrop-blur-md border-t border-border/80 flex items-center gap-2 sm:hidden z-20 shadow-lg safe-area-bottom">
+          {lead.phone ? (
+            <Button
+              size="sm"
+              onClick={handleStartCall}
+              className="flex-1 h-10 text-xs font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
+            >
+              <PhoneCall className="w-4 h-4" />
+              <span>Call</span>
+            </Button>
+          ) : null}
+
+          {lead.phone ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsWhatsAppModalOpen(true)}
+              className="flex-1 h-10 text-xs font-bold gap-1.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl"
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span>WhatsApp</span>
+            </Button>
+          ) : null}
+
+          <Button
+            size="sm"
+            onClick={handleSaveDisposition}
+            disabled={savingDisp || (!selectedDispId && !callNotes.trim())}
+            className="flex-1 h-10 text-xs font-bold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-xs"
+          >
+            <Save className="w-3.5 h-3.5" />
+            <span>{savingDisp ? "Saving..." : "Save Log"}</span>
+          </Button>
         </div>
 
         {/* WhatsApp Quick Template Messenger Modal */}

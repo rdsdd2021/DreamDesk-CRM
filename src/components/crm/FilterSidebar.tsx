@@ -38,6 +38,8 @@ interface FilterSidebarProps {
   totalCount: number;
   users?: User[];
   isRestrictedCounselor?: boolean;
+  isMobileDrawer?: boolean;
+  onCloseMobile?: () => void;
 }
 
 const STATUS_CONFIG: Record<string, { color: string; dotClass: string }> = {
@@ -61,6 +63,8 @@ export function FilterSidebar({
   totalCount,
   users = [],
   isRestrictedCounselor = false,
+  isMobileDrawer = false,
+  onCloseMobile,
 }: FilterSidebarProps) {
   // Local state for expanded accordion sections
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -305,11 +309,165 @@ export function FilterSidebar({
   const coreFacetKeys = new Set(["status", "assigned_to", "campaign_id", "disposition_id"]);
   const dynamicFacets = facets.filter((f) => !coreFacetKeys.has(f.key_name));
 
-  // If collapsed, display sleek vertical dock strip on the left
+  // If mobile drawer, render dedicated full-width container
+  if (isMobileDrawer) {
+    return (
+      <div className="w-full h-full bg-sidebar flex flex-col justify-between select-none">
+        {/* Mobile Header */}
+        <div className="p-3.5 border-b border-border/60 flex items-center justify-between h-14 shrink-0 bg-sidebar">
+          <div className="flex items-center gap-2 overflow-hidden">
+            <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20">
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+            </div>
+            <div className="flex items-center gap-1.5 truncate">
+              <span className="font-bold text-sm tracking-tight text-foreground truncate">
+                Filters & Facets
+              </span>
+              {activeFiltersCount > 0 && (
+                <Badge
+                  variant="secondary"
+                  className="h-4.5 px-1.5 text-[10px] bg-primary text-primary-foreground font-bold rounded-full shrink-0"
+                >
+                  {activeFiltersCount}
+                </Badge>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1">
+            {activeFiltersCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onClearAllFilters}
+                className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 gap-1 rounded-md"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset</span>
+              </Button>
+            )}
+
+            {onCloseMobile && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onCloseMobile}
+                className="h-8 px-3 text-xs font-semibold rounded-lg"
+              >
+                Done
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Filter Content Body */}
+        <div className="flex-1 overflow-y-auto p-3.5 space-y-3">
+          {/* Global Filter Search */}
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search all filter criteria..."
+              value={globalFacetSearch}
+              onChange={(e) => setGlobalFacetSearch(e.target.value)}
+              className="h-9 text-xs pl-8 pr-7 bg-card border-border/70 rounded-lg shadow-2xs"
+            />
+            {globalFacetSearch && (
+              <button
+                onClick={() => setGlobalFacetSearch("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Active Filters Pill Tray */}
+          {activeFiltersCount > 0 && (
+            <div className="p-2.5 rounded-lg bg-card border border-border/70 space-y-1.5 shadow-2xs">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-muted-foreground font-semibold">Active Filters ({activeFiltersCount})</span>
+                <button onClick={onClearAllFilters} className="text-destructive hover:underline text-[10px] font-semibold">
+                  Clear All
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {activeFilterEntries.map(([key, vals]) => {
+                  const meta = schemaMeta.find((m) => m.key_name === key);
+                  const label =
+                    key === "status"
+                      ? "Status"
+                      : key === "assigned_to"
+                      ? "Counselor"
+                      : key === "campaign_id"
+                      ? "Campaign"
+                      : key === "disposition_id"
+                      ? "Disposition"
+                      : meta?.display_label || key;
+
+                  return vals.map((val) => {
+                    const counselor = key === "assigned_to" ? userMap.get(val) : null;
+                    const dispVal = counselor ? counselor.name : val === "unassigned" ? "Unassigned" : val;
+
+                    return (
+                      <span
+                        key={`${key}-${val}`}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-primary/10 text-primary border border-primary/20"
+                      >
+                        <span className="opacity-70 font-semibold">{label}:</span>
+                        <span className="truncate max-w-[120px] font-bold">{dispVal}</span>
+                        <button
+                          onClick={() => onFacetToggle(key, val)}
+                          className="hover:text-destructive shrink-0 ml-0.5 cursor-pointer"
+                        >
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </span>
+                    );
+                  });
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Core Facets Accordions */}
+          <div className="space-y-2">
+            {statusFacet && renderFacetGroup(statusFacet, <Layers className="w-3.5 h-3.5 text-blue-500" />)}
+            {counselorFacet && renderFacetGroup(counselorFacet, <Users className="w-3.5 h-3.5 text-emerald-500" />)}
+            {campaignFacet && renderFacetGroup(campaignFacet, <Target className="w-3.5 h-3.5 text-amber-500" />)}
+            {dispositionFacet && renderFacetGroup(dispositionFacet, <PhoneCall className="w-3.5 h-3.5 text-rose-500" />)}
+          </div>
+
+          {/* Dynamic Custom Fields Accordions */}
+          {dynamicFacets.length > 0 && (
+            <div className="pt-2 border-t border-border/60 space-y-2">
+              <div className="px-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
+                Custom Fields
+              </div>
+              <div className="space-y-2">
+                {dynamicFacets.map((facet) => renderFacetGroup(facet, <GraduationCap className="w-3.5 h-3.5 text-indigo-500" />))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile Sticky Footer */}
+        <div className="p-3 border-t border-border/60 bg-card shrink-0 space-y-2">
+          <Button
+            onClick={onCloseMobile}
+            className="w-full h-11 text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-sm"
+          >
+            Apply Filters ({totalFilteredCount.toLocaleString()} Leads)
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Desktop: If collapsed, display sleek vertical dock strip on the left (hidden on mobile)
   if (collapsed) {
     return (
       <aside
-        className="w-14 border-r border-border/80 bg-sidebar flex flex-col justify-between transition-all duration-200 shrink-0 z-10 select-none group/collapsed hover:border-primary/40 cursor-pointer"
+        className="hidden md:flex w-14 border-r border-border/80 bg-sidebar flex-col justify-between transition-all duration-200 shrink-0 z-10 select-none group/collapsed hover:border-primary/40 cursor-pointer"
         onClick={onToggleCollapse}
         title="Expand Filter Panel"
       >
@@ -364,9 +522,9 @@ export function FilterSidebar({
     );
   }
 
-  // Expanded Filter Sidebar (Docked on Left)
+  // Desktop: Expanded Filter Sidebar (Docked on Left, hidden on mobile)
   return (
-    <aside className="w-72 border-r border-border/80 bg-sidebar flex flex-col justify-between transition-all duration-200 shrink-0 z-10 select-none shadow-xs">
+    <aside className="hidden md:flex w-72 border-r border-border/80 bg-sidebar flex-col justify-between transition-all duration-200 shrink-0 z-10 select-none shadow-xs">
       {/* Top Header */}
       <div className="p-3.5 border-b border-border/60 flex items-center justify-between h-14 shrink-0 bg-sidebar">
         <div className="flex items-center gap-2 overflow-hidden">

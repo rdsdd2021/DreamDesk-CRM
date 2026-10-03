@@ -33,6 +33,8 @@ import {
   PhoneCall,
   MessageSquare,
   Clock,
+  LayoutGrid,
+  Table as TableIcon,
 } from "lucide-react";
 
 function InlineScoreCell({
@@ -125,6 +127,8 @@ interface LeadsTableProps {
   density?: "compact" | "comfortable";
   activeLeadId?: number | null;
   onInlineUpdate?: (leadId: number, field: string, value: any) => void;
+  viewMode?: "table" | "cards";
+  onViewModeChange?: (mode: "table" | "cards") => void;
 }
 
 export function LeadsTable({
@@ -151,7 +155,27 @@ export function LeadsTable({
   density = "comfortable",
   activeLeadId = null,
   onInlineUpdate,
+  viewMode: propViewMode,
+  onViewModeChange,
 }: LeadsTableProps) {
+  const [localViewMode, setLocalViewMode] = useState<"table" | "cards">(propViewMode || "table");
+
+  useEffect(() => {
+    if (propViewMode) {
+      setLocalViewMode(propViewMode);
+      return;
+    }
+    if (typeof window !== "undefined") {
+      if (window.innerWidth < 768) {
+        setLocalViewMode("cards");
+      }
+    }
+  }, [propViewMode]);
+
+  const handleSwitchViewMode = (mode: "table" | "cards") => {
+    setLocalViewMode(mode);
+    onViewModeChange?.(mode);
+  };
   const getStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
       case "new":
@@ -212,6 +236,252 @@ export function LeadsTable({
     (m) => m.is_visible && visibleColumns.includes(m.key_name)
   );
 
+  // Mobile Card View optimized for phone dialing, WhatsApp, and fast call dispositions
+  const renderCardsView = () => {
+    if (loading) {
+      return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={`card-skel-${i}`} className="p-4 rounded-2xl border border-border/60 bg-card space-y-3 animate-pulse">
+              <div className="flex items-center justify-between">
+                <div className="w-28 h-4 rounded bg-muted/60" />
+                <div className="w-16 h-4 rounded-full bg-muted/60" />
+              </div>
+              <div className="h-14 rounded-xl bg-muted/40" />
+              <div className="flex gap-2">
+                <div className="flex-1 h-9 rounded-xl bg-muted/60" />
+                <div className="flex-1 h-9 rounded-xl bg-muted/60" />
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (leads.length === 0) {
+      return (
+        <div className="py-20 px-4 text-center">
+          <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+            <School className="w-10 h-10 stroke-[1.25] text-muted-foreground/50 mb-1" />
+            <div className="text-sm font-semibold text-foreground">No student leads found</div>
+            <div className="text-xs text-muted-foreground max-w-xs mx-auto">
+              Try adjusting your active filters or select a different work queue.
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3">
+        {leads.map((lead) => {
+          let rawAttrs: Record<string, any> = {};
+          try {
+            rawAttrs = typeof lead.raw_attributes === "string" ? JSON.parse(lead.raw_attributes) : lead.raw_attributes || {};
+          } catch {}
+
+          const isSelected = selectedLeadIds.includes(lead.id) || isAllFilteredSelected;
+
+          return (
+            <div
+              key={lead.id}
+              className={cn(
+                "bg-card border border-border/80 rounded-2xl p-3.5 shadow-2xs hover:shadow-xs transition-all space-y-3 relative text-xs flex flex-col justify-between",
+                isSelected ? "border-primary/60 bg-primary/[0.03] ring-1 ring-primary/20" : "",
+                activeLeadId === lead.id ? "ring-2 ring-primary border-transparent" : ""
+              )}
+            >
+              {/* Header: Checkbox, Name, Lead Code, Stage Dropdown */}
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={() => onToggleLeadSelection(lead.id)}
+                      className="mt-1"
+                      aria-label={`Select ${lead.lead_code}`}
+                    />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span
+                          className="font-bold text-sm text-foreground hover:text-primary transition-colors cursor-pointer truncate max-w-[170px]"
+                          onClick={() => onViewLeadDetails(lead)}
+                        >
+                          {lead.name || "Unnamed Student"}
+                        </span>
+                        <Badge variant="outline" className="font-mono text-[9px] px-1 py-0 text-muted-foreground">
+                          {lead.lead_code}
+                        </Badge>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
+                        {rawAttrs.stream && <span className="font-medium text-foreground/85">{rawAttrs.stream}</span>}
+                        {rawAttrs.city && (
+                          <>
+                            <span>•</span>
+                            <span>{rawAttrs.city}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Inline Stage Dropdown */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className="focus:outline-none cursor-pointer shrink-0">
+                      <span className="inline-flex items-center gap-1 hover:ring-2 hover:ring-primary/20 rounded-md transition-all">
+                        {getStatusBadge(lead.status)}
+                        <ChevronDown className="w-2.5 h-2.5 text-muted-foreground" />
+                      </span>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-40 text-xs">
+                      <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                        Change Stage
+                      </div>
+                      {["New", "Contacted", "Interested", "Follow-up", "Admitted", "Not Interested"].map((st) => (
+                        <DropdownMenuItem
+                          key={st}
+                          onClick={() => onInlineUpdate?.(lead.id, "status", st)}
+                          className={`gap-2 cursor-pointer text-xs ${lead.status === st ? "font-bold bg-primary/10 text-primary" : ""}`}
+                        >
+                          {getStatusBadge(st)}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
+                {/* Academic & Score Box */}
+                <div className="grid grid-cols-2 gap-2 text-xs bg-muted/30 p-2.5 rounded-xl border border-border/60">
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-muted-foreground block font-medium">School / College</span>
+                    <span className="font-semibold text-foreground truncate block">{rawAttrs.school || "Not specified"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block font-medium">Percentage / Score</span>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      {rawAttrs.score ? (
+                        <span className="px-1.5 py-0.2 text-[10px] font-mono font-bold rounded bg-primary/10 text-primary border border-primary/20">
+                          {rawAttrs.score}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground/60 italic text-[10px]">N/A</span>
+                      )}
+                      {rawAttrs.jee_percentile && (
+                        <span className="px-1.5 py-0.2 text-[9px] font-mono rounded bg-emerald-500/10 text-emerald-600 font-bold border border-emerald-500/20">
+                          JEE {rawAttrs.jee_percentile}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Scheduled Callback Alert */}
+                {lead.callback_at && (
+                  <div className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400">
+                    <div className="flex items-center gap-1.5 font-medium text-[11px]">
+                      <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                      <span>Callback: {new Date(lead.callback_at).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Fast Call Outcome (Disposition) Selector */}
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/60">
+                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                    {dispositions.length > 0 && onQuickDispositionChange ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger className="focus:outline-none max-w-full">
+                          {lead.disposition_name ? (
+                            <span
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border shadow-2xs truncate max-w-full cursor-pointer hover:ring-2 hover:ring-primary/20 transition-all"
+                              style={{
+                                backgroundColor: `${lead.disposition_color || "#3b82f6"}15`,
+                                borderColor: `${lead.disposition_color || "#3b82f6"}40`,
+                                color: lead.disposition_color || "#3b82f6",
+                              }}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: lead.disposition_color || "#3b82f6" }} />
+                              <span className="truncate">{lead.disposition_name}</span>
+                              <ChevronDown className="w-3 h-3 opacity-60 ml-0.5" />
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-dashed border-border text-[11px] text-muted-foreground hover:border-primary/40 cursor-pointer">
+                              <span>Set Disposition</span>
+                              <ChevronDown className="w-3 h-3 opacity-60" />
+                            </span>
+                          )}
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-56 text-xs max-h-60 overflow-y-auto">
+                          <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Fast Call Outcome</div>
+                          {dispositions.map((d) => (
+                            <DropdownMenuItem key={d.id} onClick={() => onQuickDispositionChange(lead.id, d.id)} className="gap-2 cursor-pointer text-xs">
+                              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                              <span className="truncate flex-1">{d.name}</span>
+                              <span className="text-[10px] font-mono text-muted-foreground">{d.score > 0 ? `+${d.score}` : d.score}</span>
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground italic">{lead.disposition_name || "Uncontacted"}</span>
+                    )}
+                  </div>
+
+                  {lead.assigned_user_name && (
+                    <div className="flex items-center gap-1 text-[11px] text-muted-foreground font-medium shrink-0">
+                      <UserCheck className="w-3 h-3 text-primary" />
+                      <span className="truncate max-w-[100px]">{lead.assigned_user_name}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Big Touch Action Buttons for Telecallers & Counselors */}
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                {lead.phone ? (
+                  <a
+                    href={`tel:${lead.phone}`}
+                    className="col-span-1 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer"
+                    title="Direct Phone Call"
+                  >
+                    <PhoneCall className="w-3.5 h-3.5" />
+                    <span>Call</span>
+                  </a>
+                ) : (
+                  <button disabled className="col-span-1 h-10 rounded-xl bg-muted text-muted-foreground text-xs flex items-center justify-center opacity-50">
+                    No Phone
+                  </button>
+                )}
+
+                {lead.phone ? (
+                  <a
+                    href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, "")}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="col-span-1 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer hover:bg-emerald-500/20"
+                    title="Message on WhatsApp"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>WhatsApp</span>
+                  </a>
+                ) : null}
+
+                <Button
+                  variant="outline"
+                  onClick={() => onViewLeadDetails(lead)}
+                  className="col-span-1 h-10 rounded-xl text-xs font-semibold border-border/80 hover:bg-muted text-foreground cursor-pointer"
+                >
+                  <Eye className="w-3.5 h-3.5 mr-1 text-muted-foreground" />
+                  <span>Details</span>
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="border border-border/80 rounded-xl bg-card shadow-xs overflow-hidden flex flex-col">
       {/* High-Volume Filtered Selection Banner */}
@@ -256,9 +526,62 @@ export function LeadsTable({
         </div>
       )}
 
-      {/* Table Container */}
-      <div className="overflow-x-auto min-h-[420px]">
-        <Table>
+      {/* Top View Mode Switcher & Page Info Bar */}
+      <div className="flex items-center justify-between px-3 py-2 bg-muted/20 border-b border-border/60 text-xs">
+        <div className="flex items-center gap-2">
+          <Checkbox
+            checked={isAllPageSelected || isAllFilteredSelected}
+            onCheckedChange={onToggleSelectAllPage}
+            aria-label="Select all on page"
+          />
+          <span className="text-[11px] text-muted-foreground font-medium">
+            {leads.length > 0 ? (
+              <span>Showing <strong className="text-foreground tabular-nums">{leads.length}</strong> leads</span>
+            ) : (
+              <span>0 leads</span>
+            )}
+          </span>
+        </div>
+
+        {/* View Mode Toggle (Cards vs Table) */}
+        <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border border-border/60">
+          <button
+            type="button"
+            onClick={() => handleSwitchViewMode("cards")}
+            className={cn(
+              "flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer",
+              localViewMode === "cards"
+                ? "bg-card text-foreground shadow-2xs font-bold"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+            title="Switch to Mobile Card View"
+          >
+            <LayoutGrid className="w-3.5 h-3.5 text-primary" />
+            <span className="text-[11px]">Cards</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSwitchViewMode("table")}
+            className={cn(
+              "flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer",
+              localViewMode === "table"
+                ? "bg-card text-foreground shadow-2xs font-bold"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+            title="Switch to High-Density Table View"
+          >
+            <TableIcon className="w-3.5 h-3.5" />
+            <span className="text-[11px]">Table</span>
+          </button>
+        </div>
+      </div>
+
+      {localViewMode === "cards" ? (
+        renderCardsView()
+      ) : (
+        /* Table Container */
+        <div className="overflow-x-auto min-h-[420px]">
+          <Table>
           <TableHeader className="bg-muted/40 backdrop-blur-md sticky top-0 z-10 border-b border-border/80">
             <TableRow className="hover:bg-transparent border-none">
               <TableHead className="w-10 px-3 text-center">
@@ -725,6 +1048,7 @@ export function LeadsTable({
           </TableBody>
         </Table>
       </div>
+      )}
     </div>
   );
 }

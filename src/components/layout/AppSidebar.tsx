@@ -34,6 +34,8 @@ interface AppSidebarProps {
   currentUser?: User | null;
   allowedViews?: string[];
   onLogout?: () => void;
+  isMobileDrawer?: boolean;
+  onCloseMobileDrawer?: () => void;
 }
 
 export function AppSidebar({
@@ -47,7 +49,17 @@ export function AppSidebar({
   currentUser,
   allowedViews,
   onLogout,
+  isMobileDrawer = false,
+  onCloseMobileDrawer,
 }: AppSidebarProps) {
+  const isCollapsed = isMobileDrawer ? false : collapsed;
+
+  const handleItemClick = (id: string) => {
+    onSelectView(id);
+    if (isMobileDrawer && onCloseMobileDrawer) {
+      onCloseMobileDrawer();
+    }
+  };
   const navItems = [
     {
       id: "leads",
@@ -105,14 +117,18 @@ export function AppSidebar({
 
   return (
     <aside
-      className={`border-r border-border/80 bg-sidebar flex flex-col justify-between transition-all duration-200 shrink-0 z-20 select-none ${
-        collapsed ? "w-16" : "w-60"
-      }`}
+      className={
+        isMobileDrawer
+          ? "w-full h-full bg-sidebar flex flex-col justify-between select-none"
+          : `hidden md:flex border-r border-border/80 bg-sidebar flex-col justify-between transition-all duration-200 shrink-0 z-20 select-none ${
+              isCollapsed ? "w-16" : "w-60"
+            }`
+      }
     >
       {/* Top Branding */}
       <div>
         <div className="p-3.5 border-b border-border/60 flex items-center justify-between h-14">
-          {!collapsed && (
+          {!isCollapsed && (
             <div className="flex items-center gap-2.5 overflow-hidden">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white shadow-sm shadow-blue-500/25 shrink-0 ring-1 ring-white/20">
                 <GraduationCap className="w-4 h-4 stroke-[2]" />
@@ -128,26 +144,39 @@ export function AppSidebar({
             </div>
           )}
 
-          {collapsed && (
+          {isCollapsed && (
             <div className="w-7 h-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center mx-auto shadow-xs">
               <GraduationCap className="w-3.5 h-3.5" />
             </div>
           )}
 
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onToggleCollapse}
-            className="h-6 w-6 text-muted-foreground hover:text-foreground shrink-0 hidden md:flex rounded-md"
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
-          </Button>
+          {!isMobileDrawer ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onToggleCollapse}
+              className="h-6 w-6 text-muted-foreground hover:text-foreground shrink-0 hidden md:flex rounded-md"
+              title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {isCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
+            </Button>
+          ) : (
+            onCloseMobileDrawer && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onCloseMobileDrawer}
+                className="h-7 text-xs text-muted-foreground hover:text-foreground rounded-md px-2"
+              >
+                Close
+              </Button>
+            )
+          )}
         </div>
 
         {/* Navigation List */}
         <nav className="p-2 space-y-0.5">
-          {!collapsed && (
+          {!isCollapsed && (
             <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
               Workspace
             </div>
@@ -162,15 +191,15 @@ export function AppSidebar({
             return (
               <button
                 key={item.id}
-                onClick={() => onSelectView(item.id)}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-all relative ${
+                onClick={() => handleItemClick(item.id)}
+                className={`w-full flex items-center gap-2.5 px-2.5 ${isMobileDrawer ? "py-2.5 h-10" : "py-1.5"} rounded-lg text-xs transition-all relative ${
                   isActive
                     ? "bg-primary/10 text-primary font-semibold border border-primary/20 shadow-2xs"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/60 font-medium"
-                } ${collapsed ? "justify-center px-0 h-9" : "h-8"}`}
-                title={collapsed ? item.label : undefined}
+                } ${isCollapsed ? "justify-center px-0 h-9" : isMobileDrawer ? "h-10" : "h-8"}`}
+                title={isCollapsed ? item.label : undefined}
               >
-                {isActive && !collapsed && (
+                {isActive && !isCollapsed && (
                   <span className="w-1 h-3.5 rounded-full bg-primary absolute -left-1" />
                 )}
                 <Icon
@@ -178,7 +207,7 @@ export function AppSidebar({
                     isActive ? "text-primary" : "text-muted-foreground/80"
                   }`}
                 />
-                {!collapsed && (
+                {!isCollapsed && (
                   <>
                     <span className="truncate flex-1 text-left tracking-tight">
                       {item.label}
@@ -205,7 +234,7 @@ export function AppSidebar({
       {/* Bottom User Profile & Performance Widget */}
       <div className="p-3 border-t border-border/60 bg-muted/20 space-y-2">
         {currentUser && (
-          !collapsed ? (
+          !isCollapsed ? (
             <div className="flex items-center justify-between gap-2 p-1.5 rounded-lg bg-card border border-border/70">
               <div className="flex items-center gap-2 overflow-hidden min-w-0">
                 <div
@@ -248,7 +277,7 @@ export function AppSidebar({
           )
         )}
 
-        {!collapsed ? (
+        {!isCollapsed ? (
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-muted-foreground font-medium flex items-center gap-1.5">

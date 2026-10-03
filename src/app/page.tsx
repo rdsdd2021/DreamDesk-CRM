@@ -40,6 +40,8 @@ import { TeamWorkspace } from "@/components/crm/TeamWorkspace";
 import { ImportWorkspace } from "@/components/crm/ImportWorkspace";
 import { ActivityWorkspace } from "@/components/crm/ActivityWorkspace";
 import { PaginationBar } from "@/components/crm/PaginationBar";
+import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -79,6 +81,7 @@ import {
   Tag,
   LogOut,
   PhoneCall,
+  Menu,
 } from "lucide-react";
 
 export default function CRMPage() {
@@ -184,7 +187,15 @@ export default function CRMPage() {
     }
   }, []);
 
+  // Mobile Drawer State
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+
   const toggleFilterSidebar = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setIsMobileFilterOpen(true);
+      return;
+    }
     setFilterSidebarOpen((prev) => {
       const next = !prev;
       try {
@@ -1119,21 +1130,32 @@ export default function CRMPage() {
       {/* Main App Container */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Topbar */}
-        <header className="h-14 border-b border-border/80 bg-card/80 backdrop-blur-md px-6 flex items-center justify-between gap-4 shrink-0">
+        <header className="h-14 border-b border-border/80 bg-card/80 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 shrink-0">
           {/* Breadcrumb & Section Info */}
-          <div className="flex items-center gap-3">
-            <h1 className="text-base font-bold text-foreground capitalize flex items-center gap-2">
-              {currentView === "leads" && <GraduationCap className="w-5 h-5 text-primary" />}
-              {currentView === "dashboard" && <LayoutDashboard className="w-5 h-5 text-blue-500" />}
-              {currentView === "pipeline" && <Kanban className="w-5 h-5 text-violet-500" />}
-              {currentView === "campaigns" && <Target className="w-5 h-5 text-amber-500" />}
-              {currentView === "dispositions" && <Tag className="w-5 h-5 text-rose-500" />}
-              {currentView === "fields" && <SlidersHorizontal className="w-5 h-5 text-emerald-500" />}
-              {currentView === "tasks" && <Clock className="w-5 h-5 text-amber-500" />}
-              {currentView === "team" && <Users className="w-5 h-5 text-emerald-500" />}
-              {currentView === "import" && <Upload className="w-5 h-5 text-blue-500" />}
-              {currentView === "activity" && <History className="w-5 h-5 text-purple-500" />}
-              <span>
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* Mobile Navigation Drawer Trigger */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsMobileNavOpen(true)}
+              className="md:hidden h-8 w-8 text-muted-foreground hover:text-foreground shrink-0 -ml-1 mr-0.5"
+              aria-label="Open Navigation Menu"
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
+
+            <h1 className="text-xs sm:text-base font-bold text-foreground capitalize flex items-center gap-2 truncate">
+              {currentView === "leads" && <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />}
+              {currentView === "dashboard" && <LayoutDashboard className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 shrink-0" />}
+              {currentView === "pipeline" && <Kanban className="w-4 h-4 sm:w-5 sm:h-5 text-violet-500 shrink-0" />}
+              {currentView === "campaigns" && <Target className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500 shrink-0" />}
+              {currentView === "dispositions" && <Tag className="w-4 h-4 sm:w-5 sm:h-5 text-rose-500 shrink-0" />}
+              {currentView === "fields" && <SlidersHorizontal className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500 shrink-0" />}
+              {currentView === "tasks" && <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500 shrink-0" />}
+              {currentView === "team" && <Users className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500 shrink-0" />}
+              {currentView === "import" && <Upload className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 shrink-0" />}
+              {currentView === "activity" && <History className="w-4 h-4 sm:w-5 sm:h-5 text-purple-500 shrink-0" />}
+              <span className="truncate max-w-[130px] sm:max-w-none">
                 {currentView === "leads" && "Leads Workspace"}
                 {currentView === "dashboard" && "Dashboard & Analytics"}
                 {currentView === "pipeline" && "Pipeline & Kanban"}
@@ -1449,7 +1471,7 @@ export default function CRMPage() {
             />
           )}
 
-          <main className="flex-1 overflow-y-auto p-6 min-w-0">
+          <main className="flex-1 overflow-y-auto p-3 sm:p-6 pb-24 md:pb-6 min-w-0">
           {/* VIEW 1: LEADS WORKSPACE */}
           {currentView === "leads" && (
             <div className="space-y-4 max-w-7xl mx-auto">
@@ -1993,6 +2015,75 @@ export default function CRMPage() {
         onClose={() => setWhatsAppTargetLead(null)}
         lead={whatsAppTargetLead}
         currentUser={users.find((u) => u.id === activeCounselorId) || null}
+      />
+
+      {/* Mobile Navigation Drawer Sheet */}
+      <Sheet open={isMobileNavOpen} onOpenChange={setIsMobileNavOpen}>
+        <SheetContent side="left" className="p-0 w-72 sm:w-80 border-r border-border/80" showCloseButton={false}>
+          <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
+          <SheetDescription className="sr-only">Main CRM navigation and workspace switcher</SheetDescription>
+          <AppSidebar
+            currentView={currentView}
+            onSelectView={(v) => {
+              if (v === "fields") {
+                setStudioTab("fields");
+                setCurrentView("fields");
+              } else if (v === "campaigns") {
+                setStudioTab("campaigns");
+                setCurrentView("campaigns");
+              } else if (v === "dispositions") {
+                setStudioTab("dispositions");
+                setCurrentView("dispositions");
+              } else {
+                setCurrentView(v);
+              }
+              setIsMobileNavOpen(false);
+            }}
+            collapsed={false}
+            onToggleCollapse={() => {}}
+            totalLeadsCount={totalCount}
+            unassignedCount={summary.unassignedCount}
+            counselorsCount={users.length}
+            currentUser={currentUser}
+            allowedViews={permissions?.allowedViews}
+            onLogout={handleLogout}
+            isMobileDrawer={true}
+            onCloseMobileDrawer={() => setIsMobileNavOpen(false)}
+          />
+        </SheetContent>
+      </Sheet>
+
+      {/* Mobile Filter Drawer Sheet */}
+      <Sheet open={isMobileFilterOpen} onOpenChange={setIsMobileFilterOpen}>
+        <SheetContent side="right" className="p-0 w-80 sm:w-96 border-l border-border/80" showCloseButton={false}>
+          <SheetTitle className="sr-only">Filters & Facets</SheetTitle>
+          <SheetDescription className="sr-only">Filter and segment student leads</SheetDescription>
+          <FilterSidebar
+            collapsed={false}
+            onToggleCollapse={() => setIsMobileFilterOpen(false)}
+            facets={facets}
+            selectedFacets={selectedFacets}
+            onFacetToggle={handleFacetToggle}
+            onClearAllFilters={handleClearAllFilters}
+            schemaMeta={schemaMeta}
+            totalFilteredCount={totalFilteredCount}
+            totalCount={totalCount}
+            users={users}
+            isRestrictedCounselor={isRestrictedCounselor}
+            isMobileDrawer={true}
+            onCloseMobile={() => setIsMobileFilterOpen(false)}
+          />
+        </SheetContent>
+      </Sheet>
+
+      {/* Ergonomic Mobile Bottom Navigation Bar (Visible only on mobile screens) */}
+      <MobileBottomNav
+        currentView={currentView}
+        onSelectView={(v) => setCurrentView(v)}
+        onOpenSearch={() => setIsCommandCenterOpen(true)}
+        onOpenMobileMenu={() => setIsMobileNavOpen(true)}
+        pendingTasksCount={summary.statusBreakdown["Follow-up"] || 0}
+        myLeadsCount={summary.totalLeads}
       />
     </div>
   );

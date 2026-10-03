@@ -51,8 +51,8 @@ export function BulkActionBar({
   const effectiveCount = isAllFilteredSelected ? totalFilteredCount : selectedCount;
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-5 duration-200">
-      <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 bg-card/95 backdrop-blur-md border-2 border-primary/20 shadow-2xl px-4 py-2.5 rounded-2xl">
+    <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[calc(100vw-24px)] animate-in fade-in slide-in-from-bottom-5 duration-200">
+      <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 bg-card/95 backdrop-blur-md border-2 border-primary/20 shadow-2xl px-4 py-2.5 rounded-2xl overflow-x-auto max-w-full">
         {/* Selection Indicator */}
         <div className="flex items-center gap-2 pr-2 border-r border-border">
           <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary">
