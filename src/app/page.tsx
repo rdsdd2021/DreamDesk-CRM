@@ -1,0 +1,1999 @@
+"use client";
+
+import React, { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Lead,
+  FacetGroup,
+  SchemaMeta,
+  User,
+  Disposition,
+  FilterParams,
+  LeadsResponse,
+  SavedView,
+  Campaign,
+} from "@/types/crm";
+import { AppSidebar } from "@/components/layout/AppSidebar";
+import { CommandCenter } from "@/components/crm/CommandCenter";
+import { AnalyticsDashboard } from "@/components/crm/AnalyticsDashboard";
+import { PipelineKanbanView } from "@/components/crm/PipelineKanbanView";
+import { CampaignsSchemaStudio } from "@/components/crm/CampaignsSchemaStudio";
+import { CampaignsWorkspace } from "@/components/crm/CampaignsWorkspace";
+import { DispositionsWorkspace } from "@/components/crm/DispositionsWorkspace";
+import { SchemaStudioWorkspace } from "@/components/crm/SchemaStudioWorkspace";
+import { WorkQueueTabs, WorkQueueId } from "@/components/crm/WorkQueueTabs";
+import { KeyboardShortcutsModal } from "@/components/crm/KeyboardShortcutsModal";
+import { DynamicFacetToolbar } from "@/components/crm/DynamicFacetToolbar";
+import { FilterSidebar } from "@/components/crm/FilterSidebar";
+import { LeadsTable } from "@/components/crm/LeadsTable";
+import { BulkActionBar } from "@/components/crm/BulkActionBar";
+import { BulkAssignModal } from "@/components/crm/BulkAssignModal";
+import { EnhancedLeadDrawer } from "@/components/crm/EnhancedLeadDrawer";
+import { TasksModal } from "@/components/crm/TasksModal";
+import { DuplicatesModal } from "@/components/crm/DuplicatesModal";
+import { WhatsAppModal } from "@/components/crm/WhatsAppModal";
+import { ImportModal } from "@/components/crm/ImportModal";
+import { TeamModal } from "@/components/crm/TeamModal";
+import { ActivityLogsModal } from "@/components/crm/ActivityLogsModal";
+import { TasksWorkspace } from "@/components/crm/TasksWorkspace";
+import { TeamWorkspace } from "@/components/crm/TeamWorkspace";
+import { ImportWorkspace } from "@/components/crm/ImportWorkspace";
+import { ActivityWorkspace } from "@/components/crm/ActivityWorkspace";
+import { PaginationBar } from "@/components/crm/PaginationBar";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Sparkles,
+  Upload,
+  SlidersHorizontal,
+  Users,
+  Search,
+  CheckCircle2,
+  AlertCircle,
+  Command,
+  Filter,
+  Eye,
+  UserCheck,
+  UserX,
+  Target,
+  Kanban,
+  LayoutDashboard,
+  GraduationCap,
+  Layers,
+  Sun,
+  Moon,
+  ChevronDown,
+  Clock,
+  GitMerge,
+  Zap,
+  History,
+  Tag,
+  LogOut,
+  PhoneCall,
+} from "lucide-react";
+
+export default function CRMPage() {
+  const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [permissions, setPermissions] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // Authenticate session on load
+  const checkAuth = useCallback(async () => {
+    try {
+      setAuthLoading(true);
+      const res = await fetch("/api/auth/me");
+      if (!res.ok) {
+        router.push("/login");
+        return;
+      }
+      const data = await res.json();
+      if (!data.authenticated || !data.user) {
+        router.push("/login");
+        return;
+      }
+      setCurrentUser(data.user);
+      setPermissions(data.permissions);
+
+      // Enforce counselor perspective lock
+      if (
+        data.user.role === "counselor" ||
+        data.user.role === "senior_counselor" ||
+        data.user.role === "telecaller"
+      ) {
+        setRoleMode("counselor");
+        setActiveCounselorId(data.user.id);
+        setSelectedFacets((prev) => ({ ...prev, assigned_to: [data.user.id] }));
+      }
+    } catch (err) {
+      console.error("Auth check failed:", err);
+      router.push("/login");
+    } finally {
+      setAuthLoading(false);
+    }
+  }, [router]);
+
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  // Live session deactivation heartbeat:
+  // Instantly kicks out deactivated users and boots them to login
+  useEffect(() => {
+    if (!currentUser) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (res.status === 401) {
+          router.push("/login?reason=deactivated");
+        }
+      } catch {
+        // network glitch
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [currentUser, router]);
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      router.push("/login");
+    }
+  };
+
+  const handleSwitchUser = async (userToSwitch: User) => {
+    try {
+      await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: userToSwitch.id, quickLogin: true }),
+      });
+      window.location.reload();
+    } catch (err) {
+      console.error("Switch user error:", err);
+    }
+  };
+
+  // Navigation & View State
+  const [currentView, setCurrentView] = useState<string>("leads");
+  const [studioTab, setStudioTab] = useState<"fields" | "campaigns" | "dispositions" | "matrix">("fields");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isCommandCenterOpen, setIsCommandCenterOpen] = useState(false);
+
+  // Right Filter Sidebar State (persisted in localStorage after hydration)
+  const [filterSidebarOpen, setFilterSidebarOpen] = useState<boolean>(true);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("dreamdesk_filter_sidebar_open");
+      if (saved !== null) {
+        setFilterSidebarOpen(saved === "true");
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const toggleFilterSidebar = () => {
+    setFilterSidebarOpen((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("dreamdesk_filter_sidebar_open", String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  // Counselor Role Filter (Admin: all leads, or Counselor: my leads)
+  const [roleMode, setRoleMode] = useState<"admin" | "counselor">("admin");
+  const [activeCounselorId, setActiveCounselorId] = useState<string>("usr_rohit");
+
+  const isRestrictedCounselor = currentUser
+    ? (currentUser.role === "counselor" || currentUser.role === "senior_counselor" || currentUser.role === "telecaller")
+    : (roleMode === "counselor");
+
+  // Data State
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [totalFilteredCount, setTotalFilteredCount] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [facets, setFacets] = useState<FacetGroup[]>([]);
+  const [schemaMeta, setSchemaMeta] = useState<SchemaMeta[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [summary, setSummary] = useState({
+    totalLeads: 0,
+    unassignedCount: 0,
+    assignedCount: 0,
+    statusBreakdown: {} as Record<string, number>,
+  });
+
+  // Filter & Query State
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [selectedFacets, setSelectedFacets] = useState<Record<string, string[]>>({});
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [sortBy, setSortBy] = useState("id");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [loading, setLoading] = useState(true);
+
+  // Column Visibility
+  const [visibleColumns, setVisibleColumns] = useState<string[]>([
+    "lead_code",
+    "name",
+    "phone",
+    "status",
+    "disposition",
+    "campaign",
+    "assigned_to",
+    "stream",
+    "school",
+    "board",
+    "city",
+    "score",
+  ]);
+
+  // Selection State
+  const [selectedLeadIds, setSelectedLeadIds] = useState<number[]>([]);
+  const [isAllFilteredSelected, setIsAllFilteredSelected] = useState(false);
+
+  // Modals & Sheets
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
+  const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const [isTasksModalOpen, setIsTasksModalOpen] = useState(false);
+  const [isDuplicatesModalOpen, setIsDuplicatesModalOpen] = useState(false);
+  const [isAutoDistributing, setIsAutoDistributing] = useState(false);
+  const [selectedLeadForDetail, setSelectedLeadForDetail] = useState<Lead | null>(null);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [whatsAppTargetLead, setWhatsAppTargetLead] = useState<Lead | null>(null);
+
+  // Intuitive Productivity State
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const [activeQueue, setActiveQueue] = useState<WorkQueueId>("all");
+  const [dispositions, setDispositions] = useState<Disposition[]>([]);
+  const [density, setDensity] = useState<"compact" | "comfortable">("comfortable");
+  const [activeLeadIndex, setActiveLeadIndex] = useState<number | null>(null);
+  const [claimingLeads, setClaimingLeads] = useState(false);
+
+  // Toast Notification State
+  const [toastMessage, setToastMessage] = useState<{
+    text: string;
+    type: "success" | "error";
+  } | null>(null);
+
+  const showToast = (text: string, type: "success" | "error" = "success") => {
+    setToastMessage({ text, type });
+    setTimeout(() => setToastMessage(null), 4500);
+  };
+
+  // Theme State
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    try {
+      const savedTheme = localStorage.getItem("dreamdesk_theme");
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
+        document.documentElement.classList.add("dark");
+        setIsDark(true);
+      } else {
+        document.documentElement.classList.remove("dark");
+        setIsDark(false);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const nextDark = !isDark;
+    setIsDark(nextDark);
+    try {
+      if (nextDark) {
+        document.documentElement.classList.add("dark");
+        localStorage.setItem("dreamdesk_theme", "dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+        localStorage.setItem("dreamdesk_theme", "light");
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  // Debounce search
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [search]);
+
+  // Load initial Schema, Users, Dispositions & Saved Views
+  const loadMetaAndUsers = useCallback(async () => {
+    try {
+      const [metaRes, usersRes, dispRes, viewsRes, campsRes] = await Promise.all([
+        fetch("/api/schema").then((r) => r.json()),
+        fetch("/api/users").then((r) => r.json()),
+        fetch("/api/dispositions").then((r) => r.json()),
+        fetch("/api/saved-views").then((r) => r.json()),
+        fetch("/api/campaigns").then((r) => r.json()),
+      ]);
+      if (Array.isArray(metaRes)) setSchemaMeta(metaRes);
+      if (Array.isArray(usersRes)) setUsers(usersRes);
+      if (Array.isArray(dispRes)) setDispositions(dispRes);
+      if (Array.isArray(viewsRes)) setSavedViews(viewsRes);
+      if (Array.isArray(campsRes)) setCampaigns(campsRes);
+    } catch (err) {
+      console.error("Failed to load metadata/users/dispositions/views/campaigns:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadMetaAndUsers();
+  }, [loadMetaAndUsers]);
+
+  // Load Leads with Filters
+  const fetchLeads = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("limit", String(pageSize));
+      params.set("sortBy", sortBy);
+      params.set("sortOrder", sortOrder);
+
+      if (debouncedSearch.trim()) {
+        params.set("search", debouncedSearch.trim());
+      }
+
+      // If in counselor mode, force assigned_to = activeCounselorId
+      const facetsToApply = { ...selectedFacets };
+      if (roleMode === "counselor") {
+        facetsToApply["assigned_to"] = [activeCounselorId];
+      }
+
+      // Append Facets
+      Object.entries(facetsToApply).forEach(([key, values]) => {
+        if (values && values.length > 0) {
+          if (key === "status") {
+            params.set("status", values.join(","));
+          } else if (key === "assigned_to") {
+            params.set("assigned_to", values.join(","));
+          } else if (key === "campaign_id") {
+            params.set("campaign_id", values.join(","));
+          } else if (key === "disposition_id") {
+            params.set("disposition_id", values.join(","));
+          } else {
+            params.set(`facet_${key}`, values.join(","));
+          }
+        }
+      });
+
+      const res = await fetch(`/api/leads?${params.toString()}`);
+      if (res.status === 401) {
+        router.push("/login?reason=deactivated");
+        return;
+      }
+      const data: LeadsResponse = await res.json();
+
+      setLeads(data.leads || []);
+      setTotalFilteredCount(data.total || 0);
+      setTotalPages(data.totalPages || 1);
+      setFacets(data.facets || []);
+      if (data.summary) {
+        setSummary(data.summary);
+        setTotalCount(data.summary.totalLeads);
+      }
+    } catch (err) {
+      console.error("Failed to fetch leads:", err);
+      showToast("Error retrieving leads", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, selectedFacets, roleMode, activeCounselorId]);
+
+  useEffect(() => {
+    fetchLeads();
+  }, [fetchLeads]);
+
+  // Handle Facet Toggle
+  const handleFacetToggle = (key: string, value: string) => {
+    setSelectedFacets((prev) => {
+      const current = prev[key] || [];
+      const updated = current.includes(value)
+        ? current.filter((v) => v !== value)
+        : [...current, value];
+
+      if (updated.length === 0) {
+        const copy = { ...prev };
+        delete copy[key];
+        return copy;
+      }
+      return { ...prev, [key]: updated };
+    });
+    setPage(1);
+    setSelectedLeadIds([]);
+    setIsAllFilteredSelected(false);
+  };
+
+  const handleClearAllFilters = () => {
+    setActiveQueue("all");
+    setSearch("");
+    setDebouncedSearch("");
+    setSelectedFacets({});
+    setPage(1);
+    setSelectedLeadIds([]);
+    setIsAllFilteredSelected(false);
+  };
+
+  // Work Queue Selection
+  const handleSelectQueue = (queueId: WorkQueueId) => {
+    setActiveQueue(queueId);
+    setPage(1);
+    setSelectedLeadIds([]);
+    setIsAllFilteredSelected(false);
+
+    if (queueId === "all") {
+      setSelectedFacets({});
+    } else if (queueId === "callbacks") {
+      const cbDispIds = dispositions.filter((d) => d.requires_callback === 1).map((d) => d.id);
+      setSelectedFacets({ disposition_id: cbDispIds.length > 0 ? cbDispIds : ["disp_cb_requested", "disp_couns_booked", "disp_followup_needed"] });
+    } else if (queueId === "unassigned") {
+      setSelectedFacets({ assigned_to: ["unassigned"] });
+    } else if (queueId === "high_intent") {
+      const highIntentDispIds = dispositions.filter((d) => d.category === "positive" || d.score >= 60).map((d) => d.id);
+      setSelectedFacets({ disposition_id: highIntentDispIds.length > 0 ? highIntentDispIds : ["disp_adm_filled", "disp_couns_booked", "disp_high_intent"] });
+    } else if (queueId === "followups") {
+      setSelectedFacets({ status: ["Follow-up"] });
+    } else if (queueId === "unreached") {
+      const unreachedDispIds = dispositions.filter((d) => d.category === "unreachable").map((d) => d.id);
+      setSelectedFacets({ disposition_id: unreachedDispIds.length > 0 ? unreachedDispIds : ["disp_rnr", "disp_busy", "disp_switched_off"] });
+    }
+  };
+
+  // 1-Click Counselor Self-Allocation
+  const handleClaimLeads = async () => {
+    setClaimingLeads(true);
+    try {
+      const res = await fetch("/api/leads/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: activeCounselorId, count: 25 }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to claim leads");
+      showToast(data.message, "success");
+      fetchLeads();
+      loadMetaAndUsers();
+    } catch (err: any) {
+      showToast(err.message || "Failed to claim leads", "error");
+    } finally {
+      setClaimingLeads(false);
+    }
+  };
+
+  // Fast In-Table Call Outcome Logging
+  const handleQuickDispositionChange = async (leadId: number, dispositionId: string) => {
+    const disp = dispositions.find((d) => d.id === dispositionId);
+    setLeads((prev) =>
+      prev.map((l) => {
+        if (l.id === leadId) {
+          return {
+            ...l,
+            disposition_id: dispositionId,
+            disposition_name: disp?.name || l.disposition_name,
+            disposition_color: disp?.color || l.disposition_color,
+            status: disp?.category === "positive" ? "Interested" : l.status,
+          };
+        }
+        return l;
+      })
+    );
+
+    try {
+      const res = await fetch(`/api/leads/${leadId}/disposition`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disposition_id: dispositionId }),
+      });
+      if (!res.ok) throw new Error("Failed to update disposition");
+      showToast(`Logged outcome: ${disp?.name || "Updated"}`, "success");
+    } catch (err: any) {
+      showToast(err.message || "Failed to update disposition", "error");
+      fetchLeads();
+    }
+  };
+
+  // Fast Inline Cell Update Handler (Airtable-grade editing)
+  const handleInlineFieldUpdate = async (leadId: number, field: string, value: any) => {
+    // 1. Optimistic UI update
+    setLeads((prev) =>
+      prev.map((l) => {
+        if (l.id === leadId) {
+          if (field === "status") {
+            return { ...l, status: value };
+          }
+          if (field === "assigned_to") {
+            const userObj = users.find((u) => u.id === value);
+            return {
+              ...l,
+              assigned_to: value || null,
+              assigned_user_name: userObj?.name || null,
+              assigned_user_color: userObj?.avatar_color || null,
+            };
+          }
+          if (field === "score") {
+            return {
+              ...l,
+              raw_attributes: {
+                ...(l.raw_attributes || {}),
+                score: Number(value),
+              },
+            };
+          }
+        }
+        return l;
+      })
+    );
+
+    // 2. Persist in background
+    try {
+      const res = await fetch(`/api/leads/${leadId}/field`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field, value }),
+      });
+      if (!res.ok) throw new Error("Failed to update field");
+      showToast(`Updated ${field}`, "success");
+    } catch (err: any) {
+      showToast(err.message || "Update failed", "error");
+      fetchLeads();
+    }
+  };
+
+  // 1-Click Automated Lead Routing & Distribution Engine
+  const handleAutoDistribute = async (count: number = 250) => {
+    setIsAutoDistributing(true);
+    try {
+      const res = await fetch("/api/leads/auto-distribute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to auto-distribute");
+      showToast(data.message, "success");
+      fetchLeads();
+      loadMetaAndUsers();
+    } catch (err: any) {
+      showToast(err.message || "Failed to auto-distribute", "error");
+    } finally {
+      setIsAutoDistributing(false);
+    }
+  };
+
+  // Sequential Lead Navigation (Drawer Stepper)
+  const currentLeadIndex = selectedLeadForDetail
+    ? leads.findIndex((l) => l.id === selectedLeadForDetail.id)
+    : -1;
+  const hasPrevLead = currentLeadIndex > 0;
+  const hasNextLead = currentLeadIndex >= 0 && currentLeadIndex < leads.length - 1;
+
+  const handleNextLead = useCallback(() => {
+    if (hasNextLead && currentLeadIndex >= 0) {
+      setSelectedLeadForDetail(leads[currentLeadIndex + 1]);
+    }
+  }, [hasNextLead, currentLeadIndex, leads]);
+
+  const handlePrevLead = useCallback(() => {
+    if (hasPrevLead && currentLeadIndex > 0) {
+      setSelectedLeadForDetail(leads[currentLeadIndex - 1]);
+    }
+  }, [hasPrevLead, currentLeadIndex, leads]);
+
+  // Saved Views Handlers
+  const handleApplySavedView = (view: SavedView) => {
+    setSearch(view.search_query || view.search || "");
+    setSelectedFacets(view.filters || {});
+    if (view.sort_by) setSortBy(view.sort_by);
+    if (view.sort_order) setSortOrder(view.sort_order);
+    setPage(1);
+    showToast(`Applied saved view: "${view.name}"`, "success");
+  };
+
+  const handleSaveCurrentView = async (name: string) => {
+    try {
+      const res = await fetch("/api/saved-views", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          filters: selectedFacets,
+          sort_by: sortBy,
+          sort_order: sortOrder,
+          search_query: search,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save view");
+      setSavedViews((prev) => [data, ...prev]);
+      showToast(`Saved view "${name}"`, "success");
+    } catch (err: any) {
+      showToast(err.message || "Failed to save view", "error");
+    }
+  };
+
+  const handleDeleteSavedView = async (id: string) => {
+    try {
+      const res = await fetch(`/api/saved-views?id=${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete view");
+      setSavedViews((prev) => prev.filter((v) => v.id !== id));
+      showToast("Saved view removed", "success");
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete view", "error");
+    }
+  };
+
+  // Global Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        if (e.key === "Escape") {
+          target.blur();
+        }
+        return;
+      }
+
+      if (e.key === "/") {
+        e.preventDefault();
+        const searchInput = document.querySelector('input[placeholder*="Search leads"]') as HTMLInputElement;
+        if (searchInput) searchInput.focus();
+      } else if (e.key === "?") {
+        e.preventDefault();
+        setIsShortcutsOpen((prev) => !prev);
+      } else if (e.key === "1") {
+        handleSelectQueue("all");
+      } else if (e.key === "2") {
+        handleSelectQueue("callbacks");
+      } else if (e.key === "3") {
+        handleSelectQueue("unassigned");
+      } else if (e.key === "4") {
+        handleSelectQueue("high_intent");
+      } else if (e.key === "ArrowDown" || e.key === "j") {
+        e.preventDefault();
+        setActiveLeadIndex((prev) => (prev === null ? 0 : Math.min(leads.length - 1, prev + 1)));
+      } else if (e.key === "ArrowUp" || e.key === "k") {
+        e.preventDefault();
+        setActiveLeadIndex((prev) => (prev === null ? 0 : Math.max(0, prev - 1)));
+      } else if (e.key === "Enter" || e.key === "o") {
+        if (activeLeadIndex !== null && leads[activeLeadIndex]) {
+          e.preventDefault();
+          setSelectedLeadForDetail(leads[activeLeadIndex]);
+        }
+      } else if (e.key === "x" || e.key === " ") {
+        if (activeLeadIndex !== null && leads[activeLeadIndex]) {
+          e.preventDefault();
+          handleToggleLeadSelection(leads[activeLeadIndex].id);
+        }
+      } else if (e.key.toLowerCase() === "c") {
+        if (activeLeadIndex !== null && leads[activeLeadIndex]?.phone) {
+          e.preventDefault();
+          window.location.href = `tel:${leads[activeLeadIndex].phone}`;
+        }
+      } else if (e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        toggleFilterSidebar();
+      } else if (e.key.toLowerCase() === "t") {
+        e.preventDefault();
+        setIsTasksModalOpen((prev) => !prev);
+      } else if (e.key === "[" || (e.altKey && e.key === "ArrowLeft")) {
+        if (selectedLeadForDetail) {
+          e.preventDefault();
+          handlePrevLead();
+        }
+      } else if (e.key === "]" || (e.altKey && e.key === "ArrowRight")) {
+        if (selectedLeadForDetail) {
+          e.preventDefault();
+          handleNextLead();
+        }
+      } else if (e.key.toLowerCase() === "w") {
+        if (activeLeadIndex !== null && leads[activeLeadIndex]?.phone) {
+          e.preventDefault();
+          const cleanPhone = leads[activeLeadIndex].phone!.replace(/[^0-9]/g, "");
+          window.open(`https://wa.me/${cleanPhone}`, "_blank");
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [leads, activeLeadIndex, dispositions, toggleFilterSidebar, selectedLeadForDetail, handleNextLead, handlePrevLead]);
+
+  const handleToggleColumnVisibility = (key: string) => {
+    setVisibleColumns((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  };
+
+  // Selection Handlers
+  const handleToggleLeadSelection = (id: number) => {
+    setIsAllFilteredSelected(false);
+    setSelectedLeadIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const isAllPageSelected =
+    leads.length > 0 && leads.every((l) => selectedLeadIds.includes(l.id));
+
+  const handleToggleSelectAllPage = () => {
+    if (isAllPageSelected || isAllFilteredSelected) {
+      setSelectedLeadIds([]);
+      setIsAllFilteredSelected(false);
+    } else {
+      setSelectedLeadIds(leads.map((l) => l.id));
+      setIsAllFilteredSelected(false);
+    }
+  };
+
+  const handleSelectAllFiltered = () => {
+    setIsAllFilteredSelected(true);
+    setSelectedLeadIds(leads.map((l) => l.id));
+  };
+
+  const handleClearSelection = () => {
+    setSelectedLeadIds([]);
+    setIsAllFilteredSelected(false);
+  };
+
+  // Bulk Assignment Complete
+  const handleAssignComplete = (affected: number, message: string) => {
+    showToast(message, "success");
+    handleClearSelection();
+    fetchLeads();
+    loadMetaAndUsers();
+  };
+
+  // Bulk Status Change
+  const handleBulkStatusChange = async (status: string) => {
+    try {
+      const res = await fetch("/api/leads/bulk-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status,
+          lead_ids: isAllFilteredSelected ? undefined : selectedLeadIds,
+          apply_to_all_filtered: isAllFilteredSelected,
+          filter_params: isAllFilteredSelected ? getFilterParamsObject() : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      showToast(data.message, "success");
+      handleClearSelection();
+      fetchLeads();
+    } catch (err: any) {
+      showToast(err.message || "Failed to update status", "error");
+    }
+  };
+
+  // Bulk Delete
+  const handleBulkDelete = async () => {
+    const count = isAllFilteredSelected ? totalFilteredCount : selectedLeadIds.length;
+    if (!confirm(`Are you sure you want to permanently delete ${count.toLocaleString()} leads?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/leads/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lead_ids: isAllFilteredSelected ? undefined : selectedLeadIds,
+          apply_to_all_filtered: isAllFilteredSelected,
+          filter_params: isAllFilteredSelected ? getFilterParamsObject() : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      showToast(data.message, "success");
+      handleClearSelection();
+      fetchLeads();
+      loadMetaAndUsers();
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete leads", "error");
+    }
+  };
+
+  // Export CSV
+  const handleExportCsv = async () => {
+    try {
+      let leadsToExport = leads;
+
+      // If user selected all matching filtered leads or multiple items, fetch the filtered set
+      if (isAllFilteredSelected || (selectedLeadIds.length > leads.length)) {
+        showToast("Generating comprehensive CSV export...", "success");
+        const params = new URLSearchParams();
+        params.set("limit", "10000"); // export up to 10k in a batch
+        params.set("page", "1");
+        params.set("sortBy", sortBy);
+        params.set("sortOrder", sortOrder);
+        if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
+
+        const facetsToExport = { ...selectedFacets };
+        if (roleMode === "counselor") {
+          facetsToExport["assigned_to"] = [activeCounselorId];
+        }
+
+        Object.entries(facetsToExport).forEach(([k, vals]) => {
+          if (vals && vals.length > 0) {
+            if (k === "status") params.set("status", vals.join(","));
+            else if (k === "assigned_to") params.set("assigned_to", vals.join(","));
+            else if (k === "campaign_id") params.set("campaign_id", vals.join(","));
+            else if (k === "disposition_id") params.set("disposition_id", vals.join(","));
+            else params.set(`facet_${k}`, vals.join(","));
+          }
+        });
+
+        const res = await fetch(`/api/leads?${params.toString()}`);
+        const data = await res.json();
+        if (Array.isArray(data.leads) && data.leads.length > 0) {
+          leadsToExport = data.leads;
+        }
+      } else if (selectedLeadIds.length > 0) {
+        leadsToExport = leads.filter((l) => selectedLeadIds.includes(l.id));
+      }
+
+      if (leadsToExport.length === 0) {
+        showToast("No leads to export", "error");
+        return;
+      }
+
+      const headers = [
+        "Lead Code",
+        "Student Name",
+        "Phone",
+        "Email",
+        "Status",
+        "Call Outcome",
+        "Campaign",
+        "Assigned Counselor",
+        "Scheduled Callback",
+        "Registered Date",
+      ];
+      const dynamicKeys = schemaMeta.map((m) => m.key_name);
+      const allHeaders = [...headers, ...schemaMeta.map((m) => m.display_label)];
+
+      const rows = leadsToExport.map((l) => [
+        l.lead_code,
+        `"${(l.name || "").replace(/"/g, '""')}"`,
+        `"${(l.phone || "").replace(/"/g, '""')}"`,
+        `"${(l.email || "").replace(/"/g, '""')}"`,
+        `"${l.status}"`,
+        `"${l.disposition_name || "Uncontacted"}"`,
+        `"${l.campaign_name || "Direct / Organic"}"`,
+        `"${l.assigned_user_name || "Unallocated"}"`,
+        `"${l.callback_at ? new Date(l.callback_at).toLocaleString() : ""}"`,
+        `"${new Date(l.created_at).toLocaleDateString()}"`,
+        ...dynamicKeys.map((k) => `"${String(l.raw_attributes[k] ?? "").replace(/"/g, '""')}"`),
+      ]);
+
+      const csvString = "\uFEFF" + [allHeaders.join(","), ...rows.map((r) => r.join(","))].join("\r\n");
+      const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `dreamdesk_leads_export_${Date.now()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      showToast(`Exported ${leadsToExport.length.toLocaleString()} leads to CSV`, "success");
+    } catch (err: any) {
+      showToast(err.message || "Failed to export CSV", "error");
+    }
+  };
+
+  // Generate Sample Leads
+  const handleGenerateSampleLeads = async (count: number) => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/leads/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      showToast(data.message, "success");
+      fetchLeads();
+      loadMetaAndUsers();
+    } catch (err: any) {
+      showToast(err.message || "Failed to generate leads", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Single Lead Update Handlers
+  const handleUpdateLeadStatus = async (leadId: number, status: string) => {
+    try {
+      await fetch("/api/leads/bulk-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lead_ids: [leadId], status }),
+      });
+      showToast(`Updated status to "${status}"`, "success");
+      fetchLeads();
+      if (selectedLeadForDetail?.id === leadId) {
+        setSelectedLeadForDetail((prev) => (prev ? { ...prev, status } : null));
+      }
+    } catch (err: any) {
+      showToast(err.message || "Failed to update status", "error");
+    }
+  };
+
+  const handleAssignSingleLead = async (leadId: number, userId: string) => {
+    try {
+      await fetch("/api/leads/bulk-assign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "single",
+          lead_ids: [leadId],
+          single_user_id: userId || null,
+        }),
+      });
+      const assignedUser = users.find((u) => u.id === userId);
+      showToast(
+        userId ? `Assigned to ${assignedUser?.name || "Counselor"}` : "Unassigned lead",
+        "success"
+      );
+      fetchLeads();
+      loadMetaAndUsers();
+      if (selectedLeadForDetail?.id === leadId) {
+        setSelectedLeadForDetail((prev) =>
+          prev
+            ? {
+                ...prev,
+                assigned_to: userId || null,
+                assigned_user_name: assignedUser?.name || null,
+              }
+            : null
+        );
+      }
+    } catch (err: any) {
+      showToast(err.message || "Failed to assign lead", "error");
+    }
+  };
+
+  // Schema Meta Update
+  const handleUpdateHeader = async (keyName: string, updates: Partial<SchemaMeta>) => {
+    try {
+      const res = await fetch("/api/schema", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key_name: keyName, updates }),
+      });
+      if (!res.ok) throw new Error("Update failed");
+      showToast(`Header configuration saved`, "success");
+      loadMetaAndUsers();
+      fetchLeads();
+    } catch (err: any) {
+      showToast(err.message || "Failed to update header", "error");
+    }
+  };
+
+  const getFilterParamsObject = (): FilterParams => {
+    const facetsToApply = { ...selectedFacets };
+    if (roleMode === "counselor") {
+      facetsToApply["assigned_to"] = [activeCounselorId];
+    }
+
+    return {
+      search: debouncedSearch || undefined,
+      status: facetsToApply["status"],
+      assigned_to: facetsToApply["assigned_to"],
+      campaign_id: facetsToApply["campaign_id"],
+      disposition_id: facetsToApply["disposition_id"],
+      facets: Object.fromEntries(
+        Object.entries(facetsToApply).filter(
+          ([k]) => !["status", "assigned_to", "campaign_id", "disposition_id"].includes(k)
+        )
+      ),
+    };
+  };
+
+  if (authLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background text-foreground">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary animate-pulse shadow-sm">
+            <GraduationCap className="w-5 h-5" />
+          </div>
+          <p className="text-xs font-semibold text-muted-foreground animate-pulse">
+            Verifying staff permissions...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-screen bg-background overflow-hidden text-foreground">
+      {/* Toast Notification Banner */}
+      {toastMessage && (
+        <div className="fixed top-5 right-5 z-50 animate-in fade-in slide-in-from-top-4 duration-200">
+          <div
+            className={`px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-semibold border ${
+              toastMessage.type === "success"
+                ? "bg-card text-foreground border-emerald-500/40 shadow-emerald-500/10"
+                : "bg-destructive text-destructive-foreground border-destructive"
+            }`}
+          >
+            {toastMessage.type === "success" ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-white shrink-0" />
+            )}
+            <span>{toastMessage.text}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Global Command Center (Ctrl+K) */}
+      <CommandCenter
+        open={isCommandCenterOpen}
+        onOpenChange={setIsCommandCenterOpen}
+        onSelectView={(v) => {
+          if (v === "fields") {
+            setStudioTab("fields");
+            setCurrentView("fields");
+          } else if (v === "campaigns") {
+            setStudioTab("campaigns");
+            setCurrentView("campaigns");
+          } else if (v === "dispositions") {
+            setStudioTab("dispositions");
+            setCurrentView("dispositions");
+          } else if (v === "studio") {
+            setStudioTab("campaigns");
+            setCurrentView("campaigns");
+          } else {
+            setCurrentView(v);
+          }
+        }}
+        onSelectLead={(l) => setSelectedLeadForDetail(l)}
+        onOpenImport={() => setCurrentView("import")}
+        onOpenGenerate={() => handleGenerateSampleLeads(2500)}
+      />
+
+      {/* Modern Collapsible Sidebar */}
+      <AppSidebar
+        currentView={currentView}
+        onSelectView={(v) => {
+          if (v === "fields") {
+            setStudioTab("fields");
+            setCurrentView("fields");
+          } else if (v === "campaigns") {
+            setStudioTab("campaigns");
+            setCurrentView("campaigns");
+          } else if (v === "dispositions") {
+            setStudioTab("dispositions");
+            setCurrentView("dispositions");
+          } else {
+            setCurrentView(v);
+          }
+        }}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        totalLeadsCount={totalCount}
+        unassignedCount={summary.unassignedCount}
+        counselorsCount={users.length}
+        currentUser={currentUser}
+        allowedViews={permissions?.allowedViews}
+        onLogout={handleLogout}
+      />
+
+      {/* Main App Container */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Topbar */}
+        <header className="h-14 border-b border-border/80 bg-card/80 backdrop-blur-md px-6 flex items-center justify-between gap-4 shrink-0">
+          {/* Breadcrumb & Section Info */}
+          <div className="flex items-center gap-3">
+            <h1 className="text-base font-bold text-foreground capitalize flex items-center gap-2">
+              {currentView === "leads" && <GraduationCap className="w-5 h-5 text-primary" />}
+              {currentView === "dashboard" && <LayoutDashboard className="w-5 h-5 text-blue-500" />}
+              {currentView === "pipeline" && <Kanban className="w-5 h-5 text-violet-500" />}
+              {currentView === "campaigns" && <Target className="w-5 h-5 text-amber-500" />}
+              {currentView === "dispositions" && <Tag className="w-5 h-5 text-rose-500" />}
+              {currentView === "fields" && <SlidersHorizontal className="w-5 h-5 text-emerald-500" />}
+              {currentView === "tasks" && <Clock className="w-5 h-5 text-amber-500" />}
+              {currentView === "team" && <Users className="w-5 h-5 text-emerald-500" />}
+              {currentView === "import" && <Upload className="w-5 h-5 text-blue-500" />}
+              {currentView === "activity" && <History className="w-5 h-5 text-purple-500" />}
+              <span>
+                {currentView === "leads" && "Leads Workspace"}
+                {currentView === "dashboard" && "Dashboard & Analytics"}
+                {currentView === "pipeline" && "Pipeline & Kanban"}
+                {currentView === "campaigns" && "Campaigns & Marketing Outreach"}
+                {currentView === "dispositions" && "Call Dispositions & Outcomes"}
+                {currentView === "fields" && "Dynamic Schema & Fields Studio"}
+                {currentView === "tasks" && "Scheduled Tasks & Callbacks"}
+                {currentView === "team" && "Counselors & Team Directory"}
+                {currentView === "import" && "Batch CSV Ingestion & Field Mapping Studio"}
+                {currentView === "activity" && "Compliance & Activity Audit Trail"}
+              </span>
+            </h1>
+
+            {/* Quick Command Launcher Button */}
+            <button
+              onClick={() => setIsCommandCenterOpen(true)}
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-muted/40 hover:bg-muted text-xs text-muted-foreground transition-colors"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span>Search or jump to...</span>
+              <kbd className="ml-2 font-mono text-[10px] bg-background border px-1.5 py-0.5 rounded shadow-2xs">
+                Ctrl K
+              </kbd>
+            </button>
+          </div>
+
+          {/* Right Header Actions */}
+          <div className="flex items-center gap-2">
+            {/* Staff Identity & Role Switcher */}
+            {currentUser && (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "sm" }),
+                    "h-8 text-xs gap-1.5 font-medium cursor-pointer border-border/80 bg-card"
+                  )}
+                >
+                  <div
+                    className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-bold text-white shadow-2xs"
+                    style={{ backgroundColor: currentUser.avatar_color || "#3b82f6" }}
+                  >
+                    {currentUser.name.charAt(0)}
+                  </div>
+                  <span className="font-semibold text-foreground truncate max-w-[120px]">
+                    {currentUser.name}
+                  </span>
+                  <Badge variant="outline" className="text-[9px] py-0 px-1 border-primary/30 text-primary capitalize font-mono">
+                    {currentUser.role.replace("_", " ")}
+                  </Badge>
+                  <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-60 text-xs">
+                  <DropdownMenuLabel className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Staff Identity
+                  </DropdownMenuLabel>
+                  <div className="px-2 py-1.5 border-b border-border/60">
+                    <div className="font-semibold text-foreground truncate">{currentUser.name}</div>
+                    <div className="text-[10px] text-muted-foreground truncate">{currentUser.email}</div>
+                  </div>
+
+                  <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-1">
+                    Quick Role Switcher (Test)
+                  </DropdownMenuLabel>
+                  {users.map((u) => (
+                    <DropdownMenuItem
+                      key={u.id}
+                      onClick={() => handleSwitchUser(u)}
+                      className={`gap-2 cursor-pointer text-xs ${
+                        currentUser.id === u.id ? "bg-primary/10 font-semibold text-primary" : ""
+                      }`}
+                    >
+                      <div
+                        className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-bold text-white shrink-0 shadow-2xs"
+                        style={{ backgroundColor: u.avatar_color }}
+                      >
+                        {u.name.charAt(0)}
+                      </div>
+                      <span className="truncate flex-1">{u.name}</span>
+                      <span className="text-[9px] capitalize text-muted-foreground font-mono">
+                        {u.role.replace("_", " ")}
+                      </span>
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={handleLogout}
+                    className="gap-2 cursor-pointer text-xs text-rose-600 focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/20"
+                  >
+                    <LogOut className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Sign Out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* Perspective Selector (Admins & Team Leads Only) */}
+            {permissions?.canViewAllLeads ? (
+              <div className="flex items-center p-0.5 rounded-lg border bg-muted/40 text-xs">
+                <button
+                  onClick={() => setRoleMode("admin")}
+                  className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                    roleMode === "admin"
+                      ? "bg-background text-foreground shadow-2xs font-bold"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  All Leads
+                </button>
+                <button
+                  onClick={() => setRoleMode("counselor")}
+                  className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                    roleMode === "counselor"
+                      ? "bg-background text-foreground shadow-2xs font-bold"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Counselor View
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border bg-primary/5 border-primary/20 text-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="font-semibold text-primary">Private Desk</span>
+              </div>
+            )}
+
+            {/* Active Counselor Switcher (Visible in Counselor Mode for Supervisory Roles) */}
+            {roleMode === "counselor" && permissions?.canViewAllLeads && (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "sm" }),
+                    "h-8 text-xs gap-1.5 font-medium cursor-pointer border-primary/30 bg-primary/5"
+                  )}
+                >
+                  <div
+                    className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-bold text-white shadow-2xs"
+                    style={{
+                      backgroundColor:
+                        users.find((u) => u.id === activeCounselorId)?.avatar_color || "#3b82f6",
+                    }}
+                  >
+                    {(users.find((u) => u.id === activeCounselorId)?.name || "C").charAt(0)}
+                  </div>
+                  <span className="font-semibold text-foreground truncate max-w-[100px]">
+                    {users.find((u) => u.id === activeCounselorId)?.name || "Select Counselor"}
+                  </span>
+                  <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 text-xs">
+                  <DropdownMenuLabel className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Switch Active Counselor
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {users.map((u) => (
+                    <DropdownMenuItem
+                      key={u.id}
+                      onClick={() => setActiveCounselorId(u.id)}
+                      className={`gap-2 cursor-pointer text-xs ${
+                        activeCounselorId === u.id ? "bg-primary/10 font-semibold text-primary" : ""
+                      }`}
+                    >
+                      <div
+                        className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white shrink-0 shadow-2xs"
+                        style={{ backgroundColor: u.avatar_color }}
+                      >
+                        {u.name.charAt(0)}
+                      </div>
+                      <span className="truncate flex-1">{u.name}</span>
+                      <span className="text-[10px] font-mono text-muted-foreground font-semibold">
+                        {u.assigned_count || 0} leads
+                      </span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* Generate Test Data Dropdown (Admin Only) */}
+            {permissions?.canManageSchema && (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "sm" }),
+                    "h-8 text-xs gap-1.5 font-medium cursor-pointer"
+                  )}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-primary" />
+                  <span className="hidden sm:inline">Generate</span>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 text-xs">
+                  <DropdownMenuLabel className="text-xs font-semibold">
+                    Generate Student Leads
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => handleGenerateSampleLeads(500)} className="cursor-pointer">
+                    +500 Student Leads
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleGenerateSampleLeads(2500)} className="cursor-pointer">
+                    +2,500 Student Leads
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleGenerateSampleLeads(10000)} className="cursor-pointer">
+                    +10,000 High-Volume Batch
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleGenerateSampleLeads(50000)} className="cursor-pointer font-bold text-primary">
+                    ⚡ +50,000 Stress Test Batch
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* Scheduled Tasks & Callbacks Workspace Launcher */}
+            <Button
+              size="sm"
+              variant={currentView === "tasks" ? "secondary" : "outline"}
+              onClick={() => setCurrentView("tasks")}
+              className={`h-8 text-xs gap-1.5 font-medium border-border/80 hover:bg-muted ${
+                currentView === "tasks" ? "bg-amber-500/10 text-amber-600 border-amber-500/30" : ""
+              }`}
+              title="Open Scheduled Callbacks & Tasks Workspace (T)"
+            >
+              <Clock className="w-3.5 h-3.5 text-amber-500" />
+              <span className="hidden sm:inline">Tasks</span>
+            </Button>
+
+            {/* Duplicate Radar & Merge (Admin & Team Lead Only) */}
+            {permissions?.canViewAllLeads && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsDuplicatesModalOpen(true)}
+                className="h-8 text-xs gap-1.5 font-medium border-border/80 hover:bg-muted"
+                title="Scan & Merge Duplicate Leads"
+              >
+                <GitMerge className="w-3.5 h-3.5 text-indigo-500" />
+                <span className="hidden sm:inline">Duplicates</span>
+              </Button>
+            )}
+
+            {/* Ingestion & Field Mapping Studio (Admins & Team Leads Only) */}
+            {permissions?.canImportLeads && (
+              <Button
+                size="sm"
+                variant={currentView === "import" ? "secondary" : "outline"}
+                onClick={() => setCurrentView("import")}
+                className={`h-8 text-xs gap-1.5 font-medium border-border/80 hover:bg-muted ${
+                  currentView === "import" ? "bg-primary/10 text-primary border-primary/30" : ""
+                }`}
+                title="Open CSV Ingestion & Field Mapping Studio"
+              >
+                <Upload className="w-3.5 h-3.5 text-primary" />
+                <span className="hidden sm:inline">Import & Map</span>
+              </Button>
+            )}
+
+            {/* Filter Sidebar Toggle (Leads Workspace) */}
+            {currentView === "leads" && (
+              <Button
+                variant={filterSidebarOpen ? "secondary" : "outline"}
+                size="sm"
+                onClick={toggleFilterSidebar}
+                className={cn(
+                  "h-8 text-xs gap-1.5 font-medium cursor-pointer transition-colors",
+                  filterSidebarOpen
+                    ? "border-primary/40 bg-primary/10 text-primary font-semibold hover:bg-primary/15"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                title={filterSidebarOpen ? "Collapse Filter Panel (F)" : "Expand Filter Panel (F)"}
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Filters</span>
+                {Object.values(selectedFacets).some((vals) => vals && vals.length > 0) && (
+                  <Badge variant="default" className="h-4 px-1 text-[9px] rounded-full">
+                    {Object.values(selectedFacets).reduce((acc, v) => acc + (v?.length || 0), 0)}
+                  </Badge>
+                )}
+              </Button>
+            )}
+
+            {/* Dark / Light Theme Toggle */}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={toggleTheme}
+              className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg bg-card"
+              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            >
+              {isDark ? (
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
+              ) : (
+                <Moon className="w-3.5 h-3.5 text-slate-700" />
+              )}
+            </Button>
+          </div>
+        </header>
+
+        {/* View Routing Body with Docked Left Filter Sidebar */}
+        <div className="flex-1 flex min-h-0 overflow-hidden relative">
+          {/* Dedicated Left Filter Sidebar (docked next to main menu for leads workspace) */}
+          {currentView === "leads" && (
+            <FilterSidebar
+              collapsed={!filterSidebarOpen}
+              onToggleCollapse={toggleFilterSidebar}
+              facets={facets}
+              selectedFacets={selectedFacets}
+              onFacetToggle={handleFacetToggle}
+              onClearAllFilters={handleClearAllFilters}
+              schemaMeta={schemaMeta}
+              totalFilteredCount={totalFilteredCount}
+              totalCount={totalCount}
+              users={users}
+              isRestrictedCounselor={isRestrictedCounselor}
+            />
+          )}
+
+          <main className="flex-1 overflow-y-auto p-6 min-w-0">
+          {/* VIEW 1: LEADS WORKSPACE */}
+          {currentView === "leads" && (
+            <div className="space-y-4 max-w-7xl mx-auto">
+              {/* Executive Metrics Overview Bar - Strictly Scoped to User Role */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {/* Card 1: Total Leads */}
+                <div className="p-3.5 rounded-xl border border-border/70 bg-card shadow-2xs space-y-1">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                    <span>{isRestrictedCounselor ? "My Assigned Leads" : "Total Database Leads"}</span>
+                    <GraduationCap className="w-3.5 h-3.5 text-primary opacity-80" />
+                  </div>
+                  <div className="text-xl font-bold tracking-tight text-foreground font-sans tabular-nums">
+                    {summary.totalLeads.toLocaleString()}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+                    <span className="text-emerald-600 font-semibold font-mono text-[10px]">
+                      {totalFilteredCount < summary.totalLeads
+                        ? `${totalFilteredCount.toLocaleString()} filtered`
+                        : (isRestrictedCounselor ? "All assigned to your desk" : "All records in WAL")}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Card 2: Pending Follow-ups for Counselor vs Unallocated Pool for Admin */}
+                {isRestrictedCounselor ? (
+                  <div className="p-3.5 rounded-xl border border-border/70 bg-card shadow-2xs space-y-1">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                      <span>Pending Follow-ups</span>
+                      <Clock className="w-3.5 h-3.5 text-amber-500 opacity-80" />
+                    </div>
+                    <div className="text-xl font-bold tracking-tight text-amber-600 font-sans tabular-nums">
+                      {(summary.statusBreakdown["Follow-up"] || 0).toLocaleString()}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground flex items-center justify-between">
+                      <span>Requires call outreach</span>
+                      <button
+                        onClick={() => setSelectedFacets({ status: ["Follow-up"] })}
+                        className="text-primary hover:underline font-semibold text-[10px] cursor-pointer"
+                      >
+                        Filter Queue
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-xl border border-border/70 bg-card shadow-2xs space-y-1">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                      <span>Unallocated Pool</span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 ring-2 ring-amber-500/20" />
+                    </div>
+                    <div className="text-xl font-bold tracking-tight text-foreground font-sans tabular-nums">
+                      {summary.unassignedCount.toLocaleString()}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground flex items-center justify-between">
+                      <span>Awaiting counselor</span>
+                      {summary.unassignedCount > 0 && (
+                        <button
+                          onClick={() => {
+                            setSelectedFacets({ assigned_to: ["unassigned"] });
+                          }}
+                          className="text-primary hover:underline font-semibold text-[10px] cursor-pointer"
+                        >
+                          Filter Pool
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Card 3: High Intent Rate */}
+                <div className="p-3.5 rounded-xl border border-border/70 bg-card shadow-2xs space-y-1">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                    <span>{isRestrictedCounselor ? "High Intent Students" : "Interested / Admitted"}</span>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 opacity-80" />
+                  </div>
+                  <div className="text-xl font-bold tracking-tight text-emerald-600 font-sans tabular-nums">
+                    {((summary.statusBreakdown["Interested"] || 0) + (summary.statusBreakdown["Admitted"] || 0)).toLocaleString()}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+                    <span className="font-mono text-[10px] font-semibold text-emerald-600">
+                      {summary.totalLeads > 0
+                        ? `${(((summary.statusBreakdown["Interested"] || 0) + (summary.statusBreakdown["Admitted"] || 0)) / summary.totalLeads * 100).toFixed(1)}%`
+                        : "0%"}
+                    </span>
+                    <span>high intent rate</span>
+                  </div>
+                </div>
+
+                {/* Card 4: Outreach Progress for Counselor vs Counselor Team for Admin */}
+                {isRestrictedCounselor ? (
+                  <div className="p-3.5 rounded-xl border border-border/70 bg-card shadow-2xs space-y-1">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                      <span>Outreach Progress</span>
+                      <PhoneCall className="w-3.5 h-3.5 text-blue-500 opacity-80" />
+                    </div>
+                    <div className="text-xl font-bold tracking-tight text-foreground font-sans tabular-nums">
+                      {((summary.statusBreakdown["Contacted"] || 0) + (summary.statusBreakdown["Interested"] || 0) + (summary.statusBreakdown["Follow-up"] || 0) + (summary.statusBreakdown["Admitted"] || 0)).toLocaleString()}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground flex items-center justify-between">
+                      <span>
+                        {summary.totalLeads > 0
+                          ? `${((((summary.statusBreakdown["Contacted"] || 0) + (summary.statusBreakdown["Interested"] || 0) + (summary.statusBreakdown["Follow-up"] || 0) + (summary.statusBreakdown["Admitted"] || 0)) / summary.totalLeads) * 100).toFixed(0)}% reached`
+                          : "0% reached"}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-xl border border-border/70 bg-card shadow-2xs space-y-1">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                      <span>Counselor Team</span>
+                      <Users className="w-3.5 h-3.5 text-blue-500 opacity-80" />
+                    </div>
+                    <div className="text-xl font-bold tracking-tight text-foreground font-sans tabular-nums">
+                      {users.length} Counselors
+                    </div>
+                    <div className="text-[11px] text-muted-foreground flex items-center justify-between">
+                      <span>{summary.assignedCount.toLocaleString()} assigned</span>
+                      <button
+                        onClick={() => setIsTeamModalOpen(true)}
+                        className="text-primary hover:underline font-semibold text-[10px] cursor-pointer"
+                      >
+                        Manage
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Work Queue Tabs */}
+              <WorkQueueTabs
+                activeQueue={activeQueue}
+                onSelectQueue={handleSelectQueue}
+                unassignedCount={summary.unassignedCount}
+                callbacksCount={summary.statusBreakdown["Follow-up"] || 0}
+                myLeadsCount={summary.totalLeads}
+                roleMode={isRestrictedCounselor ? "counselor" : roleMode}
+                onClaimLeads={handleClaimLeads}
+                claimingLeads={claimingLeads}
+                onOpenTasks={() => setIsTasksModalOpen(true)}
+                onAutoDistribute={() => handleAutoDistribute(250)}
+                isAutoDistributing={isAutoDistributing}
+              />
+
+              <DynamicFacetToolbar
+                search={search}
+                onSearchChange={setSearch}
+                facets={facets}
+                selectedFacets={selectedFacets}
+                onFacetToggle={handleFacetToggle}
+                onClearAllFilters={handleClearAllFilters}
+                schemaMeta={schemaMeta}
+                visibleColumns={visibleColumns}
+                onToggleColumnVisibility={handleToggleColumnVisibility}
+                totalFilteredCount={totalFilteredCount}
+                totalCount={totalCount}
+                density={density}
+                onToggleDensity={() => setDensity((d) => (d === "compact" ? "comfortable" : "compact"))}
+                onOpenShortcuts={() => setIsShortcutsOpen(true)}
+                filterSidebarOpen={filterSidebarOpen}
+                onToggleFilterSidebar={toggleFilterSidebar}
+                savedViews={savedViews}
+                onApplySavedView={handleApplySavedView}
+                onSaveCurrentView={handleSaveCurrentView}
+                onDeleteSavedView={handleDeleteSavedView}
+              />
+
+              <LeadsTable
+                leads={leads}
+                schemaMeta={schemaMeta}
+                visibleColumns={visibleColumns}
+                selectedLeadIds={selectedLeadIds}
+                onToggleLeadSelection={handleToggleLeadSelection}
+                onToggleSelectAllPage={handleToggleSelectAllPage}
+                isAllPageSelected={isAllPageSelected}
+                totalFilteredCount={totalFilteredCount}
+                isAllFilteredSelected={isAllFilteredSelected}
+                onSelectAllFiltered={handleSelectAllFiltered}
+                onClearSelection={handleClearSelection}
+                onViewLeadDetails={(lead) => setSelectedLeadForDetail(lead)}
+                onQuickAssignLead={(lead) => {
+                  setSelectedLeadIds([lead.id]);
+                  setIsAssignModalOpen(true);
+                }}
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                onSortChange={(col) => {
+                  if (sortBy === col) {
+                    setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+                  } else {
+                    setSortBy(col);
+                    setSortOrder("desc");
+                  }
+                }}
+                users={users}
+                loading={loading}
+                dispositions={dispositions}
+                onQuickDispositionChange={handleQuickDispositionChange}
+                density={density}
+                activeLeadId={activeLeadIndex !== null && leads[activeLeadIndex] ? leads[activeLeadIndex].id : null}
+                onInlineUpdate={handleInlineFieldUpdate}
+              />
+
+              <PaginationBar
+                currentPage={page}
+                totalPages={totalPages}
+                totalItems={totalFilteredCount}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={(newSize) => {
+                  setPageSize(newSize);
+                  setPage(1);
+                }}
+              />
+            </div>
+          )}
+
+          {/* VIEW 2: DASHBOARD & INSIGHTS */}
+          {currentView === "dashboard" && (
+            <div className="max-w-7xl mx-auto">
+              <AnalyticsDashboard
+                totalCount={totalCount}
+                unassignedCount={summary.unassignedCount}
+                assignedCount={summary.assignedCount}
+                users={users}
+                facets={facets}
+                campaigns={campaigns}
+                dispositions={dispositions}
+                statusBreakdown={summary.statusBreakdown}
+                onNavigateToFilter={(key, val) => {
+                  setSelectedFacets({ [key]: [val] });
+                  setCurrentView("leads");
+                }}
+                currentUser={currentUser}
+              />
+            </div>
+          )}
+
+          {/* VIEW 3: PIPELINE & KANBAN */}
+          {currentView === "pipeline" && (
+            <div className="max-w-7xl mx-auto">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs text-muted-foreground">
+                  Interactive stage board. Move leads forward as counseling conversations progress.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setCurrentView("leads")}
+                  className="h-7 text-xs"
+                >
+                  Switch to Table View
+                </Button>
+              </div>
+
+              <PipelineKanbanView
+                leads={leads}
+                onViewLeadDetails={(lead) => setSelectedLeadForDetail(lead)}
+                onUpdateLeadStatus={handleUpdateLeadStatus}
+              />
+            </div>
+          )}
+
+          {/* VIEW 4A: DEDICATED CAMPAIGNS & SOURCES WORKSPACE */}
+          {currentView === "campaigns" && (
+            <div className="max-w-7xl mx-auto">
+              <CampaignsWorkspace
+                onFilterByCampaign={(campaignId, campaignName) => {
+                  setSelectedFacets({ campaign_id: [campaignId] });
+                  setCurrentView("leads");
+                }}
+                totalLeadsCount={totalCount}
+              />
+            </div>
+          )}
+
+          {/* VIEW 4B: DEDICATED CALL DISPOSITIONS & OUTCOMES WORKSPACE */}
+          {currentView === "dispositions" && (
+            <div className="max-w-7xl mx-auto">
+              <DispositionsWorkspace
+                onFilterByDisposition={(dispName) => {
+                  setSelectedFacets({ disposition: [dispName] });
+                  setCurrentView("leads");
+                }}
+              />
+            </div>
+          )}
+
+          {/* VIEW 4C: DEDICATED DYNAMIC SCHEMA & FIELDS STUDIO */}
+          {currentView === "fields" && (
+            <div className="max-w-7xl mx-auto">
+              <SchemaStudioWorkspace
+                schemaMeta={schemaMeta}
+                onSchemaChange={() => {
+                  loadMetaAndUsers();
+                  fetchLeads();
+                }}
+                totalLeadsCount={totalCount}
+              />
+            </div>
+          )}
+
+          {/* VIEW 4D: ARCHITECTURE LINKAGE STUDIO (FALLBACK/CROSS-MATRIX) */}
+          {currentView === "studio" && (
+            <div className="max-w-7xl mx-auto">
+              <CampaignsSchemaStudio
+                initialTab={studioTab}
+                schemaMeta={schemaMeta}
+                onSchemaChange={() => {
+                  loadMetaAndUsers();
+                  fetchLeads();
+                }}
+                onFilterByCampaign={(campaignId, campaignName) => {
+                  setSelectedFacets({ campaign_id: [campaignId] });
+                  setCurrentView("leads");
+                }}
+                totalLeadsCount={totalCount}
+              />
+            </div>
+          )}
+
+          {/* VIEW 5: DEDICATED TASKS & SCHEDULED CALLBACKS WORKSPACE */}
+          {currentView === "tasks" && (
+            <div className="max-w-7xl mx-auto">
+              <TasksWorkspace
+                roleMode={roleMode}
+                activeCounselorId={activeCounselorId}
+                users={users}
+                onSelectLeadById={async (leadId) => {
+                  const found = leads.find((l) => l.id === leadId);
+                  if (found) {
+                    setSelectedLeadForDetail(found);
+                  } else {
+                    try {
+                      const res = await fetch(`/api/leads?search=${leadId}&limit=1`);
+                      const data = await res.json();
+                      if (data.leads && data.leads.length > 0) {
+                        setSelectedLeadForDetail(data.leads[0]);
+                      }
+                    } catch (e) {
+                      console.error("Failed to load lead by id:", e);
+                    }
+                  }
+                }}
+                onOpenWhatsApp={(lead) => setWhatsAppTargetLead(lead)}
+              />
+            </div>
+          )}
+
+          {/* VIEW 6: DEDICATED COUNSELORS & TEAM WORKLOAD WORKSPACE */}
+          {currentView === "team" && (
+            <div className="max-w-7xl mx-auto">
+              <TeamWorkspace
+                users={users}
+                totalCount={totalCount}
+                unassignedCount={summary.unassignedCount}
+                assignedCount={summary.assignedCount}
+                currentUser={currentUser}
+                canManageTeam={permissions?.canManageTeam}
+                onUserAdded={() => {
+                  loadMetaAndUsers();
+                  showToast("Counselor added to roster", "success");
+                }}
+                onUserUpdated={() => {
+                  loadMetaAndUsers();
+                }}
+                onFilterByCounselor={(counselorId) => {
+                  setSelectedFacets({ assigned_to: [counselorId] });
+                  setCurrentView("leads");
+                }}
+                onAutoDistribute={() => handleAutoDistribute(250)}
+                isAutoDistributing={isAutoDistributing}
+              />
+            </div>
+          )}
+
+          {/* VIEW 7: DEDICATED BATCH CSV INGESTION & FIELD MAPPING STUDIO */}
+          {currentView === "import" && (
+            <div className="max-w-7xl mx-auto">
+              <ImportWorkspace
+                campaigns={campaigns}
+                schemaMeta={schemaMeta}
+                onImportComplete={(count, newHeaders) => {
+                  showToast(
+                    `Imported ${count.toLocaleString()} leads! ${
+                      newHeaders.length > 0 ? `Registered new fields: ${newHeaders.join(", ")}` : ""
+                    }`,
+                    "success"
+                  );
+                  fetchLeads();
+                  loadMetaAndUsers();
+                }}
+                onNavigateToLeads={() => setCurrentView("leads")}
+              />
+            </div>
+          )}
+
+          {/* VIEW 8: DEDICATED AUDIT & ACTIVITY LOGS WORKSPACE */}
+          {currentView === "activity" && (
+            <div className="max-w-7xl mx-auto">
+              <ActivityWorkspace />
+            </div>
+          )}
+        </main>
+      </div>
+    </div>
+
+      {/* Floating Sticky Bulk Actions Bar */}
+      <BulkActionBar
+        selectedCount={selectedLeadIds.length}
+        totalFilteredCount={totalFilteredCount}
+        isAllFilteredSelected={isAllFilteredSelected}
+        onSelectAllFiltered={handleSelectAllFiltered}
+        onClearSelection={handleClearSelection}
+        onOpenAssignModal={permissions?.canAssignLeads ? () => setIsAssignModalOpen(true) : undefined}
+        onBulkStatusChange={handleBulkStatusChange}
+        onBulkDelete={permissions?.canDeleteLeads ? handleBulkDelete : undefined}
+        onExportCsv={permissions?.canExportLeads ? handleExportCsv : undefined}
+      />
+
+      {/* Bulk Assignment Modal */}
+      <BulkAssignModal
+        isOpen={isAssignModalOpen}
+        onClose={() => setIsAssignModalOpen(false)}
+        users={users}
+        selectedLeadIds={selectedLeadIds}
+        totalFilteredCount={totalFilteredCount}
+        isAllFilteredSelected={isAllFilteredSelected}
+        currentFilterParams={getFilterParamsObject()}
+        onAssignComplete={handleAssignComplete}
+      />
+
+      {/* Enhanced Multi-Tab Lead Drawer */}
+      <EnhancedLeadDrawer
+        lead={selectedLeadForDetail}
+        isOpen={Boolean(selectedLeadForDetail)}
+        onClose={() => setSelectedLeadForDetail(null)}
+        users={users}
+        schemaMeta={schemaMeta}
+        onUpdateLeadStatus={handleUpdateLeadStatus}
+        onAssignLead={handleAssignSingleLead}
+        onLeadUpdated={(updatedLead) => {
+          setSelectedLeadForDetail(updatedLead);
+          setLeads((prev) =>
+            prev.map((l) => (l.id === updatedLead.id ? updatedLead : l))
+          );
+          fetchLeads();
+        }}
+        onNextLead={handleNextLead}
+        onPrevLead={handlePrevLead}
+        hasPrevLead={hasPrevLead}
+        hasNextLead={hasNextLead}
+        leadIndex={currentLeadIndex >= 0 ? currentLeadIndex + 1 : undefined}
+        totalLeadsCount={leads.length}
+      />
+
+      {/* Scheduled Tasks & Callbacks Modal */}
+      <TasksModal
+        isOpen={isTasksModalOpen}
+        onClose={() => setIsTasksModalOpen(false)}
+        roleMode={roleMode}
+        activeCounselorId={activeCounselorId}
+        onSelectLeadById={async (leadId) => {
+          const found = leads.find((l) => l.id === leadId);
+          if (found) {
+            setSelectedLeadForDetail(found);
+          } else {
+            try {
+              const res = await fetch(`/api/leads?search=${leadId}&limit=1`);
+              const data = await res.json();
+              if (data.leads && data.leads.length > 0) {
+                setSelectedLeadForDetail(data.leads[0]);
+              }
+            } catch (e) {
+              console.error("Failed to load lead by id:", e);
+            }
+          }
+          setIsTasksModalOpen(false);
+        }}
+      />
+
+      {/* CSV Import Modal */}
+      <ImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImportComplete={(count, newHeaders) => {
+          showToast(
+            `Imported ${count.toLocaleString()} leads! ${
+              newHeaders.length > 0
+                ? `Discovered new headers: ${newHeaders.join(", ")}`
+                : ""
+            }`,
+            "success"
+          );
+          fetchLeads();
+          loadMetaAndUsers();
+        }}
+      />
+
+      {/* Team Modal */}
+      <TeamModal
+        isOpen={isTeamModalOpen}
+        onClose={() => setIsTeamModalOpen(false)}
+        users={users}
+        totalAssignedLeads={summary.assignedCount}
+        currentUser={currentUser}
+        canManageTeam={permissions?.canManageTeam}
+        onUserAdded={() => {
+          loadMetaAndUsers();
+          showToast("Counselor added to team successfully", "success");
+        }}
+        onUserUpdated={() => {
+          loadMetaAndUsers();
+        }}
+      />
+
+      {/* Activity Logs Modal */}
+      <ActivityLogsModal
+        isOpen={isActivityModalOpen}
+        onClose={() => setIsActivityModalOpen(false)}
+      />
+
+      {/* Keyboard Shortcuts Cheat Sheet Modal */}
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsOpen}
+        onClose={() => setIsShortcutsOpen(false)}
+      />
+
+      {/* Duplicates Radar & Merge Modal */}
+      <DuplicatesModal
+        isOpen={isDuplicatesModalOpen}
+        onClose={() => setIsDuplicatesModalOpen(false)}
+        onMergeComplete={(mergedCount) => {
+          showToast(`Successfully merged ${mergedCount} duplicate record${mergedCount === 1 ? "" : "s"}`, "success");
+          fetchLeads();
+          loadMetaAndUsers();
+        }}
+      />
+
+      {/* Shared WhatsApp Template Messenger Modal */}
+      <WhatsAppModal
+        isOpen={whatsAppTargetLead !== null}
+        onClose={() => setWhatsAppTargetLead(null)}
+        lead={whatsAppTargetLead}
+        currentUser={users.find((u) => u.id === activeCounselorId) || null}
+      />
+    </div>
+  );
+}

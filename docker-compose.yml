@@ -1,0 +1,20 @@
+services:
+  dreamdesk-crm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dreamdesk-crm
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_DIR=/app/data
+      - DATABASE_PATH=/app/data/crm.db
+    volumes:
+      - crm-data:/app/data
+
+volumes:
+  crm-data:
+    driver: local

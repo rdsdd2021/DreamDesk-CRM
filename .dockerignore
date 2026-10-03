@@ -1,0 +1,10 @@
+node_modules
+.next
+.git
+.gitignore
+*.log
+scratch
+data/crm.db-shm
+data/crm.db-wal
+Dockerfile
+.dockerignore
