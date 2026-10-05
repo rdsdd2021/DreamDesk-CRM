@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -165,6 +166,19 @@ export function TasksModal({
             {activeTab === "upcoming" && renderTaskList(upcomingList, "upcoming")}
           </div>
         </Tabs>
+
+        <DialogFooter className="p-4 bg-muted/30 border-t border-border/60 flex items-center justify-between sm:justify-between">
+          <div className="text-xs text-muted-foreground">
+            Showing <span className="font-semibold text-foreground">{tasksData.totalCount}</span> scheduled follow-up tasks
+          </div>
+          <Button
+            type="button"
+            onClick={onClose}
+            className="text-xs font-semibold h-9 px-5 rounded-lg shadow-2xs bg-primary text-primary-foreground"
+          >
+            Close
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

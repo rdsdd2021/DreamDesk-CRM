@@ -1190,62 +1190,69 @@ export default function CRMPage() {
                 <DropdownMenuTrigger
                   className={cn(
                     buttonVariants({ variant: "outline", size: "sm" }),
-                    "h-8 text-xs gap-1.5 font-medium cursor-pointer border-border/80 bg-card"
+                    "h-9 text-xs gap-2 font-medium cursor-pointer border-border/80 bg-card hover:bg-muted/50 rounded-xl px-2.5 shadow-2xs"
                   )}
                 >
                   <div
-                    className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-bold text-white shadow-2xs"
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-2xs shrink-0"
                     style={{ backgroundColor: currentUser.avatar_color || "#3b82f6" }}
                   >
-                    {currentUser.name.charAt(0)}
+                    {currentUser.name.charAt(0).toUpperCase()}
                   </div>
                   <span className="font-semibold text-foreground truncate max-w-[120px]">
                     {currentUser.name}
                   </span>
-                  <Badge variant="outline" className="text-[9px] py-0 px-1 border-primary/30 text-primary capitalize font-mono">
+                  <Badge variant="outline" className="text-[10px] py-0.5 px-1.5 border-primary/30 text-primary capitalize font-medium rounded-md">
                     {currentUser.role.replace("_", " ")}
                   </Badge>
-                  <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                  <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-60 text-xs">
-                  <DropdownMenuLabel className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    Staff Identity
-                  </DropdownMenuLabel>
-                  <div className="px-2 py-1.5 border-b border-border/60">
-                    <div className="font-semibold text-foreground truncate">{currentUser.name}</div>
-                    <div className="text-[10px] text-muted-foreground truncate">{currentUser.email}</div>
+                <DropdownMenuContent align="end" className="w-64 p-1.5 text-xs rounded-xl shadow-xl">
+                  <div className="flex items-center gap-2.5 p-2 bg-muted/40 rounded-lg mb-1 border border-border/60">
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-xs"
+                      style={{ backgroundColor: currentUser.avatar_color || "#3b82f6" }}
+                    >
+                      {currentUser.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-foreground truncate text-xs">{currentUser.name}</div>
+                      <div className="text-[11px] text-muted-foreground truncate">{currentUser.email}</div>
+                    </div>
                   </div>
 
-                  <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-1">
+                  <DropdownMenuLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-1">
                     Quick Role Switcher (Test)
                   </DropdownMenuLabel>
-                  {users.map((u) => (
-                    <DropdownMenuItem
-                      key={u.id}
-                      onClick={() => handleSwitchUser(u)}
-                      className={`gap-2 cursor-pointer text-xs ${
-                        currentUser.id === u.id ? "bg-primary/10 font-semibold text-primary" : ""
-                      }`}
-                    >
-                      <div
-                        className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-bold text-white shrink-0 shadow-2xs"
-                        style={{ backgroundColor: u.avatar_color }}
+                  <div className="max-h-48 overflow-y-auto space-y-0.5">
+                    {users.map((u) => (
+                      <DropdownMenuItem
+                        key={u.id}
+                        onClick={() => handleSwitchUser(u)}
+                        className={`gap-2 cursor-pointer text-xs rounded-lg px-2 py-1.5 ${
+                          currentUser.id === u.id ? "bg-primary/10 font-semibold text-primary" : ""
+                        }`}
                       >
-                        {u.name.charAt(0)}
-                      </div>
-                      <span className="truncate flex-1">{u.name}</span>
-                      <span className="text-[9px] capitalize text-muted-foreground font-mono">
-                        {u.role.replace("_", " ")}
-                      </span>
-                    </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuSeparator />
+                        <div
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-2xs"
+                          style={{ backgroundColor: u.avatar_color }}
+                        >
+                          {u.name.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="truncate flex-1 font-medium">{u.name}</span>
+                        <span className="text-[10px] capitalize text-muted-foreground font-mono">
+                          {u.role.replace("_", " ")}
+                        </span>
+                      </DropdownMenuItem>
+                    ))}
+                  </div>
+                  <DropdownMenuSeparator className="my-1" />
                   <DropdownMenuItem
                     onClick={handleLogout}
-                    className="gap-2 cursor-pointer text-xs text-rose-600 focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/20"
+                    className="gap-2 cursor-pointer text-xs text-rose-600 focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/20 rounded-lg py-1.5 px-2"
                   >
-                    <LogOut className="w-3.5 h-3.5 text-rose-600" />
-                    <span>Sign Out</span>
+                    <LogOut className="w-4 h-4 text-rose-600" />
+                    <span className="font-semibold">Sign Out</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -1253,12 +1260,12 @@ export default function CRMPage() {
 
             {/* Perspective Selector (Admins & Team Leads Only) */}
             {permissions?.canViewAllLeads ? (
-              <div className="flex items-center p-0.5 rounded-lg border bg-muted/40 text-xs">
+              <div className="flex items-center p-0.5 rounded-xl border border-border/80 bg-muted/40 text-xs">
                 <button
                   onClick={() => setRoleMode("admin")}
-                  className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     roleMode === "admin"
-                      ? "bg-background text-foreground shadow-2xs font-bold"
+                      ? "bg-background text-foreground shadow-2xs"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -1266,9 +1273,9 @@ export default function CRMPage() {
                 </button>
                 <button
                   onClick={() => setRoleMode("counselor")}
-                  className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     roleMode === "counselor"
-                      ? "bg-background text-foreground shadow-2xs font-bold"
+                      ? "bg-background text-foreground shadow-2xs"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -1276,8 +1283,8 @@ export default function CRMPage() {
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border bg-primary/5 border-primary/20 text-xs">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border bg-primary/5 border-primary/20 text-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="font-semibold text-primary">Private Desk</span>
               </div>
             )}
@@ -1288,48 +1295,50 @@ export default function CRMPage() {
                 <DropdownMenuTrigger
                   className={cn(
                     buttonVariants({ variant: "outline", size: "sm" }),
-                    "h-8 text-xs gap-1.5 font-medium cursor-pointer border-primary/30 bg-primary/5"
+                    "h-9 text-xs gap-2 font-medium cursor-pointer border-primary/30 bg-primary/5 rounded-xl px-2.5 shadow-2xs"
                   )}
                 >
                   <div
-                    className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-bold text-white shadow-2xs"
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-2xs shrink-0"
                     style={{
                       backgroundColor:
                         users.find((u) => u.id === activeCounselorId)?.avatar_color || "#3b82f6",
                     }}
                   >
-                    {(users.find((u) => u.id === activeCounselorId)?.name || "C").charAt(0)}
+                    {(users.find((u) => u.id === activeCounselorId)?.name || "C").charAt(0).toUpperCase()}
                   </div>
-                  <span className="font-semibold text-foreground truncate max-w-[100px]">
+                  <span className="font-semibold text-foreground truncate max-w-[110px]">
                     {users.find((u) => u.id === activeCounselorId)?.name || "Select Counselor"}
                   </span>
-                  <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                  <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 text-xs">
-                  <DropdownMenuLabel className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                <DropdownMenuContent align="end" className="w-60 p-1.5 text-xs rounded-xl shadow-xl">
+                  <DropdownMenuLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-1">
                     Switch Active Counselor
                   </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {users.map((u) => (
-                    <DropdownMenuItem
-                      key={u.id}
-                      onClick={() => setActiveCounselorId(u.id)}
-                      className={`gap-2 cursor-pointer text-xs ${
-                        activeCounselorId === u.id ? "bg-primary/10 font-semibold text-primary" : ""
-                      }`}
-                    >
-                      <div
-                        className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white shrink-0 shadow-2xs"
-                        style={{ backgroundColor: u.avatar_color }}
+                  <DropdownMenuSeparator className="my-1" />
+                  <div className="max-h-48 overflow-y-auto space-y-0.5">
+                    {users.map((u) => (
+                      <DropdownMenuItem
+                        key={u.id}
+                        onClick={() => setActiveCounselorId(u.id)}
+                        className={`gap-2 cursor-pointer text-xs rounded-lg px-2 py-1.5 ${
+                          activeCounselorId === u.id ? "bg-primary/10 font-semibold text-primary" : ""
+                        }`}
                       >
-                        {u.name.charAt(0)}
-                      </div>
-                      <span className="truncate flex-1">{u.name}</span>
-                      <span className="text-[10px] font-mono text-muted-foreground font-semibold">
-                        {u.assigned_count || 0} leads
-                      </span>
-                    </DropdownMenuItem>
-                  ))}
+                        <div
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-2xs"
+                          style={{ backgroundColor: u.avatar_color }}
+                        >
+                          {u.name.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="truncate flex-1 font-medium">{u.name}</span>
+                        <span className="text-[10px] font-mono text-muted-foreground font-semibold">
+                          {u.assigned_count || 0} leads
+                        </span>
+                      </DropdownMenuItem>
+                    ))}
+                  </div>
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
@@ -1476,62 +1485,74 @@ export default function CRMPage() {
           {currentView === "leads" && (
             <div className="space-y-4 max-w-7xl mx-auto">
               {/* Executive Metrics Overview Bar - Strictly Scoped to User Role */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 {/* Card 1: Total Leads */}
-                <div className="p-3.5 rounded-xl border border-border/70 bg-card shadow-2xs space-y-1">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                    <span>{isRestrictedCounselor ? "My Assigned Leads" : "Total Database Leads"}</span>
-                    <GraduationCap className="w-3.5 h-3.5 text-primary opacity-80" />
+                <div className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card hover:border-primary/40 hover:shadow-sm transition-all duration-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      {isRestrictedCounselor ? "My Assigned Desk" : "Total Database"}
+                    </span>
+                    <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                      <GraduationCap className="w-4 h-4" />
+                    </div>
                   </div>
-                  <div className="text-xl font-bold tracking-tight text-foreground font-sans tabular-nums">
+                  <div className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground font-sans tabular-nums">
                     {summary.totalLeads.toLocaleString()}
                   </div>
-                  <div className="text-[11px] text-muted-foreground flex items-center gap-1">
-                    <span className="text-emerald-600 font-semibold font-mono text-[10px]">
+                  <div className="text-xs text-muted-foreground flex items-center gap-1.5 pt-0.5">
+                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold font-mono text-xs">
                       {totalFilteredCount < summary.totalLeads
-                        ? `${totalFilteredCount.toLocaleString()} filtered`
-                        : (isRestrictedCounselor ? "All assigned to your desk" : "All records in WAL")}
+                        ? `${totalFilteredCount.toLocaleString()} matching filters`
+                        : (isRestrictedCounselor ? "All assigned to you" : "All records in WAL")}
                     </span>
                   </div>
                 </div>
 
                 {/* Card 2: Pending Follow-ups for Counselor vs Unallocated Pool for Admin */}
                 {isRestrictedCounselor ? (
-                  <div className="p-3.5 rounded-xl border border-border/70 bg-card shadow-2xs space-y-1">
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                      <span>Pending Follow-ups</span>
-                      <Clock className="w-3.5 h-3.5 text-amber-500 opacity-80" />
+                  <div className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card hover:border-amber-500/40 hover:shadow-sm transition-all duration-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                        Pending Follow-ups
+                      </span>
+                      <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                        <Clock className="w-4 h-4" />
+                      </div>
                     </div>
-                    <div className="text-xl font-bold tracking-tight text-amber-600 font-sans tabular-nums">
+                    <div className="text-2xl sm:text-3xl font-bold tracking-tight text-amber-600 dark:text-amber-400 font-sans tabular-nums">
                       {(summary.statusBreakdown["Follow-up"] || 0).toLocaleString()}
                     </div>
-                    <div className="text-[11px] text-muted-foreground flex items-center justify-between">
+                    <div className="text-xs text-muted-foreground flex items-center justify-between pt-0.5">
                       <span>Requires call outreach</span>
                       <button
                         onClick={() => setSelectedFacets({ status: ["Follow-up"] })}
-                        className="text-primary hover:underline font-semibold text-[10px] cursor-pointer"
+                        className="text-primary hover:underline font-semibold text-xs cursor-pointer"
                       >
                         Filter Queue
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="p-3.5 rounded-xl border border-border/70 bg-card shadow-2xs space-y-1">
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                      <span>Unallocated Pool</span>
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 ring-2 ring-amber-500/20" />
+                  <div className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card hover:border-amber-500/40 hover:shadow-sm transition-all duration-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                        Unallocated Pool
+                      </span>
+                      <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                        <Clock className="w-4 h-4" />
+                      </div>
                     </div>
-                    <div className="text-xl font-bold tracking-tight text-foreground font-sans tabular-nums">
+                    <div className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground font-sans tabular-nums">
                       {summary.unassignedCount.toLocaleString()}
                     </div>
-                    <div className="text-[11px] text-muted-foreground flex items-center justify-between">
+                    <div className="text-xs text-muted-foreground flex items-center justify-between pt-0.5">
                       <span>Awaiting counselor</span>
                       {summary.unassignedCount > 0 && (
                         <button
                           onClick={() => {
                             setSelectedFacets({ assigned_to: ["unassigned"] });
                           }}
-                          className="text-primary hover:underline font-semibold text-[10px] cursor-pointer"
+                          className="text-primary hover:underline font-semibold text-xs cursor-pointer"
                         >
                           Filter Pool
                         </button>
@@ -1541,35 +1562,43 @@ export default function CRMPage() {
                 )}
 
                 {/* Card 3: High Intent Rate */}
-                <div className="p-3.5 rounded-xl border border-border/70 bg-card shadow-2xs space-y-1">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                    <span>{isRestrictedCounselor ? "High Intent Students" : "Interested / Admitted"}</span>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 opacity-80" />
+                <div className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card hover:border-emerald-500/40 hover:shadow-sm transition-all duration-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      {isRestrictedCounselor ? "High Intent Students" : "Interested & Admitted"}
+                    </span>
+                    <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
                   </div>
-                  <div className="text-xl font-bold tracking-tight text-emerald-600 font-sans tabular-nums">
+                  <div className="text-2xl sm:text-3xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 font-sans tabular-nums">
                     {((summary.statusBreakdown["Interested"] || 0) + (summary.statusBreakdown["Admitted"] || 0)).toLocaleString()}
                   </div>
-                  <div className="text-[11px] text-muted-foreground flex items-center gap-1">
-                    <span className="font-mono text-[10px] font-semibold text-emerald-600">
+                  <div className="text-xs text-muted-foreground flex items-center gap-1.5 pt-0.5">
+                    <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
                       {summary.totalLeads > 0
                         ? `${(((summary.statusBreakdown["Interested"] || 0) + (summary.statusBreakdown["Admitted"] || 0)) / summary.totalLeads * 100).toFixed(1)}%`
                         : "0%"}
                     </span>
-                    <span>high intent rate</span>
+                    <span>conversion pipeline</span>
                   </div>
                 </div>
 
                 {/* Card 4: Outreach Progress for Counselor vs Counselor Team for Admin */}
                 {isRestrictedCounselor ? (
-                  <div className="p-3.5 rounded-xl border border-border/70 bg-card shadow-2xs space-y-1">
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                      <span>Outreach Progress</span>
-                      <PhoneCall className="w-3.5 h-3.5 text-blue-500 opacity-80" />
+                  <div className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card hover:border-blue-500/40 hover:shadow-sm transition-all duration-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                        Outreach Progress
+                      </span>
+                      <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                        <PhoneCall className="w-4 h-4" />
+                      </div>
                     </div>
-                    <div className="text-xl font-bold tracking-tight text-foreground font-sans tabular-nums">
+                    <div className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground font-sans tabular-nums">
                       {((summary.statusBreakdown["Contacted"] || 0) + (summary.statusBreakdown["Interested"] || 0) + (summary.statusBreakdown["Follow-up"] || 0) + (summary.statusBreakdown["Admitted"] || 0)).toLocaleString()}
                     </div>
-                    <div className="text-[11px] text-muted-foreground flex items-center justify-between">
+                    <div className="text-xs text-muted-foreground flex items-center justify-between pt-0.5">
                       <span>
                         {summary.totalLeads > 0
                           ? `${((((summary.statusBreakdown["Contacted"] || 0) + (summary.statusBreakdown["Interested"] || 0) + (summary.statusBreakdown["Follow-up"] || 0) + (summary.statusBreakdown["Admitted"] || 0)) / summary.totalLeads) * 100).toFixed(0)}% reached`
@@ -1578,21 +1607,25 @@ export default function CRMPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="p-3.5 rounded-xl border border-border/70 bg-card shadow-2xs space-y-1">
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                      <span>Counselor Team</span>
-                      <Users className="w-3.5 h-3.5 text-blue-500 opacity-80" />
+                  <div className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card hover:border-blue-500/40 hover:shadow-sm transition-all duration-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                        Counselor Roster
+                      </span>
+                      <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                        <Users className="w-4 h-4" />
+                      </div>
                     </div>
-                    <div className="text-xl font-bold tracking-tight text-foreground font-sans tabular-nums">
+                    <div className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground font-sans tabular-nums">
                       {users.length} Counselors
                     </div>
-                    <div className="text-[11px] text-muted-foreground flex items-center justify-between">
+                    <div className="text-xs text-muted-foreground flex items-center justify-between pt-0.5">
                       <span>{summary.assignedCount.toLocaleString()} assigned</span>
                       <button
                         onClick={() => setIsTeamModalOpen(true)}
-                        className="text-primary hover:underline font-semibold text-[10px] cursor-pointer"
+                        className="text-primary hover:underline font-semibold text-xs cursor-pointer"
                       >
-                        Manage
+                        Manage Team
                       </button>
                     </div>
                   </div>

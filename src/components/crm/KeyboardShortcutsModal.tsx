@@ -7,8 +7,10 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Command, Keyboard } from "lucide-react";
 
 interface KeyboardShortcutsModalProps {
@@ -58,45 +60,58 @@ export function KeyboardShortcutsModal({
 }: KeyboardShortcutsModalProps) {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md p-0 overflow-hidden">
-        <DialogHeader className="p-4 pb-3 bg-muted/40 border-b">
-          <div className="flex items-center gap-2 text-primary font-semibold text-xs tracking-wider uppercase">
-            <Keyboard className="w-4 h-4" />
-            <span>Power User Shortcuts</span>
+      <DialogContent className="sm:max-w-md p-0 overflow-hidden border border-border/80 shadow-2xl rounded-2xl">
+        <DialogHeader className="p-5 pb-4 bg-muted/40 border-b border-border/60">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20">
+              <Keyboard className="w-4 h-4" />
+            </div>
+            <div>
+              <DialogTitle className="text-lg font-bold tracking-tight text-foreground">
+                Keyboard Shortcuts
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                Fly through hundreds of student leads quickly with hotkeys.
+              </DialogDescription>
+            </div>
           </div>
-          <DialogTitle className="text-base font-bold">
-            Keyboard Shortcuts Cheat Sheet
-          </DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground">
-            Fly through 500+ daily student leads without ever touching your mouse.
-          </DialogDescription>
         </DialogHeader>
 
-        <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+        <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
           {SHORTCUT_SECTIONS.map((sec) => (
             <div key={sec.title} className="space-y-2">
               <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                 {sec.title}
               </h4>
-              <div className="space-y-1.5">
+              <div className="space-y-1 rounded-xl border border-border/70 p-1.5 bg-muted/10">
                 {sec.shortcuts.map((sc) => (
                   <div
                     key={sc.desc}
-                    className="flex items-center justify-between text-xs py-1 px-2 rounded-md hover:bg-muted/40 transition-colors"
+                    className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg hover:bg-muted/50 transition-colors"
                   >
-                    <span className="text-foreground">{sc.desc}</span>
-                    <Badge
-                      variant="outline"
-                      className="font-mono text-[11px] font-semibold bg-muted/60 px-1.5 py-0.5 border-border/80 shadow-2xs"
-                    >
+                    <span className="text-foreground font-medium">{sc.desc}</span>
+                    <kbd className="font-mono text-[11px] font-bold bg-background border border-border/80 px-2 py-0.5 rounded-md shadow-2xs text-foreground">
                       {sc.key}
-                    </Badge>
+                    </kbd>
                   </div>
                 ))}
               </div>
             </div>
           ))}
         </div>
+
+        <DialogFooter className="p-4 bg-muted/30 border-t border-border/60 flex items-center justify-between sm:justify-between">
+          <span className="text-xs text-muted-foreground">
+            Press <kbd className="font-mono bg-background border px-1 py-0.5 rounded text-[10px]">?</kbd> anywhere to reopen
+          </span>
+          <Button
+            type="button"
+            onClick={onClose}
+            className="text-xs font-semibold h-9 px-5 rounded-lg shadow-2xs bg-primary text-primary-foreground"
+          >
+            Got it
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

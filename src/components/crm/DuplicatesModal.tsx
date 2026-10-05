@@ -117,21 +117,26 @@ export function DuplicatesModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl p-0 overflow-hidden max-h-[85vh] flex flex-col">
-        <DialogHeader className="p-4 pb-3 bg-muted/30 border-b shrink-0">
-          <div className="flex items-center gap-2 text-primary font-semibold text-xs tracking-wider uppercase">
-            <GitMerge className="w-4 h-4" />
-            <span>Intelligent Duplicate Radar & Merge Engine</span>
+      <DialogContent className="sm:max-w-4xl max-w-[95vw] p-0 overflow-hidden max-h-[85vh] flex flex-col border border-border/80 shadow-2xl rounded-2xl">
+        <DialogHeader className="p-5 pb-4 bg-muted/40 border-b border-border/60 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-500/20">
+              <GitMerge className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <DialogTitle className="text-lg font-bold tracking-tight text-foreground">
+                  Duplicate Records Scanner
+                </DialogTitle>
+                <Badge variant="outline" className="font-mono text-xs font-semibold px-2 py-0.5">
+                  {allClusters.length} Clusters ({data.totalDuplicateLeads} Leads)
+                </Badge>
+              </div>
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                Identify records sharing identical phone numbers or emails and consolidate their history with zero data loss.
+              </DialogDescription>
+            </div>
           </div>
-          <DialogTitle className="text-base font-bold flex items-center justify-between">
-            <span>Duplicate Records Scanner</span>
-            <Badge variant="outline" className="font-mono text-xs">
-              {allClusters.length} Duplicate Clusters ({data.totalDuplicateLeads} Leads)
-            </Badge>
-          </DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground">
-            Identify records sharing identical phone numbers or emails and consolidate their history.
-          </DialogDescription>
         </DialogHeader>
 
         {loading ? (
@@ -304,7 +309,7 @@ export function DuplicatesModal({
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
             <span>SQLite ACID Merge: Preserves all notes, picks highest score, and avoids data loss.</span>
           </div>
-          <Button variant="outline" size="sm" onClick={onClose} className="h-8 text-xs">
+          <Button variant="outline" size="sm" onClick={onClose} className="h-9 text-xs font-semibold px-4 rounded-lg">
             Close
           </Button>
         </DialogFooter>

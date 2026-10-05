@@ -142,19 +142,21 @@ export function ImportModal({
         }
       }}
     >
-      <DialogContent className="max-w-xl p-0 overflow-hidden">
-        <DialogHeader className="p-5 pb-3 bg-muted/40 border-b">
-          <div className="flex items-center gap-2 text-primary font-semibold text-xs tracking-wider uppercase">
-            <Upload className="w-4 h-4" />
-            <span>Streaming CSV Ingestion</span>
+      <DialogContent className="sm:max-w-xl p-0 overflow-hidden border border-border/80 shadow-2xl rounded-2xl">
+        <DialogHeader className="p-5 pb-4 bg-muted/40 border-b border-border/60">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20">
+              <Upload className="w-4 h-4" />
+            </div>
+            <div>
+              <DialogTitle className="text-lg font-bold tracking-tight text-foreground">
+                Import Student Leads
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                Upload any CSV spreadsheet. Columns will be automatically mapped to your faceted filters.
+              </DialogDescription>
+            </div>
           </div>
-          <DialogTitle className="text-xl font-bold">
-            Import Student Leads
-          </DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground">
-            Upload any CSV spreadsheet. All columns will be automatically mapped,
-            and any new headers will be dynamically added to your faceted filters.
-          </DialogDescription>
         </DialogHeader>
 
         <div className="p-5 space-y-4">
@@ -267,16 +269,16 @@ export function ImportModal({
           )}
         </div>
 
-        <DialogFooter className="p-4 bg-muted/30 border-t flex items-center justify-between sm:justify-between">
+        <DialogFooter className="p-4 bg-muted/30 border-t border-border/60 flex items-center justify-between sm:justify-between">
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             onClick={() => {
               onClose();
               resetState();
             }}
             disabled={loading}
-            className="text-xs"
+            className="text-xs font-medium h-9 px-4 rounded-lg"
           >
             Cancel
           </Button>
@@ -285,7 +287,7 @@ export function ImportModal({
             size="sm"
             onClick={handleExecuteImport}
             disabled={loading || parsedData.length === 0}
-            className="text-xs gap-1.5 font-semibold px-4"
+            className="text-xs gap-2 font-semibold h-9 px-5 rounded-lg shadow-2xs bg-primary text-primary-foreground"
           >
             {loading ? (
               <>
@@ -294,9 +296,9 @@ export function ImportModal({
               </>
             ) : (
               <>
-                <Upload className="w-3.5 h-3.5" />
+                <Upload className="w-4 h-4" />
                 <span>
-                  Import {parsedData.length > 0 ? `${parsedData.length.toLocaleString()} Leads` : ""}
+                  Import {parsedData.length > 0 ? `${parsedData.length.toLocaleString()} Leads` : "CSV"}
                 </span>
               </>
             )}

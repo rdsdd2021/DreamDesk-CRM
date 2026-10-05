@@ -141,39 +141,46 @@ export function WhatsAppModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg p-0 overflow-hidden">
-        <DialogHeader className="p-4 pb-3 bg-gradient-to-r from-emerald-600/10 via-emerald-500/5 to-transparent border-b">
-          <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-semibold text-xs tracking-wider uppercase">
-            <MessageSquare className="w-4 h-4" />
-            <span>WhatsApp Quick Messenger</span>
+      <DialogContent className="sm:max-w-lg p-0 overflow-hidden border border-border/80 shadow-2xl rounded-2xl">
+        <DialogHeader className="p-5 pb-4 bg-gradient-to-r from-emerald-600/10 via-emerald-500/5 to-transparent border-b border-border/60">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/20">
+              <MessageSquare className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <DialogTitle className="text-lg font-bold tracking-tight text-foreground truncate">
+                  WhatsApp: {lead.name || "Student"}
+                </DialogTitle>
+                <span className="font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 shrink-0">
+                  {lead.phone}
+                </span>
+              </div>
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                Personalized templates with automatic student token substitution.
+              </DialogDescription>
+            </div>
           </div>
-          <DialogTitle className="text-base font-bold flex items-center justify-between">
-            <span>Send to {lead.name || "Student"}</span>
-            <span className="font-mono text-xs font-normal text-muted-foreground">{lead.phone}</span>
-          </DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground">
-            Personalized dynamic templates with 1-click token replacement.
-          </DialogDescription>
         </DialogHeader>
 
-        <div className="p-4 space-y-3.5">
+        <div className="p-5 space-y-4">
           {/* Template Selector */}
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <label className="font-medium text-muted-foreground">Select Preset Template</label>
-              <Badge variant="outline" className="text-[10px] font-normal">
-                {templates.length} templates
-              </Badge>
+            <div className="flex items-center justify-between text-xs font-medium">
+              <label className="text-foreground font-semibold">Select Message Template</label>
+              <span className="text-[11px] text-muted-foreground">
+                {templates.length} available
+              </span>
             </div>
             <Select value={selectedTemplateId} onValueChange={handleSelectTemplate}>
-              <SelectTrigger className="h-8 text-xs">
+              <SelectTrigger className="h-9 text-xs rounded-xl bg-background border-border/80">
                 <SelectValue placeholder="Choose a template..." />
               </SelectTrigger>
               <SelectContent>
                 {templates.map((tpl) => (
                   <SelectItem key={tpl.id} value={tpl.id} className="text-xs">
-                    <span className="font-medium">{tpl.name}</span>
-                    <span className="text-muted-foreground ml-2 text-[10px]">({tpl.category})</span>
+                    <span className="font-semibold">{tpl.name}</span>
+                    <span className="text-muted-foreground ml-2 text-[11px]">({tpl.category})</span>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -183,45 +190,61 @@ export function WhatsAppModal({
           {/* Dynamic Message Box */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-xs">
-              <label className="font-medium text-muted-foreground">Message Preview</label>
-              <span className="text-[10px] text-muted-foreground font-mono">
+              <label className="font-semibold text-foreground">Message Preview</label>
+              <span className="text-[11px] text-muted-foreground font-mono">
                 {messageText.length} characters
               </span>
             </div>
             <Textarea
               value={messageText}
               onChange={(e) => setMessageText(e.target.value)}
-              rows={6}
-              className="text-xs leading-relaxed resize-none bg-muted/20 focus:bg-background"
+              rows={5}
+              className="text-xs leading-relaxed resize-none bg-background border-border/80 rounded-xl p-3 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 shadow-2xs"
             />
           </div>
 
           {/* Quick Tokens Pills */}
-          <div className="p-2.5 rounded-lg border bg-muted/30 space-y-1.5">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              Dynamic Tags Substituted:
+          <div className="p-3 rounded-xl border border-border/80 bg-muted/20 space-y-2">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+              <span>Dynamic Tokens Substituted:</span>
+              <span className="text-[10px] lowercase font-normal text-muted-foreground">(click to insert)</span>
             </div>
-            <div className="flex flex-wrap gap-1 text-[10px]">
-              <span className="px-1.5 py-0.5 rounded bg-background border font-mono">
-                name: <strong>{lead.name || "Student"}</strong>
-              </span>
-              <span className="px-1.5 py-0.5 rounded bg-background border font-mono">
-                stream: <strong>{String(lead.raw_attributes?.stream || "Academic")}</strong>
-              </span>
-              <span className="px-1.5 py-0.5 rounded bg-background border font-mono">
-                code: <strong>{lead.lead_code}</strong>
-              </span>
+            <div className="flex flex-wrap gap-1.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setMessageText((prev) => prev + " {name}")}
+                className="px-2 py-1 rounded-lg bg-background border border-border/80 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors font-mono text-[11px] cursor-pointer"
+                title="Click to insert {name}"
+              >
+                name: <strong className="text-foreground">{lead.name || "Student"}</strong>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMessageText((prev) => prev + " {stream}")}
+                className="px-2 py-1 rounded-lg bg-background border border-border/80 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors font-mono text-[11px] cursor-pointer"
+                title="Click to insert {stream}"
+              >
+                stream: <strong className="text-foreground">{String(lead.raw_attributes?.stream || "Academic")}</strong>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMessageText((prev) => prev + " {lead_code}")}
+                className="px-2 py-1 rounded-lg bg-background border border-border/80 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-colors font-mono text-[11px] cursor-pointer"
+                title="Click to insert {lead_code}"
+              >
+                code: <strong className="text-foreground">{lead.lead_code}</strong>
+              </button>
             </div>
           </div>
         </div>
 
-        <DialogFooter className="p-4 pt-3 border-t bg-muted/20 flex sm:flex-row items-center justify-between gap-2">
+        <DialogFooter className="p-4 border-t border-border/60 bg-muted/20 flex flex-row items-center justify-between gap-2">
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={handleCopy}
-            className="h-8 text-xs gap-1.5"
+            className="h-9 text-xs font-semibold gap-1.5 rounded-lg px-3.5"
           >
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
             <span>{copied ? "Copied" : "Copy Text"}</span>
@@ -230,10 +253,10 @@ export function WhatsAppModal({
           <div className="flex items-center gap-2">
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={onClose}
-              className="h-8 text-xs"
+              className="h-9 text-xs font-medium rounded-lg px-3"
             >
               Cancel
             </Button>
@@ -242,10 +265,10 @@ export function WhatsAppModal({
               size="sm"
               onClick={handleSendWhatsApp}
               disabled={!lead.phone || !messageText.trim()}
-              className="h-8 text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs"
+              className="h-9 text-xs font-semibold gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 shadow-2xs cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>Send WhatsApp</span>
+              <span>Launch WhatsApp</span>
             </Button>
           </div>
         </DialogFooter>

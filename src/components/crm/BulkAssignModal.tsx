@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Users, Shuffle, Sliders, UserCheck, Loader2, AlertCircle } from "lucide-react";
+import { Users, Shuffle, Sliders, UserCheck, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 
 interface BulkAssignModalProps {
   isOpen: boolean;
@@ -179,32 +179,32 @@ export function BulkAssignModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !loading && !open && onClose()}>
-      <DialogContent className="max-w-xl p-0 overflow-hidden">
-        <DialogHeader className="p-5 pb-3 bg-muted/40 border-b">
-          <div className="flex items-center gap-2 text-primary font-semibold text-xs tracking-wider uppercase">
-            <Users className="w-4 h-4" />
-            <span>High-Volume Bulk Allocation</span>
+      <DialogContent className="sm:max-w-xl p-0 overflow-hidden border border-border/80 shadow-2xl rounded-2xl">
+        <DialogHeader className="p-5 pb-4 bg-muted/40 border-b border-border/60">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20">
+              <Users className="w-4 h-4" />
+            </div>
+            <div>
+              <DialogTitle className="text-lg font-bold tracking-tight text-foreground">
+                Bulk Lead Allocation
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                Targeting <span className="font-semibold text-foreground">{availableCount.toLocaleString()} leads</span>
+                {isAllFilteredSelected ? " (all matching leads currently filtered in database)" : " selected from table"}
+              </DialogDescription>
+            </div>
           </div>
-          <DialogTitle className="text-xl font-bold">
-            Assign Student Leads
-          </DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground">
-            Targeting{" "}
-            <span className="font-semibold text-foreground">
-              {availableCount.toLocaleString()} leads
-            </span>
-            {isAllFilteredSelected && " (all matching leads currently filtered in database)"}
-          </DialogDescription>
         </DialogHeader>
 
         {errorMessage && (
-          <div className="mx-5 mt-4 p-2.5 rounded-lg bg-destructive/10 text-destructive border border-destructive/20 text-xs flex items-center gap-2">
+          <div className="mx-5 mt-4 p-3 rounded-xl bg-destructive/10 text-destructive border border-destructive/20 text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{errorMessage}</span>
+            <span className="font-medium">{errorMessage}</span>
           </div>
         )}
 
-        <div className="p-5">
+        <div className="p-5 overflow-y-auto max-h-[65vh]">
           <Tabs
             value={activeTab}
             onValueChange={(v) => {
@@ -212,18 +212,18 @@ export function BulkAssignModal({
               setErrorMessage(null);
             }}
           >
-            <TabsList className="grid grid-cols-3 mb-4 h-10">
-              <TabsTrigger value="auto" className="text-xs gap-1.5 font-medium">
-                <Shuffle className="w-3.5 h-3.5" />
+            <TabsList className="grid grid-cols-3 mb-4 h-10 p-1 bg-muted/60 rounded-xl">
+              <TabsTrigger value="auto" className="text-xs gap-1.5 font-semibold rounded-lg data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs">
+                <Shuffle className="w-3.5 h-3.5 text-primary" />
                 <span>Auto Balance</span>
               </TabsTrigger>
-              <TabsTrigger value="quota" className="text-xs gap-1.5 font-medium">
-                <Sliders className="w-3.5 h-3.5" />
+              <TabsTrigger value="quota" className="text-xs gap-1.5 font-semibold rounded-lg data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs">
+                <Sliders className="w-3.5 h-3.5 text-amber-500" />
                 <span>Custom Quota</span>
               </TabsTrigger>
-              <TabsTrigger value="single" className="text-xs gap-1.5 font-medium">
-                <UserCheck className="w-3.5 h-3.5" />
-                <span>Single User</span>
+              <TabsTrigger value="single" className="text-xs gap-1.5 font-semibold rounded-lg data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs">
+                <UserCheck className="w-3.5 h-3.5 text-emerald-500" />
+                <span>Single Agent</span>
               </TabsTrigger>
             </TabsList>
 
@@ -300,40 +300,40 @@ export function BulkAssignModal({
                   </Button>
                 </div>
 
-                <div className="max-h-44 overflow-y-auto space-y-1.5 border rounded-lg p-2 bg-muted/20">
+                <div className="max-h-48 overflow-y-auto space-y-1.5 border border-border/80 rounded-xl p-2 bg-muted/20">
                   {users.map((user) => {
                     const checked = selectedCounselorIds.includes(user.id);
                     return (
                       <div
                         key={user.id}
                         onClick={() => toggleCounselorSelection(user.id)}
-                        className={`flex items-center justify-between p-2 rounded-md cursor-pointer border transition-colors ${
+                        className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer border transition-all ${
                           checked
-                            ? "bg-accent border-primary/30"
-                            : "border-transparent hover:bg-accent/50"
+                            ? "bg-primary/10 border-primary/40 shadow-2xs text-foreground"
+                            : "border-transparent hover:bg-muted/60 text-muted-foreground"
                         }`}
                       >
-                        <div className="flex items-center gap-2.5">
-                          <Checkbox checked={checked} />
+                        <div className="flex items-center gap-3">
+                          <Checkbox checked={checked} className="rounded" />
                           <div
-                            className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-2xs"
                             style={{ backgroundColor: user.avatar_color || "#3b82f6" }}
                           >
                             {user.name.charAt(0)}
                           </div>
                           <div>
-                            <div className="text-xs font-medium text-foreground">{user.name}</div>
-                            <div className="text-[10px] text-muted-foreground capitalize">
+                            <div className="text-xs font-semibold text-foreground">{user.name}</div>
+                            <div className="text-[11px] text-muted-foreground capitalize">
                               {user.role.replace("_", " ")}
                             </div>
                           </div>
                         </div>
 
-                        <div className="text-right text-[11px] text-muted-foreground">
-                          <span className="font-semibold text-foreground">
+                        <div className="text-right text-xs">
+                          <span className="font-bold text-foreground">
                             {user.assigned_count?.toLocaleString() || 0}
                           </span>{" "}
-                          leads active
+                          <span className="text-[11px] text-muted-foreground">leads active</span>
                         </div>
                       </div>
                     );
@@ -343,12 +343,15 @@ export function BulkAssignModal({
 
               {/* Live Distribution Preview */}
               {selectedCounselorIds.length > 0 && (
-                <div className="bg-muted p-2.5 rounded-lg text-xs space-y-1">
-                  <div className="font-semibold text-foreground">Distribution Summary:</div>
-                  <div className="text-muted-foreground text-[11px]">
-                    Each of the <span className="font-semibold text-foreground">{selectedCounselorIds.length}</span> counselors will receive{" "}
-                    <span className="font-bold text-primary">~{perCounselorCount.toLocaleString()} leads</span>
-                    {remainderCount > 0 && ` (+1 lead for ${remainderCount} counselors)`}.
+                <div className="bg-primary/5 border border-primary/20 p-3 rounded-xl text-xs space-y-1">
+                  <div className="font-semibold text-foreground flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
+                    <span>Distribution Breakdown</span>
+                  </div>
+                  <div className="text-muted-foreground text-xs leading-relaxed">
+                    Each of the <span className="font-semibold text-foreground">{selectedCounselorIds.length}</span> selected counselors will receive{" "}
+                    <span className="font-bold text-primary font-mono text-xs">~{perCounselorCount.toLocaleString()} leads</span>
+                    {remainderCount > 0 && ` (plus 1 remaining lead for ${remainderCount} counselor${remainderCount > 1 ? "s" : ""})`}.
                   </div>
                 </div>
               )}
@@ -361,47 +364,46 @@ export function BulkAssignModal({
                   <Sliders className="w-3.5 h-3.5" />
                   <span>Custom Quotas per Counselor</span>
                 </div>
-                <p className="text-muted-foreground text-[11px] leading-relaxed">
-                  Enter exact quantities to assign to specific counselors. Remaining
-                  leads will stay unassigned.
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  Enter exact quantities to assign to specific counselors. Remaining leads will stay unassigned.
                 </p>
               </div>
 
               {/* Quota Progress */}
-              <div className="space-y-1.5 bg-muted/40 border rounded-lg p-3">
+              <div className="space-y-2 bg-muted/40 border border-border/80 rounded-xl p-3.5">
                 <div className="flex justify-between text-xs font-semibold">
-                  <span>Total Allocated</span>
-                  <span>
+                  <span className="text-foreground">Total Quota Allocated</span>
+                  <span className="font-mono text-primary font-bold">
                     {totalQuotaAllocated.toLocaleString()} / {availableCount.toLocaleString()} leads
                   </span>
                 </div>
-                <Progress value={quotaPercent} className="h-2" />
+                <Progress value={quotaPercent} className="h-2 rounded-full" />
                 <div className="flex justify-between text-[11px] text-muted-foreground pt-0.5">
-                  <span>{quotaPercent}% assigned</span>
+                  <span className="font-semibold text-foreground">{quotaPercent}% assigned</span>
                   <span>
-                    {Math.max(0, availableCount - totalQuotaAllocated).toLocaleString()} remaining
+                    {Math.max(0, availableCount - totalQuotaAllocated).toLocaleString()} leads remaining
                   </span>
                 </div>
               </div>
 
               {/* Counselors Quota Inputs */}
-              <div className="max-h-56 overflow-y-auto space-y-2 border rounded-lg p-2.5">
+              <div className="max-h-56 overflow-y-auto space-y-2 border border-border/80 rounded-xl p-2.5 bg-muted/10">
                 {users.map((user) => (
                   <div
                     key={user.id}
-                    className="flex items-center justify-between gap-3 p-2 rounded-lg bg-card border"
+                    className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-card border border-border/70 hover:border-border transition-colors shadow-2xs"
                   >
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <div
-                        className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-2xs"
                         style={{ backgroundColor: user.avatar_color || "#3b82f6" }}
                       >
                         {user.name.charAt(0)}
                       </div>
                       <div className="truncate">
-                        <div className="text-xs font-semibold truncate">{user.name}</div>
-                        <div className="text-[10px] text-muted-foreground">
-                          Active: {user.assigned_count?.toLocaleString() || 0}
+                        <div className="text-xs font-semibold text-foreground truncate">{user.name}</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          Currently has {user.assigned_count?.toLocaleString() || 0} leads
                         </div>
                       </div>
                     </div>
@@ -413,9 +415,9 @@ export function BulkAssignModal({
                         min={0}
                         value={quotas[user.id] || ""}
                         onChange={(e) => handleQuotaChange(user.id, e.target.value)}
-                        className="w-24 h-8 text-xs font-semibold text-right"
+                        className="w-24 h-8 text-xs font-semibold text-right rounded-lg bg-background"
                       />
-                      <span className="text-[11px] text-muted-foreground">leads</span>
+                      <span className="text-xs text-muted-foreground">leads</span>
                     </div>
                   </div>
                 ))}
@@ -429,7 +431,7 @@ export function BulkAssignModal({
                   <UserCheck className="w-3.5 h-3.5" />
                   <span>Assign to One Counselor</span>
                 </div>
-                <p className="text-muted-foreground text-[11px] leading-relaxed">
+                <p className="text-muted-foreground text-xs leading-relaxed">
                   Allocate all or a specific batch of matching leads to a single agent.
                 </p>
               </div>
@@ -439,12 +441,12 @@ export function BulkAssignModal({
                   Select Counselor
                 </label>
                 <Select
-                value={singleUserId}
-                onValueChange={(val) => {
-                  if (val) setSingleUserId(val);
-                }}
-              >
-                  <SelectTrigger className="h-9 text-xs">
+                  value={singleUserId}
+                  onValueChange={(val) => {
+                    if (val) setSingleUserId(val);
+                  }}
+                >
+                  <SelectTrigger className="h-9 text-xs rounded-lg">
                     <SelectValue placeholder="Choose counselor" />
                   </SelectTrigger>
                   <SelectContent>
@@ -465,14 +467,14 @@ export function BulkAssignModal({
                   <button
                     type="button"
                     onClick={() => setSingleAssignType("all")}
-                    className={`p-2.5 rounded-lg border text-left text-xs transition-colors ${
+                    className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
                       singleAssignType === "all"
-                        ? "border-primary bg-primary/10 font-semibold text-primary"
-                        : "border-border hover:bg-accent text-muted-foreground"
+                        ? "border-primary bg-primary/10 font-semibold text-primary shadow-2xs"
+                        : "border-border/80 hover:bg-muted/60 text-muted-foreground"
                     }`}
                   >
                     <div>All Leads</div>
-                    <div className="text-sm font-bold text-foreground">
+                    <div className="text-base font-bold text-foreground mt-0.5">
                       {availableCount.toLocaleString()}
                     </div>
                   </button>
@@ -480,10 +482,10 @@ export function BulkAssignModal({
                   <button
                     type="button"
                     onClick={() => setSingleAssignType("custom")}
-                    className={`p-2.5 rounded-lg border text-left text-xs transition-colors ${
+                    className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
                       singleAssignType === "custom"
-                        ? "border-primary bg-primary/10 font-semibold text-primary"
-                        : "border-border hover:bg-accent text-muted-foreground"
+                        ? "border-primary bg-primary/10 font-semibold text-primary shadow-2xs"
+                        : "border-border/80 hover:bg-muted/60 text-muted-foreground"
                     }`}
                   >
                     <div>Specific Count</div>
@@ -493,7 +495,7 @@ export function BulkAssignModal({
                       onChange={(e) => setSingleCustomCount(parseInt(e.target.value, 10) || 0)}
                       min={1}
                       max={availableCount}
-                      className="h-7 mt-1 text-xs font-bold"
+                      className="h-8 mt-1.5 text-xs font-bold rounded-lg bg-background"
                       onClick={(e) => e.stopPropagation()}
                     />
                   </button>
@@ -503,8 +505,8 @@ export function BulkAssignModal({
           </Tabs>
         </div>
 
-        <DialogFooter className="p-4 bg-muted/30 border-t flex items-center justify-between sm:justify-between">
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={loading} className="text-xs">
+        <DialogFooter className="p-4 bg-muted/30 border-t border-border/60 flex items-center justify-between sm:justify-between">
+          <Button variant="outline" size="sm" onClick={onClose} disabled={loading} className="text-xs font-medium h-9 px-4 rounded-lg">
             Cancel
           </Button>
 
@@ -512,7 +514,7 @@ export function BulkAssignModal({
             size="sm"
             onClick={handleExecuteAssignment}
             disabled={loading}
-            className="text-xs gap-1.5 font-semibold px-4"
+            className="text-xs gap-2 font-semibold h-9 px-5 rounded-lg shadow-2xs bg-primary text-primary-foreground"
           >
             {loading ? (
               <>
@@ -521,7 +523,7 @@ export function BulkAssignModal({
               </>
             ) : (
               <>
-                <UserCheck className="w-3.5 h-3.5" />
+                <UserCheck className="w-4 h-4" />
                 <span>
                   Confirm & Assign (
                   {activeTab === "auto"

@@ -8,8 +8,10 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { History, UserCheck, Tag, Trash2, Upload, Clock } from "lucide-react";
 
 interface ActivityLogsModalProps {
@@ -50,18 +52,21 @@ export function ActivityLogsModal({ isOpen, onClose }: ActivityLogsModalProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-xl p-0 overflow-hidden">
-        <DialogHeader className="p-5 pb-3 bg-muted/40 border-b">
-          <div className="flex items-center gap-2 text-primary font-semibold text-xs tracking-wider uppercase">
-            <History className="w-4 h-4" />
-            <span>Audit Trail</span>
+      <DialogContent className="sm:max-w-xl p-0 overflow-hidden border border-border/80 shadow-2xl rounded-2xl">
+        <DialogHeader className="p-5 pb-4 bg-muted/40 border-b border-border/60">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 border border-purple-500/20">
+              <History className="w-4 h-4" />
+            </div>
+            <div>
+              <DialogTitle className="text-lg font-bold tracking-tight text-foreground">
+                Activity & Audit Trail
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                Complete historical log of all bulk assignments, status changes, and data imports.
+              </DialogDescription>
+            </div>
           </div>
-          <DialogTitle className="text-xl font-bold">
-            Activity & Bulk Operations Log
-          </DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground">
-            Complete historical log of all bulk assignments, status shifts, and data imports.
-          </DialogDescription>
         </DialogHeader>
 
         <div className="p-5 max-h-[60vh] overflow-y-auto space-y-2.5">
@@ -100,6 +105,19 @@ export function ActivityLogsModal({ isOpen, onClose }: ActivityLogsModalProps) {
             ))
           )}
         </div>
+
+        <DialogFooter className="p-4 bg-muted/30 border-t border-border/60 flex items-center justify-between sm:justify-between">
+          <div className="text-xs text-muted-foreground">
+            Audit logs are immutable and cryptographically timestamped
+          </div>
+          <Button
+            type="button"
+            onClick={onClose}
+            className="text-xs font-semibold h-9 px-5 rounded-lg shadow-2xs bg-primary text-primary-foreground"
+          >
+            Close
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

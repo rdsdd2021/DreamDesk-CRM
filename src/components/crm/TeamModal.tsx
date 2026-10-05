@@ -8,6 +8,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -331,11 +332,24 @@ export function TeamModal({
                     )}
                   </div>
 
-                  <Progress value={isDeactivated ? 0 : percent} className="h-1.5" />
+                  <Progress value={isDeactivated ? 0 : percent} className="h-1.5 rounded-full" />
                 </div>
               );
             })}
           </div>
+
+          <DialogFooter className="p-4 bg-muted/30 border-t border-border/60 flex items-center justify-between sm:justify-between">
+            <div className="text-xs text-muted-foreground">
+              <span className="font-semibold text-foreground">{users.filter((u) => u.status !== "inactive").length}</span> active staff accounts
+            </div>
+            <Button
+              type="button"
+              onClick={onClose}
+              className="text-xs font-semibold h-9 px-5 rounded-lg shadow-2xs bg-primary text-primary-foreground"
+            >
+              Done
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
