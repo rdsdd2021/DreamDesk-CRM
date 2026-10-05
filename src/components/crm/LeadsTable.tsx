@@ -309,12 +309,12 @@ export function LeadsTable({
                         >
                           {lead.name || "Unnamed Student"}
                         </span>
-                        <Badge variant="outline" className="font-mono text-[9px] px-1 py-0 text-muted-foreground">
+                        <Badge variant="outline" className="font-mono text-[10px] font-semibold px-1.5 py-0.5 text-muted-foreground rounded-md">
                           {lead.lead_code}
                         </Badge>
                       </div>
-                      <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
-                        {rawAttrs.stream && <span className="font-medium text-foreground/85">{rawAttrs.stream}</span>}
+                      <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
+                        {rawAttrs.stream && <span className="font-medium text-foreground/90">{rawAttrs.stream}</span>}
                         {rawAttrs.city && (
                           <>
                             <span>•</span>
@@ -330,10 +330,10 @@ export function LeadsTable({
                     <DropdownMenuTrigger className="focus:outline-none cursor-pointer shrink-0">
                       <span className="inline-flex items-center gap-1 hover:ring-2 hover:ring-primary/20 rounded-md transition-all">
                         {getStatusBadge(lead.status)}
-                        <ChevronDown className="w-2.5 h-2.5 text-muted-foreground" />
+                        <ChevronDown className="w-3 h-3 text-muted-foreground" />
                       </span>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-40 text-xs">
+                    <DropdownMenuContent align="end" className="w-44 text-xs p-1.5 rounded-xl shadow-xl">
                       <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                         Change Stage
                       </div>
@@ -341,7 +341,7 @@ export function LeadsTable({
                         <DropdownMenuItem
                           key={st}
                           onClick={() => onInlineUpdate?.(lead.id, "status", st)}
-                          className={`gap-2 cursor-pointer text-xs ${lead.status === st ? "font-bold bg-primary/10 text-primary" : ""}`}
+                          className={`gap-2 cursor-pointer text-xs rounded-lg py-1.5 px-2 ${lead.status === st ? "font-bold bg-primary/10 text-primary" : ""}`}
                         >
                           {getStatusBadge(st)}
                         </DropdownMenuItem>
@@ -351,23 +351,23 @@ export function LeadsTable({
                 </div>
 
                 {/* Academic & Score Box */}
-                <div className="grid grid-cols-2 gap-2 text-xs bg-muted/30 p-2.5 rounded-xl border border-border/60">
+                <div className="grid grid-cols-2 gap-2 text-xs bg-muted/40 p-2.5 rounded-xl border border-border/70">
                   <div className="min-w-0">
-                    <span className="text-[10px] text-muted-foreground block font-medium">School / College</span>
-                    <span className="font-semibold text-foreground truncate block">{rawAttrs.school || "Not specified"}</span>
+                    <span className="text-[10px] text-muted-foreground block font-bold uppercase tracking-wider">School / College</span>
+                    <span className="font-semibold text-foreground truncate block mt-0.5">{rawAttrs.school || "Not specified"}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-muted-foreground block font-medium">Percentage / Score</span>
+                    <span className="text-[10px] text-muted-foreground block font-bold uppercase tracking-wider">Percentage / Score</span>
                     <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                       {rawAttrs.score ? (
-                        <span className="px-1.5 py-0.2 text-[10px] font-mono font-bold rounded bg-primary/10 text-primary border border-primary/20">
+                        <span className="px-1.5 py-0.5 text-xs font-mono font-bold rounded-md bg-primary/10 text-primary border border-primary/20">
                           {rawAttrs.score}
                         </span>
                       ) : (
-                        <span className="text-muted-foreground/60 italic text-[10px]">N/A</span>
+                        <span className="text-muted-foreground/60 italic text-xs">N/A</span>
                       )}
                       {rawAttrs.jee_percentile && (
-                        <span className="px-1.5 py-0.2 text-[9px] font-mono rounded bg-emerald-500/10 text-emerald-600 font-bold border border-emerald-500/20">
+                        <span className="px-1.5 py-0.5 text-xs font-mono rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20">
                           JEE {rawAttrs.jee_percentile}%
                         </span>
                       )}
@@ -770,11 +770,11 @@ export function LeadsTable({
                     {/* Student Name */}
                     {visibleColumns.includes("name") && (
                       <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          <div className="w-5 h-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
-                            {(lead.name || "S").charAt(0)}
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0 shadow-2xs border border-primary/20">
+                            {(lead.name || "S").charAt(0).toUpperCase()}
                           </div>
-                          <span className="font-semibold text-foreground truncate max-w-[150px] tracking-tight">
+                          <span className="font-bold text-foreground truncate max-w-[160px] tracking-tight hover:text-primary transition-colors">
                             {lead.name || "Unnamed Student"}
                           </span>
                         </div>
@@ -786,14 +786,14 @@ export function LeadsTable({
                       <TableCell>
                         <div className="space-y-0.5">
                           {lead.phone && (
-                            <div className="flex items-center gap-1.5 text-[11px] font-mono tabular-nums text-foreground/90 group/phone">
+                            <div className="flex items-center gap-2 text-xs font-mono tabular-nums text-foreground/90 group/phone">
                               <a
                                 href={`tel:${lead.phone}`}
                                 onClick={(e) => e.stopPropagation()}
-                                className="hover:text-primary hover:underline flex items-center gap-1"
+                                className="hover:text-primary hover:underline flex items-center gap-1 font-semibold"
                                 title="Click to call"
                               >
-                                <PhoneCall className="w-3 h-3 text-muted-foreground/70 group-hover/phone:text-primary" />
+                                <PhoneCall className="w-3.5 h-3.5 text-muted-foreground/70 group-hover/phone:text-primary" />
                                 <span>{lead.phone}</span>
                               </a>
                               <a
@@ -801,16 +801,16 @@ export function LeadsTable({
                                 target="_blank"
                                 rel="noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                className="opacity-0 group-hover/phone:opacity-100 p-0.5 hover:bg-emerald-500/10 text-emerald-600 rounded transition-opacity"
-                                title="WhatsApp"
+                                className="p-1 hover:bg-emerald-500/15 text-emerald-600 rounded-md transition-colors inline-flex items-center"
+                                title="Open WhatsApp"
                               >
-                                <MessageSquare className="w-2.5 h-2.5" />
+                                <MessageSquare className="w-3.5 h-3.5" />
                               </a>
                             </div>
                           )}
                           {lead.email && (
-                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate max-w-[150px]">
-                              <Mail className="w-2.5 h-2.5 text-muted-foreground/50 shrink-0" />
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground truncate max-w-[160px]">
+                              <Mail className="w-3 h-3 text-muted-foreground/60 shrink-0" />
                               <span className="truncate">{lead.email}</span>
                             </div>
                           )}
