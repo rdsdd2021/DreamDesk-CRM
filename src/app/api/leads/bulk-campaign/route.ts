@@ -22,14 +22,15 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { lead_ids, campaign_id, apply_to_all_filtered, filter_params } = body;
+    const { lead_ids, campaign_id, apply_to_all_filtered, filter_params, task_config } = body;
 
     const result = LeadsService.bulkUpdateCampaign(
       lead_ids || [],
       campaign_id || null,
       Boolean(apply_to_all_filtered),
       filter_params,
-      performedByName
+      performedByName,
+      task_config
     );
 
     return NextResponse.json(result);

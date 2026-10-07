@@ -12,8 +12,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Bookmark, Plus, X, Tag as TagIcon, CheckCircle2, Sparkles } from "lucide-react";
+import { TaskPriority, BulkTaskConfig } from "@/types/crm";
 
 interface BulkTagsModalProps {
   isOpen: boolean;
@@ -52,6 +54,12 @@ export function BulkTagsModal({
   const [customTagInput, setCustomTagInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Task scheduling options
+  const [createFollowupTask, setCreateFollowupTask] = useState(false);
+  const [taskPriority, setTaskPriority] = useState<TaskPriority>("normal");
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDueHours, setTaskDueHours] = useState(24);
+
   const effectiveCount = isAllFilteredSelected ? totalFilteredCount : selectedLeadIds.length;
 
   const handleTogglePreset = (tag: string) => {
@@ -75,8 +83,15 @@ export function BulkTagsModal({
   };
 
   const handleSubmit = async () => {
-    if (selectedTags.length === 0) return;
-    setSubmitting(true);
+    const taskConfigPayload: BulkTaskConfig | undefined = createFollowupTask
+      ? {
+          create_task: true,
+          title: taskTitle.trim() || `Follow up regarding tags: ${selectedTags.join(", ")}`,
+          priority: taskPriority,
+          due_in_hours: taskDueHours,
+        }
+      : undefined;
+
     try {
       const res = await fetch("/api/leads/bulk-tags", {
         method: "POST",
@@ -87,6 +102,7 @@ export function BulkTagsModal({
           filter_params: currentFilterParams,
           action,
           tags: selectedTags,
+          task_config: taskConfigPayload,
         }),
       });
 
@@ -225,6 +241,91 @@ export function BulkTagsModal({
               );
             })}
           </div>
+        </div>
+
+        {/* Optional Task Scheduling & Priority for Callers */}
+        <div className="p-3 rounded-xl border border-border/80 bg-muted/20 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="create-task-tags"
+                checked={createFollowupTask}
+                onCheckedChange={(c) => setCreateFollowupTask(Boolean(c))}
+              />
+              <label
+                htmlFor="create-task-tags"
+                className="text-xs font-bold text-foreground cursor-pointer select-none flex items-center gap-1"
+              >
+                <span>🔔 Schedule Tasks for Assigned Callers</span>
+              </label>
+            </div>
+            {createFollowupTask && (
+              <Badge variant="outline" className="text-[10px] font-mono capitalize">
+                {taskPriority}
+              </Badge>
+            )}
+          </div>
+
+          {createFollowupTask && (
+            <div className="space-y-2 pt-1 border-t border-border/40">
+              <div>
+                <label className="text-[11px] font-medium text-muted-foreground block mb-1">
+                  Task Title
+                </label>
+                <Input
+                  value={taskTitle}
+                  onChange={(e) => setTaskTitle(e.target.value)}
+                  placeholder={`Follow up regarding: ${selectedTags.slice(0, 3).join(", ") || "updated tags"}`}
+                  className="h-8 text-xs bg-background"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground block mb-1">
+                    Priority
+                  </label>
+                  <div className="grid grid-cols-4 gap-1">
+                    {[
+                      { key: "urgent", label: "Urgent", color: "text-red-600 border-red-500/40 bg-red-500/10" },
+                      { key: "high", label: "High", color: "text-amber-600 border-amber-500/40 bg-amber-500/10" },
+                      { key: "normal", label: "Normal", color: "text-blue-600 border-blue-500/40 bg-blue-500/10" },
+                      { key: "low", label: "Low", color: "text-zinc-600 border-zinc-500/40 bg-zinc-500/10" },
+                    ].map((p) => (
+                      <button
+                        type="button"
+                        key={p.key}
+                        onClick={() => setTaskPriority(p.key as TaskPriority)}
+                        className={`py-1 text-[10px] font-semibold rounded-md border text-center transition-all ${
+                          taskPriority === p.key
+                            ? `${p.color} ring-1 ring-primary/40 font-bold`
+                            : "border-border/60 text-muted-foreground hover:bg-muted/50"
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-medium text-muted-foreground block mb-1">
+                    Due Within
+                  </label>
+                  <select
+                    value={taskDueHours}
+                    onChange={(e) => setTaskDueHours(parseInt(e.target.value, 10))}
+                    className="w-full h-7 rounded-md border border-border/80 bg-background px-2 text-[11px] text-foreground focus:outline-none"
+                  >
+                    <option value={4}>4 Hours (Immediate)</option>
+                    <option value={12}>12 Hours (Same Day)</option>
+                    <option value={24}>24 Hours (Next Day)</option>
+                    <option value={48}>48 Hours (2 Days)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter className="pt-2 sm:pt-3 border-t border-border/70 flex sm:justify-between items-center gap-2">

@@ -22,8 +22,10 @@ import {
   UserScope,
   AnalyticsReportParams,
   AnalyticsReportData,
+  BulkTaskConfig,
 } from "@/types/crm";
 import { PolicyService } from "@/lib/services/policyService";
+import { TasksService } from "@/lib/services/tasksService";
 
 export class LeadsService {
   private static _facetCacheMap = new Map<string, { data: FacetGroup[]; timestamp: number }>();
@@ -707,6 +709,19 @@ export class LeadsService {
       resultMessage += ` (${skippedLockedCount} protected leads contacted in the last 7 days were preserved).`;
     } else if (isPrivileged && policyResult.lockedIds.length > 0) {
       resultMessage += ` (Included ${policyResult.lockedIds.length} protected leads via Admin/Team Leader override).`;
+    }
+
+    // Optional: Create Follow-up Tasks and notify Callers
+    if (request.task_config?.create_task && finalLeadIds.length > 0) {
+      const taskRes = TasksService.createBulkTasksForLeads({
+        leadIds: finalLeadIds,
+        taskConfig: request.task_config,
+        createdBy: performerName,
+        sourceAction: "bulk_assign",
+      });
+      if (taskRes.tasksCreated > 0) {
+        resultMessage += ` Scheduled ${taskRes.tasksCreated} [${request.task_config.priority.toUpperCase()}] priority task(s) for ${taskRes.counselorCount} caller(s).`;
+      }
     }
 
     return {
@@ -2966,7 +2981,8 @@ export class LeadsService {
     campaignId: string | null,
     applyToAllFiltered?: boolean,
     filterParams?: FilterParams,
-    performedByName: string = "Admin"
+    performedByName: string = "Admin",
+    taskConfig?: BulkTaskConfig
   ): { affectedCount: number; message: string } {
     const db = getDatabase();
     let targetIds = leadIds;
@@ -3028,9 +3044,24 @@ export class LeadsService {
     tx();
     this.invalidateCache();
 
+    let resultMessage = `Successfully re-attributed ${targetIds.length} leads to "${campName}"!`;
+
+    // Optional: Create Follow-up Tasks and notify Callers
+    if (taskConfig?.create_task && targetIds.length > 0) {
+      const taskRes = TasksService.createBulkTasksForLeads({
+        leadIds: targetIds,
+        taskConfig,
+        createdBy: performedByName,
+        sourceAction: "bulk_campaign",
+      });
+      if (taskRes.tasksCreated > 0) {
+        resultMessage += ` Scheduled ${taskRes.tasksCreated} [${taskConfig.priority.toUpperCase()}] priority task(s) for ${taskRes.counselorCount} assigned caller(s).`;
+      }
+    }
+
     return {
       affectedCount: targetIds.length,
-      message: `Successfully re-attributed ${targetIds.length} leads to "${campName}"!`,
+      message: resultMessage,
     };
   }
 
@@ -3043,6 +3074,8 @@ export class LeadsService {
     tags: string[];
     apply_to_all_filtered?: boolean;
     filter_params?: FilterParams;
+    task_config?: BulkTaskConfig;
+    performed_by_name?: string;
   }): { affectedCount: number; message: string } {
     const db = getDatabase();
     let targetIds = request.lead_ids || [];
@@ -3075,8 +3108,10 @@ export class LeadsService {
     const updateStmt = db.prepare(`UPDATE leads SET tags = @tags, updated_at = CURRENT_TIMESTAMP WHERE id = @id`);
     const insertActivity = db.prepare(`
       INSERT INTO lead_activities (lead_id, activity_type, title, description, new_value, performed_by_name)
-      VALUES (?, 'field_update', ?, ?, ?, 'Counselor')
+      VALUES (?, 'field_update', ?, ?, ?, ?)
     `);
+
+    const performerName = request.performed_by_name || "Counselor";
 
     const tx = db.transaction(() => {
       for (const row of rows) {
@@ -3101,21 +3136,36 @@ export class LeadsService {
           ? `Added tags [${targetTags.join(", ")}] via bulk action. Active: [${nextTags.join(", ")}]`
           : `Removed tags [${targetTags.join(", ")}] via bulk action. Active: [${nextTags.join(", ")}]`;
 
-        insertActivity.run(row.id, title, desc, nextTags.join(", "));
+        insertActivity.run(row.id, title, desc, nextTags.join(", "), performerName);
       }
 
       db.prepare(`
         INSERT INTO activity_logs (action_type, description, affected_count, performed_by)
-        VALUES ('bulk_tags', 'Updated tags for ' || @count || ' leads', @count, 'Counselor')
-      `).run({ count: targetIds.length });
+        VALUES ('bulk_tags', 'Updated tags for ' || @count || ' leads', @count, @performedBy)
+      `).run({ count: targetIds.length, performedBy: performerName });
     });
 
     tx();
     this.invalidateCache();
 
+    let resultMessage = `Successfully updated tags for ${targetIds.length} leads (${request.action}: ${targetTags.join(", ")})!`;
+
+    // Optional: Create Follow-up Tasks and notify Callers
+    if (request.task_config?.create_task && targetIds.length > 0) {
+      const taskRes = TasksService.createBulkTasksForLeads({
+        leadIds: targetIds,
+        taskConfig: request.task_config,
+        createdBy: performerName,
+        sourceAction: "bulk_tags",
+      });
+      if (taskRes.tasksCreated > 0) {
+        resultMessage += ` Scheduled ${taskRes.tasksCreated} [${request.task_config.priority.toUpperCase()}] priority task(s) for ${taskRes.counselorCount} assigned caller(s).`;
+      }
+    }
+
     return {
       affectedCount: targetIds.length,
-      message: `Successfully updated tags for ${targetIds.length} leads (${request.action}: ${targetTags.join(", ")})!`,
+      message: resultMessage,
     };
   }
 

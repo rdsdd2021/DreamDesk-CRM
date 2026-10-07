@@ -36,6 +36,7 @@ interface BulkActionBarProps {
   onExportCsv?: () => void;
   campaigns?: Campaign[];
   onBulkCampaignChange?: (campaignId: string | null) => void;
+  onOpenBulkCampaignModal?: () => void;
   onOpenBulkTagsModal?: () => void;
 }
 
@@ -51,6 +52,7 @@ export function BulkActionBar({
   onExportCsv,
   campaigns = [],
   onBulkCampaignChange,
+  onOpenBulkCampaignModal,
   onOpenBulkTagsModal,
 }: BulkActionBarProps) {
   if (selectedCount === 0 && !isAllFilteredSelected) {
@@ -127,8 +129,18 @@ export function BulkActionBar({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Change Campaign Dropdown */}
-          {onBulkCampaignChange && (
+          {/* Change Campaign (Modal or Dropdown) */}
+          {onOpenBulkCampaignModal ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onOpenBulkCampaignModal}
+              className="h-8 gap-1.5 text-xs font-medium cursor-pointer"
+            >
+              <Target className="w-3.5 h-3.5 text-amber-500" />
+              <span>Change Campaign</span>
+            </Button>
+          ) : onBulkCampaignChange && (
             <DropdownMenu>
               <DropdownMenuTrigger
                 className={cn(

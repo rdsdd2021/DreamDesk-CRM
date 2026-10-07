@@ -149,6 +149,52 @@ export interface CallbackTask {
   notes: string | null;
 }
 
+export type TaskPriority = 'urgent' | 'high' | 'normal' | 'low';
+export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
+
+export interface CrmTask {
+  id: number;
+  lead_id: number;
+  lead_code: string;
+  lead_name: string | null;
+  lead_phone: string | null;
+  lead_status: string;
+  assigned_to: string;
+  assigned_user_name?: string | null;
+  assigned_user_color?: string | null;
+  title: string;
+  description: string | null;
+  priority: TaskPriority;
+  due_date: string;
+  status: TaskStatus;
+  created_by: string;
+  source_action: string;
+  completed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserNotification {
+  id: number;
+  user_id: string;
+  title: string;
+  message: string;
+  type: 'task' | 'policy' | 'lead_assignment' | 'system';
+  priority: TaskPriority;
+  metadata?: any;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface BulkTaskConfig {
+  create_task: boolean;
+  title: string;
+  description?: string;
+  priority: TaskPriority;
+  due_date?: string;
+  due_in_hours?: number;
+}
+
 export interface FacetOption {
   value: string;
   label?: string;
@@ -203,6 +249,7 @@ export interface BulkAssignRequest {
   selected_user_ids?: string[];
   user_quotas?: Record<string, number>; // userId -> count
   override_policy?: boolean;
+  task_config?: BulkTaskConfig;
 }
 
 export interface ActivityLog {

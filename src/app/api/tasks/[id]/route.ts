@@ -1,0 +1,75 @@
+import { NextRequest, NextResponse } from "next/server";
+import { TasksService } from "@/lib/services/tasksService";
+import { AuthService } from "@/lib/services/authService";
+import { getDatabase } from "@/lib/db/database";
+
+export const dynamic = "force-dynamic";
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const taskIdNum = parseInt(id, 10);
+    if (isNaN(taskIdNum)) {
+      return NextResponse.json({ error: "Invalid task ID" }, { status: 400 });
+    }
+
+    const sessionId = request.cookies.get("dreamdesk_session")?.value;
+    let performedByName = "Counselor";
+    if (sessionId) {
+      const session = AuthService.getSession(sessionId);
+      if (session?.user?.name) performedByName = session.user.name;
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const { status = "completed" } = body;
+
+    const db = getDatabase();
+
+    // If ID is negative, it represents a callback on lead (id = -lead_id)
+    if (taskIdNum < 0) {
+      const leadId = Math.abs(taskIdNum);
+      db.prepare(`
+        UPDATE leads
+        SET callback_at = NULL, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(leadId);
+
+      db.prepare(`
+        INSERT INTO lead_activities (lead_id, activity_type, title, description, new_value, performed_by_name)
+        VALUES (?, 'call', 'Scheduled Callback Completed', 'Counselor attended to scheduled callback follow-up', 'Completed', ?)
+      `).run(leadId, performedByName);
+
+      return NextResponse.json({
+        success: true,
+        message: "Callback marked as completed",
+        taskId: taskIdNum,
+      });
+    }
+
+    if (status === "completed") {
+      const result = TasksService.completeTask(taskIdNum, performedByName);
+      return NextResponse.json(result);
+    } else {
+      db.prepare(`
+        UPDATE crm_tasks
+        SET status = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(status, taskIdNum);
+
+      return NextResponse.json({
+        success: true,
+        message: `Task status updated to ${status}`,
+        taskId: taskIdNum,
+      });
+    }
+  } catch (error: any) {
+    console.error("Failed to update task:", error);
+    return NextResponse.json(
+      { error: error?.message || "Failed to update task" },
+      { status: 500 }
+    );
+  }
+}

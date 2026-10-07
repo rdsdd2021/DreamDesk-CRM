@@ -29,6 +29,8 @@ import { LeadsTable } from "@/components/crm/LeadsTable";
 import { BulkActionBar } from "@/components/crm/BulkActionBar";
 import { BulkAssignModal } from "@/components/crm/BulkAssignModal";
 import { BulkTagsModal } from "@/components/crm/BulkTagsModal";
+import { BulkCampaignModal } from "@/components/crm/BulkCampaignModal";
+import { NotificationBell } from "@/components/crm/NotificationBell";
 import { EnhancedLeadDrawer } from "@/components/crm/EnhancedLeadDrawer";
 import { TasksModal } from "@/components/crm/TasksModal";
 import { DuplicatesModal } from "@/components/crm/DuplicatesModal";
@@ -272,6 +274,7 @@ export default function CRMPage() {
   const [isTasksModalOpen, setIsTasksModalOpen] = useState(false);
   const [isDuplicatesModalOpen, setIsDuplicatesModalOpen] = useState(false);
   const [isBulkTagsModalOpen, setIsBulkTagsModalOpen] = useState(false);
+  const [isBulkCampaignModalOpen, setIsBulkCampaignModalOpen] = useState(false);
   const [isAutoDistributing, setIsAutoDistributing] = useState(false);
   const [selectedLeadForDetail, setSelectedLeadForDetail] = useState<Lead | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -1223,6 +1226,12 @@ export default function CRMPage() {
 
           {/* Right Header Actions */}
           <div className="flex items-center gap-2">
+            {/* Notification Bell Dropdown */}
+            <NotificationBell
+              currentUser={currentUser}
+              onNavigateToTasks={() => setCurrentView("tasks")}
+            />
+
             {/* Staff Identity & Role Switcher */}
             {currentUser && (
               <DropdownMenu>
@@ -1969,6 +1978,7 @@ export default function CRMPage() {
         onExportCsv={permissions?.canExportLeads ? handleExportCsv : undefined}
         campaigns={campaigns}
         onBulkCampaignChange={handleBulkCampaignChange}
+        onOpenBulkCampaignModal={() => setIsBulkCampaignModalOpen(true)}
         onOpenBulkTagsModal={() => setIsBulkTagsModalOpen(true)}
       />
 
@@ -1994,6 +2004,23 @@ export default function CRMPage() {
         isAllFilteredSelected={isAllFilteredSelected}
         currentFilterParams={getFilterParamsObject()}
         onTagsApplied={handleBulkTagsApplied}
+      />
+
+      {/* Bulk Campaign Re-attribution Modal */}
+      <BulkCampaignModal
+        isOpen={isBulkCampaignModalOpen}
+        onClose={() => setIsBulkCampaignModalOpen(false)}
+        campaigns={campaigns}
+        selectedLeadIds={selectedLeadIds}
+        totalFilteredCount={totalFilteredCount}
+        isAllFilteredSelected={isAllFilteredSelected}
+        currentFilterParams={getFilterParamsObject()}
+        onCampaignApplied={(msg) => {
+          showToast(msg, "success");
+          handleClearSelection();
+          fetchLeads();
+          loadMetaAndUsers();
+        }}
       />
 
       {/* Enhanced Multi-Tab Lead Drawer */}

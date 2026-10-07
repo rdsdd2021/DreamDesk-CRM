@@ -306,6 +306,46 @@ function initializeSchema(db: Database.Database) {
     );
   `);
 
+  // 10. Institutional CRM Tasks Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS crm_tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      lead_id INTEGER NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+      assigned_to TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      description TEXT,
+      priority TEXT NOT NULL DEFAULT 'normal',
+      due_date DATETIME NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_by TEXT DEFAULT 'Admin',
+      source_action TEXT DEFAULT 'bulk_action',
+      completed_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_crm_tasks_assigned_status ON crm_tasks(assigned_to, status);
+    CREATE INDEX IF NOT EXISTS idx_crm_tasks_priority ON crm_tasks(priority);
+    CREATE INDEX IF NOT EXISTS idx_crm_tasks_due ON crm_tasks(due_date);
+    CREATE INDEX IF NOT EXISTS idx_crm_tasks_lead ON crm_tasks(lead_id);
+  `);
+
+  // 11. Caller & User Notifications Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'task',
+      priority TEXT NOT NULL DEFAULT 'normal',
+      metadata TEXT,
+      is_read INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_notif_unread ON user_notifications(user_id, is_read);
+    CREATE INDEX IF NOT EXISTS idx_user_notif_user_time ON user_notifications(user_id, created_at DESC);
+  `);
+
   backfillLeadActivities(db);
   seedInitialData(db);
   initPolicies(db);
