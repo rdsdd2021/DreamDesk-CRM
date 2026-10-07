@@ -555,6 +555,8 @@ export class LeadsService {
         SELECT leads.id 
         FROM leads 
         LEFT JOIN users ON leads.assigned_to = users.id 
+        LEFT JOIN campaigns ON leads.campaign_id = campaigns.id 
+        LEFT JOIN dispositions ON leads.disposition_id = dispositions.id 
         ${whereClause} 
         ORDER BY leads.id ASC 
         ${limit}
@@ -788,7 +790,14 @@ export class LeadsService {
 
     if (applyToAllFiltered && filterParams) {
       const { whereClause, queryParams } = this.buildWhereClause(filterParams);
-      const rows = db.prepare(`SELECT leads.id FROM leads ${whereClause}`).all(queryParams) as { id: number }[];
+      const rows = db.prepare(`
+        SELECT leads.id 
+        FROM leads 
+        LEFT JOIN users ON leads.assigned_to = users.id 
+        LEFT JOIN campaigns ON leads.campaign_id = campaigns.id 
+        LEFT JOIN dispositions ON leads.disposition_id = dispositions.id 
+        ${whereClause}
+      `).all(queryParams) as { id: number }[];
       targetIds = rows.map((r) => r.id);
     }
 
@@ -834,7 +843,14 @@ export class LeadsService {
 
     if (applyToAllFiltered && filterParams) {
       const { whereClause, queryParams } = this.buildWhereClause(filterParams);
-      const rows = db.prepare(`SELECT leads.id FROM leads ${whereClause}`).all(queryParams) as { id: number }[];
+      const rows = db.prepare(`
+        SELECT leads.id 
+        FROM leads 
+        LEFT JOIN users ON leads.assigned_to = users.id 
+        LEFT JOIN campaigns ON leads.campaign_id = campaigns.id 
+        LEFT JOIN dispositions ON leads.disposition_id = dispositions.id 
+        ${whereClause}
+      `).all(queryParams) as { id: number }[];
       targetIds = rows.map((r) => r.id);
     }
 
@@ -2949,14 +2965,22 @@ export class LeadsService {
     leadIds: number[],
     campaignId: string | null,
     applyToAllFiltered?: boolean,
-    filterParams?: FilterParams
+    filterParams?: FilterParams,
+    performedByName: string = "Admin"
   ): { affectedCount: number; message: string } {
     const db = getDatabase();
     let targetIds = leadIds;
 
     if (applyToAllFiltered && filterParams) {
       const { whereClause, queryParams } = this.buildWhereClause(filterParams);
-      const rows = db.prepare(`SELECT leads.id FROM leads ${whereClause}`).all(queryParams) as { id: number }[];
+      const rows = db.prepare(`
+        SELECT leads.id 
+        FROM leads 
+        LEFT JOIN users ON leads.assigned_to = users.id 
+        LEFT JOIN campaigns ON leads.campaign_id = campaigns.id 
+        LEFT JOIN dispositions ON leads.disposition_id = dispositions.id 
+        ${whereClause}
+      `).all(queryParams) as { id: number }[];
       targetIds = rows.map((r) => r.id);
     }
 
@@ -2964,29 +2988,41 @@ export class LeadsService {
       return { affectedCount: 0, message: "No leads selected for campaign re-attribution." };
     }
 
-    const camp = campaignId ? (db.prepare("SELECT name FROM campaigns WHERE id = ?").get(campaignId) as { name: string } | undefined) : undefined;
-    const campName = camp ? camp.name : (campaignId ? "Campaign" : "None / Unassigned");
+    const cleanCampId =
+      campaignId && campaignId !== "unassigned" && campaignId !== "none" && String(campaignId).trim() !== ""
+        ? String(campaignId).trim()
+        : null;
+
+    let campName = "None / Unassigned";
+    if (cleanCampId) {
+      const camp = db.prepare("SELECT name FROM campaigns WHERE id = ?").get(cleanCampId) as { name: string } | undefined;
+      if (!camp) {
+        throw new Error(`Campaign "${cleanCampId}" not found.`);
+      }
+      campName = camp.name;
+    }
 
     const updateStmt = db.prepare(`UPDATE leads SET campaign_id = @campaignId, updated_at = CURRENT_TIMESTAMP WHERE id = @id`);
     const insertActivity = db.prepare(`
       INSERT INTO lead_activities (lead_id, activity_type, title, description, new_value, performed_by_name)
-      VALUES (?, 'field_update', ?, ?, ?, 'Admin')
+      VALUES (?, 'field_update', ?, ?, ?, ?)
     `);
 
     const tx = db.transaction(() => {
       for (const id of targetIds) {
-        updateStmt.run({ id, campaignId: campaignId || null });
+        updateStmt.run({ id, campaignId: cleanCampId });
         insertActivity.run(
           id,
           `Campaign Re-attributed: ${campName}`,
           `Lead transferred to campaign "${campName}" via bulk action`,
-          campName
+          campName,
+          performedByName
         );
       }
       db.prepare(`
         INSERT INTO activity_logs (action_type, description, affected_count, performed_by)
-        VALUES ('bulk_campaign_update', 'Re-attributed ' || @count || ' leads to campaign ' || @campName, @count, 'Admin')
-      `).run({ count: targetIds.length, campName });
+        VALUES ('bulk_campaign_update', 'Re-attributed ' || @count || ' leads to campaign ' || @campName, @count, @performedBy)
+      `).run({ count: targetIds.length, campName, performedBy: performedByName });
     });
 
     tx();
@@ -3013,7 +3049,14 @@ export class LeadsService {
 
     if (request.apply_to_all_filtered && request.filter_params) {
       const { whereClause, queryParams } = this.buildWhereClause(request.filter_params);
-      const rows = db.prepare(`SELECT leads.id FROM leads ${whereClause}`).all(queryParams) as { id: number }[];
+      const rows = db.prepare(`
+        SELECT leads.id 
+        FROM leads 
+        LEFT JOIN users ON leads.assigned_to = users.id 
+        LEFT JOIN campaigns ON leads.campaign_id = campaigns.id 
+        LEFT JOIN dispositions ON leads.disposition_id = dispositions.id 
+        ${whereClause}
+      `).all(queryParams) as { id: number }[];
       targetIds = rows.map((r) => r.id);
     }
 

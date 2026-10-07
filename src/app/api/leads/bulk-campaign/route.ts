@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   try {
     const sessionId = req.cookies.get("dreamdesk_session")?.value;
+    let performedByName = "Admin";
     if (sessionId) {
       const session = AuthService.getSession(sessionId);
       if (session && !session.permissions.canManageCampaigns && !session.permissions.canAssignLeads) {
@@ -14,6 +15,9 @@ export async function POST(req: NextRequest) {
           { error: "Access denied. Insufficient permissions to re-attribute campaigns." },
           { status: 403 }
         );
+      }
+      if (session?.user?.name) {
+        performedByName = session.user.name;
       }
     }
 
@@ -24,7 +28,8 @@ export async function POST(req: NextRequest) {
       lead_ids || [],
       campaign_id || null,
       Boolean(apply_to_all_filtered),
-      filter_params
+      filter_params,
+      performedByName
     );
 
     return NextResponse.json(result);
