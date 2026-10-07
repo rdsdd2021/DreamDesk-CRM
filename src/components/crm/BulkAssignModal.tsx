@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Users, Shuffle, Sliders, UserCheck, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Users, Shuffle, Sliders, UserCheck, Loader2, AlertCircle, CheckCircle2, ShieldCheck, Lock } from "lucide-react";
 
 interface BulkAssignModalProps {
   isOpen: boolean;
@@ -33,6 +33,7 @@ interface BulkAssignModalProps {
   totalFilteredCount: number;
   isAllFilteredSelected: boolean;
   currentFilterParams: FilterParams;
+  currentUser?: User | null;
   onAssignComplete: (affected: number, message: string) => void;
 }
 
@@ -44,11 +45,16 @@ export function BulkAssignModal({
   totalFilteredCount,
   isAllFilteredSelected,
   currentFilterParams,
+  currentUser,
   onAssignComplete,
 }: BulkAssignModalProps) {
   const [activeTab, setActiveTab] = useState<"auto" | "quota" | "single">("auto");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Policy Override State (Admin / Team Leader privilege)
+  const isPrivileged = currentUser?.role === "admin" || currentUser?.role === "team_lead";
+  const [overridePolicy, setOverridePolicy] = useState<boolean>(true);
 
   // Available leads to assign
   const availableCount = isAllFilteredSelected ? totalFilteredCount : selectedLeadIds.length;
@@ -129,6 +135,7 @@ export function BulkAssignModal({
           lead_ids: isAllFilteredSelected ? undefined : selectedLeadIds,
           filter_params: isAllFilteredSelected ? currentFilterParams : undefined,
           total_to_assign: autoAssignType === "custom" ? autoCustomCount : undefined,
+          override_policy: overridePolicy,
         };
       } else if (activeTab === "quota") {
         if (totalQuotaAllocated === 0) {
@@ -142,6 +149,7 @@ export function BulkAssignModal({
           apply_to_all_filtered: isAllFilteredSelected,
           lead_ids: isAllFilteredSelected ? undefined : selectedLeadIds,
           filter_params: isAllFilteredSelected ? currentFilterParams : undefined,
+          override_policy: overridePolicy,
         };
       } else {
         if (!singleUserId) {
@@ -156,6 +164,7 @@ export function BulkAssignModal({
           lead_ids: isAllFilteredSelected ? undefined : selectedLeadIds,
           filter_params: isAllFilteredSelected ? currentFilterParams : undefined,
           total_to_assign: singleAssignType === "custom" ? singleCustomCount : undefined,
+          override_policy: overridePolicy,
         };
       }
 
@@ -203,6 +212,31 @@ export function BulkAssignModal({
             <span className="font-medium">{errorMessage}</span>
           </div>
         )}
+
+        {/* 7-Day Counselor Ownership Protection Notice */}
+        <div className="mx-5 mt-3.5 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs space-y-1.5">
+          <div className="flex items-center gap-1.5 font-semibold text-blue-700 dark:text-blue-300">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>7-Day Counselor Ownership Policy Protection Active</span>
+          </div>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            Leads with recorded calls or dispositions in the last 7 days are protected from reassignment.
+            {isPrivileged
+              ? " As an Administrator or Admissions Team Leader, you can choose whether to override this lock for target leads."
+              : " Protected leads will be automatically skipped from reassignment to safeguard counselor effort."}
+          </p>
+          {isPrivileged && (
+            <label className="flex items-center gap-2 pt-1 cursor-pointer select-none">
+              <Checkbox
+                checked={overridePolicy}
+                onCheckedChange={(c) => setOverridePolicy(Boolean(c))}
+              />
+              <span className="text-[11px] font-semibold text-foreground">
+                Override 7-day call lock for protected leads (generates audit trail entries)
+              </span>
+            </label>
+          )}
+        </div>
 
         <div className="p-5 overflow-y-auto max-h-[65vh]">
           <Tabs

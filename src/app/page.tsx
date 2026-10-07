@@ -40,6 +40,7 @@ import { TasksWorkspace } from "@/components/crm/TasksWorkspace";
 import { TeamWorkspace } from "@/components/crm/TeamWorkspace";
 import { ImportWorkspace } from "@/components/crm/ImportWorkspace";
 import { ActivityWorkspace } from "@/components/crm/ActivityWorkspace";
+import { PoliciesWorkspace } from "@/components/crm/PoliciesWorkspace";
 import { PaginationBar } from "@/components/crm/PaginationBar";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -83,6 +84,7 @@ import {
   LogOut,
   PhoneCall,
   Menu,
+  ShieldCheck,
 } from "lucide-react";
 
 export default function CRMPage() {
@@ -1190,6 +1192,7 @@ export default function CRMPage() {
               {currentView === "team" && <Users className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500 shrink-0" />}
               {currentView === "import" && <Upload className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 shrink-0" />}
               {currentView === "activity" && <History className="w-4 h-4 sm:w-5 sm:h-5 text-purple-500 shrink-0" />}
+              {currentView === "policies" && <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 shrink-0" />}
               <span className="truncate max-w-[130px] sm:max-w-none">
                 {currentView === "leads" && "Leads Workspace"}
                 {currentView === "dashboard" && "Dashboard & Analytics"}
@@ -1201,6 +1204,7 @@ export default function CRMPage() {
                 {currentView === "team" && "Counselors & Team Directory"}
                 {currentView === "import" && "Batch CSV Ingestion & Field Mapping Studio"}
                 {currentView === "activity" && "Compliance & Activity Audit Trail"}
+                {currentView === "policies" && "Governance & CRM Policies"}
               </span>
             </h1>
 
@@ -1941,6 +1945,13 @@ export default function CRMPage() {
               <ActivityWorkspace />
             </div>
           )}
+
+          {/* VIEW 9: DEDICATED GOVERNANCE & CRM POLICIES WORKSPACE */}
+          {currentView === "policies" && (
+            <div className="max-w-7xl mx-auto">
+              <PoliciesWorkspace />
+            </div>
+          )}
         </main>
       </div>
     </div>
@@ -1970,6 +1981,7 @@ export default function CRMPage() {
         totalFilteredCount={totalFilteredCount}
         isAllFilteredSelected={isAllFilteredSelected}
         currentFilterParams={getFilterParamsObject()}
+        currentUser={currentUser}
         onAssignComplete={handleAssignComplete}
       />
 
@@ -1992,6 +2004,7 @@ export default function CRMPage() {
         users={users}
         schemaMeta={schemaMeta}
         campaigns={campaigns}
+        currentUser={currentUser}
         onUpdateLeadStatus={handleUpdateLeadStatus}
         onAssignLead={handleAssignSingleLead}
         onLeadUpdated={(updatedLead) => {

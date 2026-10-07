@@ -13,6 +13,7 @@ export interface RolePermissions {
   canImportLeads: boolean;
   canViewAuditLogs: boolean;
   canAssignLeads: boolean;
+  canManagePolicies: boolean;
   allowedViews: string[];
 }
 
@@ -28,6 +29,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canImportLeads: true,
     canViewAuditLogs: true,
     canAssignLeads: true,
+    canManagePolicies: true,
     allowedViews: [
       "leads",
       "tasks",
@@ -39,6 +41,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       "team",
       "import",
       "activity",
+      "policies",
     ],
   },
   team_lead: {
@@ -52,6 +55,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canImportLeads: true,
     canViewAuditLogs: true,
     canAssignLeads: true,
+    canManagePolicies: true,
     allowedViews: [
       "leads",
       "tasks",
@@ -62,6 +66,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       "team",
       "import",
       "activity",
+      "policies",
     ],
   },
   senior_counselor: {
@@ -75,6 +80,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canImportLeads: false,
     canViewAuditLogs: false,
     canAssignLeads: false,
+    canManagePolicies: false,
     allowedViews: ["leads", "tasks", "pipeline"],
   },
   counselor: {
@@ -88,6 +94,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canImportLeads: false,
     canViewAuditLogs: false,
     canAssignLeads: false,
+    canManagePolicies: false,
     allowedViews: ["leads", "tasks", "pipeline"],
   },
   telecaller: {
@@ -101,6 +108,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canImportLeads: false,
     canViewAuditLogs: false,
     canAssignLeads: false,
+    canManagePolicies: false,
     allowedViews: ["leads", "tasks", "pipeline"],
   },
 };

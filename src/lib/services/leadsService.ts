@@ -23,6 +23,7 @@ import {
   AnalyticsReportParams,
   AnalyticsReportData,
 } from "@/types/crm";
+import { PolicyService } from "@/lib/services/policyService";
 
 export class LeadsService {
   private static _facetCacheMap = new Map<string, { data: FacetGroup[]; timestamp: number }>();
@@ -533,7 +534,10 @@ export class LeadsService {
   /**
    * Bulk Assign Leads to counselors (Auto balanced, Quota-based, or Single counselor).
    */
-  static bulkAssign(request: BulkAssignRequest): { affectedCount: number; message: string } {
+  static bulkAssign(
+    request: BulkAssignRequest,
+    currentUser?: User | null
+  ): { affectedCount: number; skippedLockedCount?: number; message: string } {
     const db = getDatabase();
 
     // Determine target lead IDs
@@ -563,6 +567,35 @@ export class LeadsService {
       return { affectedCount: 0, message: "No matching leads found for assignment." };
     }
 
+    // Validate target leads against Counselor Ownership Lock Policy
+    const policyResult = PolicyService.validateBulkReassignment({
+      leadIds: targetLeadIds,
+      newUserId: request.single_user_id,
+      currentUser,
+      overridePolicy: request.override_policy,
+    });
+
+    const isPrivileged = Boolean(currentUser && (currentUser.role === "admin" || currentUser.role === "team_lead"));
+    const lockedSet = new Set(policyResult.lockedIds);
+
+    let finalLeadIds = targetLeadIds;
+    let skippedLockedCount = 0;
+
+    // Non-privileged users or requests without override cannot touch locked leads
+    if (!isPrivileged || request.override_policy === false) {
+      finalLeadIds = policyResult.allowedIds;
+      skippedLockedCount = policyResult.lockedIds.length;
+    }
+
+    if (finalLeadIds.length === 0) {
+      const firstMsg = policyResult.violations[0]?.message;
+      return {
+        affectedCount: 0,
+        skippedLockedCount,
+        message: firstMsg || `All ${targetLeadIds.length} selected leads are protected under the 7-day call lock policy.`,
+      };
+    }
+
     const updateLead = db.prepare(`
       UPDATE leads 
       SET assigned_to = @userId, assigned_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
@@ -575,21 +608,27 @@ export class LeadsService {
 
     const insertAssignActivity = db.prepare(`
       INSERT INTO lead_activities (lead_id, activity_type, title, description, old_value, new_value, metadata, performed_by_name)
-      VALUES (@lead_id, 'assigned', @title, @description, 'Unassigned', @new_value, @metadata, 'Admin')
+      VALUES (@lead_id, 'assigned', @title, @description, 'Unassigned', @new_value, @metadata, @performed_by)
     `);
+
+    const performerName = currentUser?.name || "Admin";
 
     const assignTransaction = db.transaction(() => {
       if (request.mode === "single") {
         const userId = request.single_user_id || null;
         const cName = userId ? counselorMap.get(userId) || "Counselor" : "Unassigned";
-        for (const id of targetLeadIds) {
+        for (const id of finalLeadIds) {
+          const isOverride = lockedSet.has(id);
           updateLead.run({ id, userId });
           insertAssignActivity.run({
             lead_id: id,
-            title: `Assigned to Counselor: ${cName}`,
-            description: `Allocated via bulk assignment (${request.mode})`,
+            title: isOverride ? `Assigned to Counselor: ${cName} (Lock Overridden)` : `Assigned to Counselor: ${cName}`,
+            description: isOverride
+              ? `Allocated via bulk assignment (Admin/Team Leader override of 7-day lock)`
+              : `Allocated via bulk assignment (${request.mode})`,
             new_value: cName,
-            metadata: JSON.stringify({ assigned_to: userId, mode: request.mode }),
+            metadata: JSON.stringify({ assigned_to: userId, mode: request.mode, is_override: isOverride }),
+            performed_by: performerName,
           });
           affectedCount++;
         }
@@ -598,16 +637,20 @@ export class LeadsService {
         if (userIds.length === 0) throw new Error("No counselors selected for auto-assignment.");
 
         // Round-robin equal distribution
-        targetLeadIds.forEach((id, index) => {
+        finalLeadIds.forEach((id, index) => {
           const userId = userIds[index % userIds.length];
           const cName = counselorMap.get(userId) || "Counselor";
+          const isOverride = lockedSet.has(id);
           updateLead.run({ id, userId });
           insertAssignActivity.run({
             lead_id: id,
-            title: `Assigned to Counselor: ${cName}`,
-            description: `Auto-balanced round-robin distribution`,
+            title: isOverride ? `Assigned to Counselor: ${cName} (Lock Overridden)` : `Assigned to Counselor: ${cName}`,
+            description: isOverride
+              ? `Auto-balanced distribution (Admin/Team Leader override of 7-day lock)`
+              : `Auto-balanced round-robin distribution`,
             new_value: cName,
-            metadata: JSON.stringify({ assigned_to: userId, mode: request.mode }),
+            metadata: JSON.stringify({ assigned_to: userId, mode: request.mode, is_override: isOverride }),
+            performed_by: performerName,
           });
           affectedCount++;
         });
@@ -616,41 +659,58 @@ export class LeadsService {
         let currentIndex = 0;
 
         for (const [userId, quota] of Object.entries(quotas)) {
-          const countToGive = Math.min(quota, targetLeadIds.length - currentIndex);
+          const countToGive = Math.min(quota, finalLeadIds.length - currentIndex);
           const cName = counselorMap.get(userId) || "Counselor";
           for (let i = 0; i < countToGive; i++) {
-            const id = targetLeadIds[currentIndex++];
+            const id = finalLeadIds[currentIndex++];
+            const isOverride = lockedSet.has(id);
             updateLead.run({ id, userId });
             insertAssignActivity.run({
               lead_id: id,
-              title: `Assigned to Counselor: ${cName}`,
-              description: `Quota-allocated assignment (${countToGive} capacity target)`,
+              title: isOverride ? `Assigned to Counselor: ${cName} (Lock Overridden)` : `Assigned to Counselor: ${cName}`,
+              description: isOverride
+                ? `Quota-allocated assignment (Admin/Team Leader override of 7-day lock)`
+                : `Quota-allocated assignment (${countToGive} capacity target)`,
               new_value: cName,
-              metadata: JSON.stringify({ assigned_to: userId, mode: request.mode, quota }),
+              metadata: JSON.stringify({ assigned_to: userId, mode: request.mode, quota, is_override: isOverride }),
+              performed_by: performerName,
             });
             affectedCount++;
           }
-          if (currentIndex >= targetLeadIds.length) break;
+          if (currentIndex >= finalLeadIds.length) break;
         }
       }
 
       // Log bulk action
       db.prepare(`
         INSERT INTO activity_logs (action_type, description, affected_count, metadata, performed_by)
-        VALUES ('bulk_assign', @description, @affectedCount, @metadata, 'Admin')
+        VALUES ('bulk_assign', @description, @affectedCount, @metadata, @performed_by)
       `).run({
         description: `Bulk assigned ${affectedCount} leads using mode: ${request.mode}`,
         affectedCount,
-        metadata: JSON.stringify({ mode: request.mode, targetLeadIdsCount: targetLeadIds.length }),
+        metadata: JSON.stringify({
+          mode: request.mode,
+          finalLeadIdsCount: finalLeadIds.length,
+          skippedLockedCount,
+        }),
+        performed_by: performerName,
       });
     });
 
     assignTransaction();
     this.invalidateCache();
 
+    let resultMessage = `Successfully assigned ${affectedCount} student leads.`;
+    if (skippedLockedCount > 0) {
+      resultMessage += ` (${skippedLockedCount} protected leads contacted in the last 7 days were preserved).`;
+    } else if (isPrivileged && policyResult.lockedIds.length > 0) {
+      resultMessage += ` (Included ${policyResult.lockedIds.length} protected leads via Admin/Team Leader override).`;
+    }
+
     return {
       affectedCount,
-      message: `Successfully assigned ${affectedCount} student leads.`,
+      skippedLockedCount,
+      message: resultMessage,
     };
   }
 
@@ -2719,7 +2779,12 @@ export class LeadsService {
   /**
    * Fast inline single-field update (status, score, assigned_to, raw_attributes).
    */
-  static updateLeadField(leadId: number, field: string, value: any): { success: boolean; lead: Lead } {
+  static updateLeadField(
+    leadId: number,
+    field: string,
+    value: any,
+    options?: { currentUser?: User | null; overridePolicy?: boolean }
+  ): { success: boolean; lead: Lead } {
     const db = getDatabase();
     const existing = db.prepare("SELECT * FROM leads WHERE id = ?").get(leadId) as any;
     if (!existing) throw new Error(`Lead ${leadId} not found`);
@@ -2733,19 +2798,45 @@ export class LeadsService {
         description: `Stage updated directly to "${value}"`,
         old_value: existing.status,
         new_value: String(value),
-        performed_by_name: "User",
+        performed_by_name: options?.currentUser?.name || "User",
       });
     } else if (field === "assigned_to") {
+      // Enforce Counselor Lock Policy
+      const policyCheck = PolicyService.validateReassignment({
+        leadId,
+        newUserId: value || null,
+        currentUser: options?.currentUser,
+        overridePolicy: options?.overridePolicy,
+      });
+
+      if (!policyCheck.allowed) {
+        throw new Error(policyCheck.message || "Reassignment blocked by Counselor Ownership Lock Policy");
+      }
+
       db.prepare("UPDATE leads SET assigned_to = ?, assigned_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(value || null, leadId);
       const user = value ? (db.prepare("SELECT name FROM users WHERE id = ?").get(value) as { name: string } | undefined) : undefined;
       const counselorName = user ? user.name : (value ? "Counselor" : "Unassigned");
+      const performerRole = options?.currentUser?.role === "team_lead" ? "Team Leader" : "Admin";
+
+      const title = policyCheck.is_override
+        ? `Counselor Lock Overridden: Assigned to ${counselorName}`
+        : `Assigned to: ${counselorName}`;
+
+      const description = policyCheck.is_override
+        ? `Manual override by ${performerRole} (previous call with ${policyCheck.counselor_name} was ${policyCheck.days_since_call}d ago)`
+        : `Ownership updated to ${counselorName}`;
+
       this.logLeadActivity({
         lead_id: leadId,
         activity_type: "assigned",
-        title: `Assigned to: ${counselorName}`,
-        description: `Ownership updated to ${counselorName}`,
+        title,
+        description,
+        old_value: existing.assigned_to ? String(existing.assigned_to) : "Unassigned",
         new_value: counselorName,
-        performed_by_name: "Admin",
+        metadata: policyCheck.is_override
+          ? { is_override: true, days_since_call: policyCheck.days_since_call, previous_counselor: policyCheck.counselor_name }
+          : null,
+        performed_by_name: options?.currentUser?.name || performerRole,
       });
     } else if (field === "disposition_id") {
       db.prepare("UPDATE leads SET disposition_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(value || null, leadId);

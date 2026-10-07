@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LeadsService } from "@/lib/services/leadsService";
+import { AuthService } from "@/lib/services/authService";
 import { BulkAssignRequest } from "@/types/crm";
 
 export async function POST(request: NextRequest) {
@@ -13,7 +14,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = LeadsService.bulkAssign(body);
+    const sessionId = request.cookies.get("dreamdesk_session")?.value;
+    const session = sessionId ? AuthService.getSession(sessionId) : null;
+    const currentUser = session?.user || null;
+
+    const result = LeadsService.bulkAssign(body, currentUser);
     return NextResponse.json(result);
   } catch (error: any) {
     console.error("Bulk assign error:", error);

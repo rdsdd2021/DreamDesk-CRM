@@ -292,8 +292,23 @@ function initializeSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_lead_activities_type ON lead_activities(activity_type);
   `);
 
+  // 9. Governance & Policy System Table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS crm_policies (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      policy_type TEXT NOT NULL,
+      is_enabled INTEGER NOT NULL DEFAULT 1,
+      config TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
   backfillLeadActivities(db);
   seedInitialData(db);
+  initPolicies(db);
 }
 
 function backfillLeadActivities(db: Database.Database) {
@@ -776,5 +791,35 @@ function seedInitialData(db: Database.Database) {
     }
   } catch (err) {
     console.error("Backfill error:", err);
+  }
+}
+
+function initPolicies(db: Database.Database) {
+  try {
+    const existing = db.prepare("SELECT id FROM crm_policies WHERE id = 'counselor_lock'").get();
+    if (!existing) {
+      db.prepare(`
+        INSERT INTO crm_policies (id, name, description, policy_type, is_enabled, config)
+        VALUES (
+          'counselor_lock',
+          'Counselor Ownership Lock-in Policy',
+          'Leads assigned to a counselor cannot be reassigned to someone else within 7 days of the last call unless manually overridden by an Admin or Team Leader.',
+          'counselor_lock',
+          1,
+          ?
+        )
+      `).run(
+        JSON.stringify({
+          lock_days: 7,
+          exempt_roles: ['admin', 'team_lead'],
+          activity_types: ['disposition', 'call'],
+          allow_unassign: false,
+          require_reason_for_override: false,
+          notification_message: 'Lead is locked under the 7-day anti-poaching policy. Reassignment is restricted to Admins and Team Leaders.',
+        })
+      );
+    }
+  } catch (err) {
+    console.error("Failed to initialize policies:", err);
   }
 }

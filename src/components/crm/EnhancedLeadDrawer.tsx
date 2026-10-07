@@ -67,6 +67,8 @@ import {
   Bookmark,
   Plus,
   X,
+  Lock,
+  ShieldAlert,
 } from "lucide-react";
 
 interface EnhancedLeadDrawerProps {
@@ -76,6 +78,7 @@ interface EnhancedLeadDrawerProps {
   users: User[];
   schemaMeta: SchemaMeta[];
   campaigns?: Campaign[];
+  currentUser?: User | null;
   onUpdateLeadStatus: (leadId: number, status: string) => void;
   onAssignLead: (leadId: number, userId: string) => void;
   onLeadUpdated?: (updatedLead: Lead) => void;
@@ -107,6 +110,7 @@ export function EnhancedLeadDrawer({
   users,
   schemaMeta,
   campaigns = [],
+  currentUser,
   onUpdateLeadStatus,
   onAssignLead,
   onLeadUpdated,
@@ -121,6 +125,22 @@ export function EnhancedLeadDrawer({
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [fieldSearchQuery, setFieldSearchQuery] = useState("");
+
+  // Counselor Ownership Lock Policy State
+  const [leadLockInfo, setLeadLockInfo] = useState<{
+    isLocked: boolean;
+    leadId: number;
+    leadCode: string;
+    counselorId?: string;
+    counselorName?: string;
+    lastCallAt?: string;
+    daysSinceCall?: number;
+    daysRemaining?: number;
+    lockDays?: number;
+  } | null>(null);
+
+  const isExemptRole =
+    currentUser?.role === "admin" || currentUser?.role === "team_lead";
 
   // Lead Tags & Campaign Attribution State
   const [leadTags, setLeadTags] = useState<string[]>([]);
@@ -157,6 +177,20 @@ export function EnhancedLeadDrawer({
       console.error("Failed to load lead activities:", err);
     } finally {
       setLoadingActivities(false);
+    }
+  };
+
+  const fetchLockStatus = async (leadId?: number) => {
+    const id = leadId ?? lead?.id;
+    if (!id) return;
+    try {
+      const res = await fetch(`/api/policies/check?lead_id=${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setLeadLockInfo(data.lock || null);
+      }
+    } catch (err) {
+      console.error("Failed to check policy lock:", err);
     }
   };
 
@@ -305,6 +339,7 @@ export function EnhancedLeadDrawer({
     fetchDispositions();
     if (lead.id) {
       fetchActivities(lead.id);
+      fetchLockStatus(lead.id);
     }
   }, [lead?.id, lead?.campaign_id, lead?.disposition_id, lead?.sub_disposition_id, lead?.tags]);
 
@@ -786,17 +821,42 @@ export function EnhancedLeadDrawer({
                     <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                       <UserCheck className="w-3.5 h-3.5 text-primary" />
                       <span>Assigned Counselor</span>
+                      {leadLockInfo?.isLocked && (
+                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 font-semibold gap-1 ml-auto">
+                          <Lock className="w-2.5 h-2.5" />
+                          {leadLockInfo.daysRemaining}d Lock
+                        </Badge>
+                      )}
                     </label>
+
+                    {leadLockInfo?.isLocked && (
+                      <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/25 text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-1.5 leading-snug">
+                        <Lock className="w-3 h-3 text-amber-600 shrink-0 mt-0.5" />
+                        <span>
+                          Contacted {leadLockInfo.daysSinceCall}d ago by <strong>{leadLockInfo.counselorName}</strong>.
+                          {isExemptRole
+                            ? " Admin/Team Lead override enabled."
+                            : " Locked under 7-day policy."}
+                        </span>
+                      </div>
+                    )}
+
                     <Select
                       value={lead.assigned_to || "unassigned"}
+                      disabled={Boolean(leadLockInfo?.isLocked && !isExemptRole)}
                       onValueChange={(val) => {
                         if (val !== null) {
                           onAssignLead(lead.id, val === "unassigned" ? "" : val);
-                          setTimeout(() => fetchActivities(lead.id), 350);
+                          setTimeout(() => {
+                            fetchActivities(lead.id);
+                            fetchLockStatus();
+                          }, 400);
                         }
                       }}
                     >
-                      <SelectTrigger className="h-9 text-xs rounded-xl border-border/80 bg-background font-medium">
+                      <SelectTrigger className={`h-9 text-xs rounded-xl border-border/80 bg-background font-medium ${
+                        leadLockInfo?.isLocked && !isExemptRole ? "opacity-60 cursor-not-allowed" : ""
+                      }`}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -810,6 +870,19 @@ export function EnhancedLeadDrawer({
                         ))}
                       </SelectContent>
                     </Select>
+
+                    {leadLockInfo?.isLocked && !isExemptRole && (
+                      <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        <Lock className="w-2.5 h-2.5 text-amber-600" />
+                        Reassignment locked under 7-day rule. Contact Admin or Team Leader.
+                      </p>
+                    )}
+                    {leadLockInfo?.isLocked && isExemptRole && (
+                      <p className="text-[10px] text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                        <ShieldAlert className="w-2.5 h-2.5 text-blue-600 shrink-0" />
+                        Override active: Reassignment will be logged in audit trail.
+                      </p>
+                    )}
                   </div>
 
                   {/* Stage Selection */}

@@ -31,6 +31,7 @@ export interface AuthSession {
     canImportLeads: boolean;
     canViewAuditLogs: boolean;
     canAssignLeads: boolean;
+    canManagePolicies?: boolean;
     allowedViews: string[];
   };
 }
@@ -201,6 +202,7 @@ export interface BulkAssignRequest {
   single_user_id?: string;
   selected_user_ids?: string[];
   user_quotas?: Record<string, number>; // userId -> count
+  override_policy?: boolean;
 }
 
 export interface ActivityLog {
@@ -369,4 +371,40 @@ export interface AnalyticsReportData {
   }[];
 }
 
+export interface CrmPolicyConfig {
+  lock_days: number;
+  exempt_roles: UserRole[];
+  activity_types?: string[];
+  allow_unassign?: boolean;
+  require_reason_for_override?: boolean;
+  notification_message?: string;
+  [key: string]: any;
+}
 
+export interface CrmPolicy {
+  id: string;
+  name: string;
+  description: string | null;
+  policy_type: 'counselor_lock' | 'inactivity_reclaim' | 'max_leads_cap' | string;
+  is_enabled: boolean | number;
+  config: CrmPolicyConfig;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PolicyValidationResult {
+  allowed: boolean;
+  policy_id?: string;
+  policy_name?: string;
+  is_override?: boolean;
+  reason?: string;
+  message?: string;
+  lead_id?: number;
+  lead_code?: string;
+  counselor_id?: string;
+  counselor_name?: string;
+  last_call_at?: string;
+  days_since_call?: number;
+  days_remaining?: number;
+  lock_days?: number;
+}

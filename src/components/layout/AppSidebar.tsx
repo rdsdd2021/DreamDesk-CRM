@@ -113,6 +113,11 @@ export function AppSidebar({
       label: "Audit & Activity Log",
       icon: History,
     },
+    {
+      id: "policies",
+      label: "Governance & Policies",
+      icon: ShieldCheck,
+    },
   ];
 
   return (
