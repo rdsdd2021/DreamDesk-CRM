@@ -2483,7 +2483,18 @@ export class LeadsService {
       // Delete duplicate leads
       db.prepare(`DELETE FROM leads WHERE id IN (${placeholders})`).run(...duplicateLeadIds);
 
-      // Log activity
+      // Log lead activity on primary surviving record
+      const duplicateCodes = duplicateRows.map((d) => d.lead_code).join(", ");
+      this.logLeadActivity({
+        lead_id: primaryLeadId,
+        activity_type: "field_update",
+        title: `Duplicate Records Merged (${duplicateLeadIds.length})`,
+        description: `Merged data and notes from duplicate records: ${duplicateCodes}`,
+        new_value: `${duplicateLeadIds.length} records merged`,
+        performed_by_name: "Admin",
+      });
+
+      // Log global system activity
       this.logActivity(
         "LEAD_MERGE",
         `Merged ${duplicateLeadIds.length} duplicate record(s) into primary lead ${primaryRow.lead_code}`,

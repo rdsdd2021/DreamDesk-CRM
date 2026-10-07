@@ -140,7 +140,7 @@ export function EnhancedLeadDrawer({
   // Immutable Audit Trail Timeline State
   const [activities, setActivities] = useState<LeadActivity[]>([]);
   const [loadingActivities, setLoadingActivities] = useState(false);
-  const [activityFilter, setActivityFilter] = useState<"all" | "call" | "stage_change" | "note" | "assigned">("all");
+  const [activityFilter, setActivityFilter] = useState<"all" | "call" | "stage_change" | "note" | "assigned" | "whatsapp">("all");
   const [newNoteText, setNewNoteText] = useState("");
   const [submittingNote, setSubmittingNote] = useState(false);
 
@@ -252,6 +252,22 @@ export function EnhancedLeadDrawer({
     if (!phoneDigits) return;
     const encoded = encodeURIComponent(templateText);
     window.open(`https://wa.me/${phoneDigits}?text=${encoded}`, "_blank");
+
+    if (lead?.id) {
+      fetch(`/api/leads/${lead.id}/activities`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          activity_type: "whatsapp",
+          title: "WhatsApp Fast Pitch Sent",
+          description: templateText,
+          metadata: { channel: "whatsapp", phone: lead.phone },
+          performed_by_name: lead.assigned_user_name || "Counselor",
+        }),
+      })
+        .then(() => fetchActivities(lead.id))
+        .catch(console.error);
+    }
   };
 
   const handleCopyText = (text: string, fieldName: string) => {
@@ -407,6 +423,7 @@ export function EnhancedLeadDrawer({
   const stagesCount = activities.filter((a) => a.activity_type === "stage_change").length;
   const notesCount = activities.filter((a) => a.activity_type === "note").length;
   const assignedCount = activities.filter((a) => a.activity_type === "assigned").length;
+  const whatsappCount = activities.filter((a) => a.activity_type === "whatsapp" || a.activity_type === "communication").length;
 
   const filteredActivities = activities.filter((act) => {
     if (activityFilter === "all") return true;
@@ -414,6 +431,7 @@ export function EnhancedLeadDrawer({
     if (activityFilter === "stage_change") return act.activity_type === "stage_change";
     if (activityFilter === "note") return act.activity_type === "note";
     if (activityFilter === "assigned") return act.activity_type === "assigned";
+    if (activityFilter === "whatsapp") return act.activity_type === "whatsapp" || act.activity_type === "communication";
     return true;
   });
 
@@ -1516,6 +1534,17 @@ export function EnhancedLeadDrawer({
                   >
                     Notes ({notesCount})
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setActivityFilter("whatsapp")}
+                    className={`px-2.5 py-1 rounded-lg font-medium transition-colors whitespace-nowrap text-xs ${
+                      activityFilter === "whatsapp"
+                        ? "bg-primary text-primary-foreground font-semibold shadow-2xs"
+                        : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    WhatsApp ({whatsappCount})
+                  </button>
                 </div>
               </div>
 
@@ -1579,6 +1608,9 @@ export function EnhancedLeadDrawer({
                       } else if (act.activity_type === "created") {
                         iconEl = <Sparkles className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />;
                         dotBorderColor = "border-violet-500/40 text-violet-600 dark:text-violet-400 bg-violet-500/10";
+                      } else if (act.activity_type === "whatsapp" || act.activity_type === "communication") {
+                        iconEl = <MessageSquare className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />;
+                        dotBorderColor = "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10";
                       } else if (act.activity_type === "field_update") {
                         iconEl = <FileText className="w-3.5 h-3.5 text-muted-foreground" />;
                         dotBorderColor = "border-border text-muted-foreground bg-muted";

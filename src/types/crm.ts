@@ -224,7 +224,9 @@ export interface LeadActivity {
     | 'callback_scheduled'
     | 'note'
     | 'field_update'
-    | 'call';
+    | 'call'
+    | 'whatsapp'
+    | 'communication';
   title: string;
   description?: string | null;
   old_value?: string | null;

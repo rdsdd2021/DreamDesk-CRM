@@ -116,7 +116,7 @@ export function WhatsAppModal({
     const encoded = encodeURIComponent(messageText);
     const url = `https://wa.me/${cleanPhone}?text=${encoded}`;
 
-    // Log activity
+    // Log global activity
     fetch("/api/activity", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -126,6 +126,19 @@ export function WhatsAppModal({
         affected_count: 1,
         performed_by: currentUser?.name || "Counselor",
         metadata: JSON.stringify({ lead_id: lead.id, phone: lead.phone, template_id: selectedTemplateId }),
+      }),
+    }).catch(console.error);
+
+    // Log lead timeline audit trail
+    fetch(`/api/leads/${lead.id}/activities`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        activity_type: "whatsapp",
+        title: "WhatsApp Message Sent",
+        description: messageText.length > 200 ? `${messageText.slice(0, 200)}...` : messageText,
+        metadata: { channel: "whatsapp", phone: lead.phone, template_id: selectedTemplateId },
+        performed_by_name: currentUser?.name || "Counselor",
       }),
     }).catch(console.error);
 
