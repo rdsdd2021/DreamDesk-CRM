@@ -114,6 +114,7 @@ export interface Lead {
   sub_disposition_id?: string | null;
   sub_disposition_name?: string | null;
   callback_at?: string | null;
+  tags?: string[];
   raw_attributes: Record<string, any>;
   notes: string | null;
   created_at: string;
@@ -165,6 +166,7 @@ export interface FilterParams {
   assigned_to?: string[];
   campaign_id?: string[];
   disposition_id?: string[];
+  tags?: string[];
   facets?: Record<string, string[]>;
   date_from?: string;
   date_to?: string;

@@ -3,6 +3,7 @@
 import React from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Campaign } from "@/types/crm";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +20,8 @@ import {
   X,
   CheckCircle2,
   Users,
+  Target,
+  Bookmark,
 } from "lucide-react";
 
 interface BulkActionBarProps {
@@ -31,6 +34,9 @@ interface BulkActionBarProps {
   onBulkStatusChange: (status: string) => void;
   onBulkDelete?: () => void;
   onExportCsv?: () => void;
+  campaigns?: Campaign[];
+  onBulkCampaignChange?: (campaignId: string | null) => void;
+  onOpenBulkTagsModal?: () => void;
 }
 
 export function BulkActionBar({
@@ -43,6 +49,9 @@ export function BulkActionBar({
   onBulkStatusChange,
   onBulkDelete,
   onExportCsv,
+  campaigns = [],
+  onBulkCampaignChange,
+  onOpenBulkTagsModal,
 }: BulkActionBarProps) {
   if (selectedCount === 0 && !isAllFilteredSelected) {
     return null;
@@ -117,6 +126,53 @@ export function BulkActionBar({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Change Campaign Dropdown */}
+          {onBulkCampaignChange && (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "h-8 gap-1.5 text-xs cursor-pointer"
+                )}
+              >
+                <Target className="w-3.5 h-3.5 text-primary" />
+                <span>Change Campaign</span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="center" className="w-52 max-h-64 overflow-y-auto">
+                <DropdownMenuLabel className="text-xs">Re-attribute to Campaign</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => onBulkCampaignChange(null)}
+                  className="text-xs text-muted-foreground cursor-pointer italic"
+                >
+                  None (Clear Campaign)
+                </DropdownMenuItem>
+                {campaigns.map((camp) => (
+                  <DropdownMenuItem
+                    key={camp.id}
+                    onClick={() => onBulkCampaignChange(camp.id)}
+                    className="text-xs cursor-pointer font-medium"
+                  >
+                    {camp.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {/* Manage Tags Button */}
+          {onOpenBulkTagsModal && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onOpenBulkTagsModal}
+              className="h-8 gap-1.5 text-xs font-semibold cursor-pointer"
+            >
+              <Bookmark className="w-3.5 h-3.5 text-primary" />
+              <span>Manage Tags</span>
+            </Button>
+          )}
 
           {/* Export CSV (If allowed by RBAC) */}
           {onExportCsv && (

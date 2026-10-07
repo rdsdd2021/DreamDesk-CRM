@@ -28,6 +28,7 @@ import { FilterSidebar } from "@/components/crm/FilterSidebar";
 import { LeadsTable } from "@/components/crm/LeadsTable";
 import { BulkActionBar } from "@/components/crm/BulkActionBar";
 import { BulkAssignModal } from "@/components/crm/BulkAssignModal";
+import { BulkTagsModal } from "@/components/crm/BulkTagsModal";
 import { EnhancedLeadDrawer } from "@/components/crm/EnhancedLeadDrawer";
 import { TasksModal } from "@/components/crm/TasksModal";
 import { DuplicatesModal } from "@/components/crm/DuplicatesModal";
@@ -268,6 +269,7 @@ export default function CRMPage() {
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isTasksModalOpen, setIsTasksModalOpen] = useState(false);
   const [isDuplicatesModalOpen, setIsDuplicatesModalOpen] = useState(false);
+  const [isBulkTagsModalOpen, setIsBulkTagsModalOpen] = useState(false);
   const [isAutoDistributing, setIsAutoDistributing] = useState(false);
   const [selectedLeadForDetail, setSelectedLeadForDetail] = useState<Lead | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -805,6 +807,39 @@ export default function CRMPage() {
     } catch (err: any) {
       showToast(err.message || "Failed to update status", "error");
     }
+  };
+
+  // Bulk Campaign Change
+  const handleBulkCampaignChange = async (campaignId: string | null) => {
+    try {
+      const res = await fetch("/api/leads/bulk-campaign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          campaign_id: campaignId,
+          lead_ids: isAllFilteredSelected ? undefined : selectedLeadIds,
+          apply_to_all_filtered: isAllFilteredSelected,
+          filter_params: isAllFilteredSelected ? getFilterParamsObject() : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update campaign");
+
+      showToast(data.message, "success");
+      handleClearSelection();
+      fetchLeads();
+      loadMetaAndUsers();
+    } catch (err: any) {
+      showToast(err.message || "Failed to update campaign", "error");
+    }
+  };
+
+  // Bulk Tags Applied Handler
+  const handleBulkTagsApplied = (message: string) => {
+    showToast(message, "success");
+    handleClearSelection();
+    fetchLeads();
+    loadMetaAndUsers();
   };
 
   // Bulk Delete
@@ -1921,6 +1956,9 @@ export default function CRMPage() {
         onBulkStatusChange={handleBulkStatusChange}
         onBulkDelete={permissions?.canDeleteLeads ? handleBulkDelete : undefined}
         onExportCsv={permissions?.canExportLeads ? handleExportCsv : undefined}
+        campaigns={campaigns}
+        onBulkCampaignChange={handleBulkCampaignChange}
+        onOpenBulkTagsModal={() => setIsBulkTagsModalOpen(true)}
       />
 
       {/* Bulk Assignment Modal */}
@@ -1935,6 +1973,17 @@ export default function CRMPage() {
         onAssignComplete={handleAssignComplete}
       />
 
+      {/* Bulk Tags Modal */}
+      <BulkTagsModal
+        isOpen={isBulkTagsModalOpen}
+        onClose={() => setIsBulkTagsModalOpen(false)}
+        selectedLeadIds={selectedLeadIds}
+        totalFilteredCount={totalFilteredCount}
+        isAllFilteredSelected={isAllFilteredSelected}
+        currentFilterParams={getFilterParamsObject()}
+        onTagsApplied={handleBulkTagsApplied}
+      />
+
       {/* Enhanced Multi-Tab Lead Drawer */}
       <EnhancedLeadDrawer
         lead={selectedLeadForDetail}
@@ -1942,6 +1991,7 @@ export default function CRMPage() {
         onClose={() => setSelectedLeadForDetail(null)}
         users={users}
         schemaMeta={schemaMeta}
+        campaigns={campaigns}
         onUpdateLeadStatus={handleUpdateLeadStatus}
         onAssignLead={handleAssignSingleLead}
         onLeadUpdated={(updatedLead) => {

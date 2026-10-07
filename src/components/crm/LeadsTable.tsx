@@ -375,6 +375,20 @@ export function LeadsTable({
                   </div>
                 </div>
 
+                {/* Lead Tags Badges */}
+                {lead.tags && lead.tags.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1">
+                    {lead.tags.map((t) => (
+                      <span
+                        key={t}
+                        className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20"
+                      >
+                        #{t}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
                 {/* Scheduled Callback Alert */}
                 {lead.callback_at && (
                   <div className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400">
@@ -774,9 +788,31 @@ export function LeadsTable({
                           <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0 shadow-2xs border border-primary/20">
                             {(lead.name || "S").charAt(0).toUpperCase()}
                           </div>
-                          <span className="font-bold text-foreground truncate max-w-[160px] tracking-tight hover:text-primary transition-colors">
-                            {lead.name || "Unnamed Student"}
-                          </span>
+                          <div className="min-w-0">
+                            <span className="font-bold text-foreground truncate max-w-[160px] tracking-tight hover:text-primary transition-colors block">
+                              {lead.name || "Unnamed Student"}
+                            </span>
+                            {lead.tags && lead.tags.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                                {lead.tags.slice(0, 2).map((t) => (
+                                  <span
+                                    key={t}
+                                    className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-semibold bg-primary/10 text-primary border border-primary/20 shrink-0"
+                                  >
+                                    #{t}
+                                  </span>
+                                ))}
+                                {lead.tags.length > 2 && (
+                                  <span
+                                    className="text-[9px] font-mono text-muted-foreground"
+                                    title={lead.tags.slice(2).map((x) => `#${x}`).join(", ")}
+                                  >
+                                    +{lead.tags.length - 2}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </TableCell>
                     )}

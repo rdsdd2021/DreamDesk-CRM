@@ -112,6 +112,7 @@ export class LeadsService {
       sub_disposition_id: row.sub_disposition_id,
       sub_disposition_name: row.sub_disposition_name,
       callback_at: row.callback_at,
+      tags: this.safeParseArray(row.tags),
       raw_attributes: this.safeParseJson(row.raw_attributes),
       notes: row.notes,
       created_at: row.created_at,
@@ -160,6 +161,7 @@ export class LeadsService {
         OR leads.lead_code LIKE @search 
         OR campaigns.name LIKE @search
         OR dispositions.name LIKE @search
+        OR leads.tags LIKE @search
         OR leads.raw_attributes LIKE @search
       )`);
       queryParams.search = `%${params.search.trim()}%`;
@@ -253,6 +255,19 @@ export class LeadsService {
 
       if (dispConditions.length > 0) {
         conditions.push(`(${dispConditions.join(" OR ")})`);
+      }
+    }
+
+    // Tags filter
+    if (excludeKey !== "tags" && params.tags && params.tags.length > 0) {
+      const tagConditions: string[] = [];
+      params.tags.forEach((tag, idx) => {
+        const key = `tag_${idx}`;
+        queryParams[key] = `%"${tag}"%`;
+        tagConditions.push(`leads.tags LIKE @${key}`);
+      });
+      if (tagConditions.length > 0) {
+        conditions.push(`(${tagConditions.join(" OR ")})`);
       }
     }
 
@@ -1426,6 +1441,16 @@ export class LeadsService {
     }
   }
 
+  private static safeParseArray(jsonString?: string | null): string[] {
+    if (!jsonString) return [];
+    try {
+      const parsed = JSON.parse(jsonString);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
   /**
    * Retrieves dispositions, optionally filtered by campaign.
    */
@@ -2044,6 +2069,7 @@ export class LeadsService {
       sub_disposition_id: updated.sub_disposition_id,
       sub_disposition_name: updated.sub_disposition_name,
       callback_at: updated.callback_at,
+      tags: this.safeParseArray(updated.tags),
       raw_attributes: this.safeParseJson(updated.raw_attributes),
       notes: updated.notes,
       created_at: updated.created_at,
@@ -2112,6 +2138,7 @@ export class LeadsService {
       sub_disposition_id: row.sub_disposition_id,
       sub_disposition_name: row.sub_disposition_name,
       callback_at: row.callback_at,
+      tags: this.safeParseArray(row.tags),
       raw_attributes: this.safeParseJson(row.raw_attributes),
       notes: row.notes,
       created_at: row.created_at,
@@ -2721,6 +2748,31 @@ export class LeadsService {
         metadata: disp ? { color: disp.color, score: disp.score } : null,
         performed_by_name: "Counselor",
       });
+    } else if (field === "campaign_id") {
+      db.prepare("UPDATE leads SET campaign_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(value || null, leadId);
+      const camp = value ? (db.prepare("SELECT name FROM campaigns WHERE id = ?").get(value) as { name: string } | undefined) : undefined;
+      const newCampName = camp ? camp.name : (value ? "Campaign" : "None / Unassigned");
+      const oldCamp = existing.campaign_id ? (db.prepare("SELECT name FROM campaigns WHERE id = ?").get(existing.campaign_id) as { name: string } | undefined)?.name : "None";
+      this.logLeadActivity({
+        lead_id: leadId,
+        activity_type: "field_update",
+        title: `Campaign Re-attributed: ${newCampName}`,
+        description: `Lead transferred from "${oldCamp}" to "${newCampName}"`,
+        old_value: oldCamp,
+        new_value: newCampName,
+        performed_by_name: "Admin",
+      });
+    } else if (field === "tags") {
+      const tagsArr = Array.isArray(value) ? value : [];
+      db.prepare("UPDATE leads SET tags = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(JSON.stringify(tagsArr), leadId);
+      this.logLeadActivity({
+        lead_id: leadId,
+        activity_type: "field_update",
+        title: "Lead Tags Updated",
+        description: tagsArr.length > 0 ? `Active tags: ${tagsArr.join(", ")}` : "All tags cleared",
+        new_value: tagsArr.join(", "),
+        performed_by_name: "Counselor",
+      });
     } else {
       // Attribute field (e.g. score, school, city, stream)
       const attrs = this.safeParseJson(existing.raw_attributes);
@@ -2742,6 +2794,183 @@ export class LeadsService {
     return {
       success: true,
       lead: this.getLeadById(leadId)!,
+    };
+  }
+
+  /**
+   * Updates tags on a single lead with rich audit trail tracking.
+   */
+  static updateLeadTags(leadId: number, tags: string[]): Lead {
+    const db = getDatabase();
+    const existing = db.prepare("SELECT * FROM leads WHERE id = ?").get(leadId) as any;
+    if (!existing) throw new Error(`Lead ${leadId} not found`);
+
+    const oldTags = this.safeParseArray(existing.tags);
+    const cleanTags = Array.from(new Set(tags.map((t) => t.trim()).filter(Boolean)));
+    const tagsJson = JSON.stringify(cleanTags);
+
+    db.prepare("UPDATE leads SET tags = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(tagsJson, leadId);
+
+    // Compute diff for audit log
+    const added = cleanTags.filter((t) => !oldTags.includes(t));
+    const removed = oldTags.filter((t) => !cleanTags.includes(t));
+
+    if (added.length > 0 || removed.length > 0) {
+      let desc = "";
+      if (added.length > 0 && removed.length > 0) {
+        desc = `Added: [${added.join(", ")}], Removed: [${removed.join(", ")}]`;
+      } else if (added.length > 0) {
+        desc = `Added tags: ${added.join(", ")}`;
+      } else {
+        desc = `Removed tags: ${removed.join(", ")}`;
+      }
+
+      this.logLeadActivity({
+        lead_id: leadId,
+        activity_type: "field_update",
+        title: added.length > 0 ? `Tags Updated (+${added.join(", ")})` : `Tags Removed (-${removed.join(", ")})`,
+        description: desc,
+        old_value: oldTags.join(", ") || null,
+        new_value: cleanTags.join(", ") || null,
+        performed_by_name: "Counselor",
+      });
+    }
+
+    this.invalidateCache();
+    return this.getLeadById(leadId)!;
+  }
+
+  /**
+   * Bulk updates campaign attribution for selected or filtered leads.
+   */
+  static bulkUpdateCampaign(
+    leadIds: number[],
+    campaignId: string | null,
+    applyToAllFiltered?: boolean,
+    filterParams?: FilterParams
+  ): { affectedCount: number; message: string } {
+    const db = getDatabase();
+    let targetIds = leadIds;
+
+    if (applyToAllFiltered && filterParams) {
+      const { whereClause, queryParams } = this.buildWhereClause(filterParams);
+      const rows = db.prepare(`SELECT leads.id FROM leads ${whereClause}`).all(queryParams) as { id: number }[];
+      targetIds = rows.map((r) => r.id);
+    }
+
+    if (targetIds.length === 0) {
+      return { affectedCount: 0, message: "No leads selected for campaign re-attribution." };
+    }
+
+    const camp = campaignId ? (db.prepare("SELECT name FROM campaigns WHERE id = ?").get(campaignId) as { name: string } | undefined) : undefined;
+    const campName = camp ? camp.name : (campaignId ? "Campaign" : "None / Unassigned");
+
+    const updateStmt = db.prepare(`UPDATE leads SET campaign_id = @campaignId, updated_at = CURRENT_TIMESTAMP WHERE id = @id`);
+    const insertActivity = db.prepare(`
+      INSERT INTO lead_activities (lead_id, activity_type, title, description, new_value, performed_by_name)
+      VALUES (?, 'field_update', ?, ?, ?, 'Admin')
+    `);
+
+    const tx = db.transaction(() => {
+      for (const id of targetIds) {
+        updateStmt.run({ id, campaignId: campaignId || null });
+        insertActivity.run(
+          id,
+          `Campaign Re-attributed: ${campName}`,
+          `Lead transferred to campaign "${campName}" via bulk action`,
+          campName
+        );
+      }
+      db.prepare(`
+        INSERT INTO activity_logs (action_type, description, affected_count, performed_by)
+        VALUES ('bulk_campaign_update', 'Re-attributed ' || @count || ' leads to campaign ' || @campName, @count, 'Admin')
+      `).run({ count: targetIds.length, campName });
+    });
+
+    tx();
+    this.invalidateCache();
+
+    return {
+      affectedCount: targetIds.length,
+      message: `Successfully re-attributed ${targetIds.length} leads to "${campName}"!`,
+    };
+  }
+
+  /**
+   * Bulk adds, removes, or sets tags for selected or filtered leads.
+   */
+  static bulkUpdateTags(request: {
+    lead_ids?: number[];
+    action: "add" | "remove" | "set";
+    tags: string[];
+    apply_to_all_filtered?: boolean;
+    filter_params?: FilterParams;
+  }): { affectedCount: number; message: string } {
+    const db = getDatabase();
+    let targetIds = request.lead_ids || [];
+
+    if (request.apply_to_all_filtered && request.filter_params) {
+      const { whereClause, queryParams } = this.buildWhereClause(request.filter_params);
+      const rows = db.prepare(`SELECT leads.id FROM leads ${whereClause}`).all(queryParams) as { id: number }[];
+      targetIds = rows.map((r) => r.id);
+    }
+
+    if (targetIds.length === 0) {
+      return { affectedCount: 0, message: "No leads selected for tag modification." };
+    }
+
+    const targetTags = request.tags.map((t) => t.trim()).filter(Boolean);
+    if (targetTags.length === 0) {
+      return { affectedCount: 0, message: "No tags specified." };
+    }
+
+    const placeholders = targetIds.map(() => "?").join(",");
+    const rows = db.prepare(`SELECT id, tags FROM leads WHERE id IN (${placeholders})`).all(...targetIds) as { id: number; tags: string }[];
+
+    const updateStmt = db.prepare(`UPDATE leads SET tags = @tags, updated_at = CURRENT_TIMESTAMP WHERE id = @id`);
+    const insertActivity = db.prepare(`
+      INSERT INTO lead_activities (lead_id, activity_type, title, description, new_value, performed_by_name)
+      VALUES (?, 'field_update', ?, ?, ?, 'Counselor')
+    `);
+
+    const tx = db.transaction(() => {
+      for (const row of rows) {
+        const curTags = LeadsService.safeParseArray(row.tags);
+        let nextTags: string[] = [];
+
+        if (request.action === "add") {
+          nextTags = Array.from(new Set([...curTags, ...targetTags]));
+        } else if (request.action === "remove") {
+          nextTags = curTags.filter((t) => !targetTags.includes(t));
+        } else {
+          nextTags = targetTags;
+        }
+
+        const tagsJson = JSON.stringify(nextTags);
+        updateStmt.run({ id: row.id, tags: tagsJson });
+
+        const title = request.action === "add"
+          ? `Bulk Tag Added (+${targetTags.join(", ")})`
+          : `Bulk Tag Removed (-${targetTags.join(", ")})`;
+        const desc = request.action === "add"
+          ? `Added tags [${targetTags.join(", ")}] via bulk action. Active: [${nextTags.join(", ")}]`
+          : `Removed tags [${targetTags.join(", ")}] via bulk action. Active: [${nextTags.join(", ")}]`;
+
+        insertActivity.run(row.id, title, desc, nextTags.join(", "));
+      }
+
+      db.prepare(`
+        INSERT INTO activity_logs (action_type, description, affected_count, performed_by)
+        VALUES ('bulk_tags', 'Updated tags for ' || @count || ' leads', @count, 'Counselor')
+      `).run({ count: targetIds.length });
+    });
+
+    tx();
+    this.invalidateCache();
+
+    return {
+      affectedCount: targetIds.length,
+      message: `Successfully updated tags for ${targetIds.length} leads (${request.action}: ${targetTags.join(", ")})!`,
     };
   }
 

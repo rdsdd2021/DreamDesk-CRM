@@ -204,6 +204,7 @@ function initializeSchema(db: Database.Database) {
       disposition_id TEXT REFERENCES dispositions(id) ON DELETE SET NULL,
       sub_disposition_id TEXT REFERENCES sub_dispositions(id) ON DELETE SET NULL,
       callback_at DATETIME,
+      tags TEXT DEFAULT '[]',
       raw_attributes TEXT NOT NULL DEFAULT '{}',
       notes TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -217,7 +218,7 @@ function initializeSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_leads_name ON leads(name);
   `);
 
-  // Migration check: Add campaign_id, disposition_id, sub_disposition_id, callback_at to existing leads table if missing
+  // Migration check: Add campaign_id, disposition_id, sub_disposition_id, callback_at, tags to existing leads table if missing
   const leadCols = db.pragma("table_info(leads)") as { name: string }[];
   const existingColNames = new Set(leadCols.map((c) => c.name));
 
@@ -233,6 +234,20 @@ function initializeSchema(db: Database.Database) {
   if (!existingColNames.has("callback_at")) {
     db.exec("ALTER TABLE leads ADD COLUMN callback_at DATETIME;");
   }
+  if (!existingColNames.has("tags")) {
+    db.exec("ALTER TABLE leads ADD COLUMN tags TEXT DEFAULT '[]';");
+  }
+
+  // Populate sample tags for existing demo leads if empty
+  try {
+    const hasAnyTags = db.prepare("SELECT COUNT(*) as count FROM leads WHERE tags IS NOT NULL AND tags != '[]' AND tags != ''").get() as { count: number };
+    if (hasAnyTags.count === 0) {
+      db.prepare(`UPDATE leads SET tags = '["High Priority", "Hostel Required"]' WHERE id % 7 = 0`).run();
+      db.prepare(`UPDATE leads SET tags = '["Scholarship Applicant"]' WHERE id % 5 = 0 AND id % 7 != 0`).run();
+      db.prepare(`UPDATE leads SET tags = '["VIP Referral", "Fee Sensitive"]' WHERE id % 11 = 0`).run();
+      db.prepare(`UPDATE leads SET tags = '["Local Candidate"]' WHERE id % 13 = 0`).run();
+    }
+  } catch {}
 
   // Optimize indices for high-volume 500k lead queries
   db.exec(`

@@ -64,6 +64,9 @@ import {
   Send,
   CalendarClock,
   ArrowRight,
+  Bookmark,
+  Plus,
+  X,
 } from "lucide-react";
 
 interface EnhancedLeadDrawerProps {
@@ -72,6 +75,7 @@ interface EnhancedLeadDrawerProps {
   onClose: () => void;
   users: User[];
   schemaMeta: SchemaMeta[];
+  campaigns?: Campaign[];
   onUpdateLeadStatus: (leadId: number, status: string) => void;
   onAssignLead: (leadId: number, userId: string) => void;
   onLeadUpdated?: (updatedLead: Lead) => void;
@@ -83,12 +87,26 @@ interface EnhancedLeadDrawerProps {
   totalLeadsCount?: number;
 }
 
+const PRESET_TAGS = [
+  "High Priority",
+  "Hostel Required",
+  "Fee Sensitive",
+  "Scholarship",
+  "VIP Referral",
+  "Outstation",
+  "Parent Follow-up",
+  "Document Pending",
+  "Exam Cleared",
+  "Merit Candidate",
+];
+
 export function EnhancedLeadDrawer({
   lead,
   isOpen,
   onClose,
   users,
   schemaMeta,
+  campaigns = [],
   onUpdateLeadStatus,
   onAssignLead,
   onLeadUpdated,
@@ -103,6 +121,12 @@ export function EnhancedLeadDrawer({
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [fieldSearchQuery, setFieldSearchQuery] = useState("");
+
+  // Lead Tags & Campaign Attribution State
+  const [leadTags, setLeadTags] = useState<string[]>([]);
+  const [customTagInput, setCustomTagInput] = useState("");
+  const [savingTags, setSavingTags] = useState(false);
+  const [updatingCampaign, setUpdatingCampaign] = useState(false);
 
   // Call & Disposition Logging State
   const [campaignDispositions, setCampaignDispositions] = useState<Disposition[]>([]);
@@ -237,7 +261,7 @@ export function EnhancedLeadDrawer({
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  // Load allowed dispositions and audit activities for this lead
+  // Load allowed dispositions, tags and audit activities for this lead
   useEffect(() => {
     if (!lead) return;
 
@@ -245,6 +269,7 @@ export function EnhancedLeadDrawer({
     setSelectedSubDispId(lead.sub_disposition_id || "");
     setCallbackDate(lead.callback_at ? lead.callback_at.slice(0, 16) : "");
     setCallNotes("");
+    setLeadTags(lead.tags || []);
 
     const fetchDispositions = async () => {
       try {
@@ -265,7 +290,78 @@ export function EnhancedLeadDrawer({
     if (lead.id) {
       fetchActivities(lead.id);
     }
-  }, [lead?.id, lead?.campaign_id, lead?.disposition_id, lead?.sub_disposition_id]);
+  }, [lead?.id, lead?.campaign_id, lead?.disposition_id, lead?.sub_disposition_id, lead?.tags]);
+
+  // Campaign Attribution Handler
+  const handleCampaignChange = async (newCampId: string) => {
+    if (!lead) return;
+    const targetVal = newCampId === "unassigned" ? null : newCampId;
+    setUpdatingCampaign(true);
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/field`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field: "campaign_id", value: targetVal }),
+      });
+      if (!res.ok) throw new Error("Failed to update campaign");
+      const updatedLead = await res.json();
+      if (onLeadUpdated) onLeadUpdated(updatedLead);
+      fetchActivities(lead.id);
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setUpdatingCampaign(false);
+    }
+  };
+
+  // Lead Tags Management Handlers
+  const handleSaveTags = async (nextTags: string[]) => {
+    if (!lead) return;
+    setSavingTags(true);
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/tags`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tags: nextTags }),
+      });
+      if (!res.ok) throw new Error("Failed to update tags");
+      const updatedLead = await res.json();
+      setLeadTags(updatedLead.tags || nextTags);
+      if (onLeadUpdated) onLeadUpdated(updatedLead);
+      fetchActivities(lead.id);
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setSavingTags(false);
+    }
+  };
+
+  const handleAddCustomTag = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const clean = customTagInput.trim();
+    if (!clean) return;
+    if (!leadTags.some((t) => t.toLowerCase() === clean.toLowerCase())) {
+      const next = [...leadTags, clean];
+      setLeadTags(next);
+      handleSaveTags(next);
+    }
+    setCustomTagInput("");
+  };
+
+  const handleTogglePresetTag = (tag: string) => {
+    const exists = leadTags.some((t) => t.toLowerCase() === tag.toLowerCase());
+    const next = exists
+      ? leadTags.filter((t) => t.toLowerCase() !== tag.toLowerCase())
+      : [...leadTags, tag];
+    setLeadTags(next);
+    handleSaveTags(next);
+  };
+
+  const handleRemoveTag = (tag: string) => {
+    const next = leadTags.filter((t) => t !== tag);
+    setLeadTags(next);
+    handleSaveTags(next);
+  };
 
   useEffect(() => {
     if (activeTab === "timeline" && lead?.id) {
@@ -479,6 +575,18 @@ export function EnhancedLeadDrawer({
                     <span>{lead.campaign_name}</span>
                   </span>
                 )}
+                {leadTags && leadTags.length > 0 && (
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {leadTags.map((t) => (
+                      <span
+                        key={t}
+                        className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20"
+                      >
+                        #{t}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -643,7 +751,7 @@ export function EnhancedLeadDrawer({
 
             {/* TAB 1: OVERVIEW */}
             <TabsContent value="overview" className="space-y-4 pt-3 m-0">
-              {/* Counselor & Stage Assignment Card */}
+              {/* Counselor, Stage & Campaign Assignment Card */}
               <div className="bg-card border border-border/80 rounded-2xl p-4 sm:p-5 space-y-4 shadow-2xs">
                 <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                   <span>Assigned Ownership & Lifecycle Stage</span>
@@ -654,7 +762,7 @@ export function EnhancedLeadDrawer({
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                   {/* Counselor Assignment */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
@@ -712,6 +820,126 @@ export function EnhancedLeadDrawer({
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  {/* Campaign Attribution */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <Target className="w-3.5 h-3.5 text-primary" />
+                      <span>Attributed Campaign</span>
+                    </label>
+                    <Select
+                      value={lead.campaign_id || "unassigned"}
+                      onValueChange={(val) => {
+                        if (val !== null) {
+                          handleCampaignChange(val);
+                        }
+                      }}
+                      disabled={updatingCampaign}
+                    >
+                      <SelectTrigger className="h-9 text-xs rounded-xl border-border/80 bg-background font-medium">
+                        <SelectValue placeholder="Select campaign..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unassigned" className="text-xs text-muted-foreground">
+                          None (Unattributed)
+                        </SelectItem>
+                        {campaigns.map((c) => (
+                          <SelectItem key={c.id} value={c.id} className="text-xs">
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Student Tags & Priority Labels Card */}
+              <div className="bg-card border border-border/80 rounded-2xl p-4 sm:p-5 space-y-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Bookmark className="w-3.5 h-3.5 text-primary" />
+                    <span>Student Tags & Priority Labels</span>
+                  </div>
+                  {savingTags && (
+                    <span className="text-[11px] text-muted-foreground animate-pulse font-medium">
+                      Saving tags...
+                    </span>
+                  )}
+                </div>
+
+                {/* Active Tags */}
+                <div className="flex flex-wrap items-center gap-1.5 min-h-[32px] p-2 rounded-xl bg-muted/20 border border-border/60">
+                  {leadTags.length === 0 ? (
+                    <span className="text-xs text-muted-foreground italic px-1">
+                      No tags assigned yet. Click preset chips below or type a custom tag.
+                    </span>
+                  ) : (
+                    leadTags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-primary/10 text-primary border border-primary/20 shadow-2xs group"
+                      >
+                        <span>#{tag}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTag(tag)}
+                          className="hover:bg-primary/20 rounded-full p-0.5 text-primary/70 hover:text-primary transition-colors cursor-pointer"
+                          title={`Remove #${tag}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+
+                {/* Custom Tag Input */}
+                <form onSubmit={handleAddCustomTag} className="flex items-center gap-2">
+                  <Input
+                    placeholder="Type custom tag (e.g. VIP Referral, JEE Prep)..."
+                    value={customTagInput}
+                    onChange={(e) => setCustomTagInput(e.target.value)}
+                    className="h-8.5 text-xs rounded-xl"
+                  />
+                  <Button
+                    type="submit"
+                    size="sm"
+                    variant="outline"
+                    disabled={!customTagInput.trim() || savingTags}
+                    className="h-8.5 px-3 text-xs font-semibold gap-1 rounded-xl shrink-0 border-border/80 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add</span>
+                  </Button>
+                </form>
+
+                {/* Quick Preset Suggestion Chips */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Fast Preset Suggestions
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {PRESET_TAGS.map((tag) => {
+                      const isActive = leadTags.some((t) => t.toLowerCase() === tag.toLowerCase());
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => handleTogglePresetTag(tag)}
+                          disabled={savingTags}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs transition-all cursor-pointer font-medium border ${
+                            isActive
+                              ? "bg-primary text-primary-foreground border-primary font-semibold shadow-2xs"
+                              : "bg-muted/40 text-muted-foreground hover:bg-muted border-border/60 hover:text-foreground"
+                          }`}
+                        >
+                          <span>#{tag}</span>
+                          {isActive && <Check className="w-3 h-3" />}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
