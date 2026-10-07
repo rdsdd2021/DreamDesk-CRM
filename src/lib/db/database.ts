@@ -256,7 +256,131 @@ function initializeSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_logs(created_at DESC);
   `);
 
+  // 8. Dedicated Individual Lead Audit Trail & Activity Logs
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lead_activities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      lead_id INTEGER NOT NULL,
+      activity_type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      old_value TEXT,
+      new_value TEXT,
+      metadata TEXT,
+      performed_by_id TEXT,
+      performed_by_name TEXT DEFAULT 'System',
+      performed_by_role TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_lead_activities_lead ON lead_activities(lead_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_lead_activities_type ON lead_activities(activity_type);
+  `);
+
+  backfillLeadActivities(db);
   seedInitialData(db);
+}
+
+function backfillLeadActivities(db: Database.Database) {
+  try {
+    const actCount = db.prepare("SELECT COUNT(*) as count FROM lead_activities").get() as { count: number };
+    if (actCount.count > 0) return;
+
+    // Backfill historical audit trail for existing leads
+    const leads = db.prepare(`
+      SELECT 
+        leads.*,
+        users.name as assigned_user_name,
+        campaigns.name as campaign_name,
+        dispositions.name as disposition_name,
+        dispositions.color as disposition_color,
+        dispositions.score as disposition_score
+      FROM leads
+      LEFT JOIN users ON leads.assigned_to = users.id
+      LEFT JOIN campaigns ON leads.campaign_id = campaigns.id
+      LEFT JOIN dispositions ON leads.disposition_id = dispositions.id
+      ORDER BY leads.id ASC
+    `).all() as any[];
+
+    if (leads.length === 0) return;
+
+    const insertActivity = db.prepare(`
+      INSERT INTO lead_activities (
+        lead_id, activity_type, title, description, old_value, new_value, metadata, performed_by_name, created_at
+      ) VALUES (
+        @lead_id, @activity_type, @title, @description, @old_value, @new_value, @metadata, @performed_by_name, @created_at
+      )
+    `);
+
+    const tx = db.transaction(() => {
+      for (const l of leads) {
+        // 1. Created entry
+        insertActivity.run({
+          lead_id: l.id,
+          activity_type: "created",
+          title: "Lead Ingested / Created",
+          description: l.campaign_name ? `Lead acquired via campaign "${l.campaign_name}"` : "Direct enrollment via system",
+          old_value: null,
+          new_value: l.status,
+          metadata: JSON.stringify({ lead_code: l.lead_code, campaign: l.campaign_name }),
+          performed_by_name: "System",
+          created_at: l.created_at || new Date().toISOString(),
+        });
+
+        // 2. Assignment entry (if assigned)
+        if (l.assigned_to && l.assigned_user_name) {
+          insertActivity.run({
+            lead_id: l.id,
+            activity_type: "assigned",
+            title: `Assigned to Counselor: ${l.assigned_user_name}`,
+            description: `Lead allocated to ${l.assigned_user_name} for student outreach`,
+            old_value: "Unassigned",
+            new_value: l.assigned_user_name,
+            metadata: JSON.stringify({ counselor_id: l.assigned_to }),
+            performed_by_name: "Admin",
+            created_at: l.assigned_at || l.created_at || new Date().toISOString(),
+          });
+        }
+
+        // 3. Disposition / Call outcome entry (if logged)
+        if (l.disposition_id && l.disposition_name) {
+          insertActivity.run({
+            lead_id: l.id,
+            activity_type: "disposition",
+            title: `Call Outcome: ${l.disposition_name}`,
+            description: l.notes || "Call logged with student",
+            old_value: null,
+            new_value: l.disposition_name,
+            metadata: JSON.stringify({
+              color: l.disposition_color,
+              score: l.disposition_score,
+            }),
+            performed_by_name: l.assigned_user_name || "Counselor",
+            created_at: l.updated_at || l.created_at || new Date().toISOString(),
+          });
+        }
+
+        // 4. Callback entry (if scheduled)
+        if (l.callback_at) {
+          insertActivity.run({
+            lead_id: l.id,
+            activity_type: "callback_scheduled",
+            title: "Follow-up Callback Scheduled",
+            description: `Callback scheduled for ${new Date(l.callback_at).toLocaleString()}`,
+            old_value: null,
+            new_value: l.callback_at,
+            metadata: JSON.stringify({ callback_at: l.callback_at }),
+            performed_by_name: l.assigned_user_name || "Counselor",
+            created_at: l.updated_at || l.created_at || new Date().toISOString(),
+          });
+        }
+      }
+    });
+
+    tx();
+  } catch (err) {
+    console.warn("Could not backfill lead activities:", err);
+  }
 }
 
 function seedInitialData(db: Database.Database) {

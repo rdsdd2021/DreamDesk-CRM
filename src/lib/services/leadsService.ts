@@ -8,6 +8,7 @@ import {
   BulkAssignRequest,
   User,
   ActivityLog,
+  LeadActivity,
   Disposition,
   Campaign,
   SubDisposition,
@@ -554,12 +555,27 @@ export class LeadsService {
     `);
 
     let affectedCount = 0;
+    const counselorList = db.prepare("SELECT id, name FROM users").all() as { id: string; name: string }[];
+    const counselorMap = new Map<string, string>(counselorList.map((c) => [c.id, c.name]));
+
+    const insertAssignActivity = db.prepare(`
+      INSERT INTO lead_activities (lead_id, activity_type, title, description, old_value, new_value, metadata, performed_by_name)
+      VALUES (@lead_id, 'assigned', @title, @description, 'Unassigned', @new_value, @metadata, 'Admin')
+    `);
 
     const assignTransaction = db.transaction(() => {
       if (request.mode === "single") {
         const userId = request.single_user_id || null;
+        const cName = userId ? counselorMap.get(userId) || "Counselor" : "Unassigned";
         for (const id of targetLeadIds) {
           updateLead.run({ id, userId });
+          insertAssignActivity.run({
+            lead_id: id,
+            title: `Assigned to Counselor: ${cName}`,
+            description: `Allocated via bulk assignment (${request.mode})`,
+            new_value: cName,
+            metadata: JSON.stringify({ assigned_to: userId, mode: request.mode }),
+          });
           affectedCount++;
         }
       } else if (request.mode === "auto") {
@@ -569,7 +585,15 @@ export class LeadsService {
         // Round-robin equal distribution
         targetLeadIds.forEach((id, index) => {
           const userId = userIds[index % userIds.length];
+          const cName = counselorMap.get(userId) || "Counselor";
           updateLead.run({ id, userId });
+          insertAssignActivity.run({
+            lead_id: id,
+            title: `Assigned to Counselor: ${cName}`,
+            description: `Auto-balanced round-robin distribution`,
+            new_value: cName,
+            metadata: JSON.stringify({ assigned_to: userId, mode: request.mode }),
+          });
           affectedCount++;
         });
       } else if (request.mode === "quota") {
@@ -578,9 +602,17 @@ export class LeadsService {
 
         for (const [userId, quota] of Object.entries(quotas)) {
           const countToGive = Math.min(quota, targetLeadIds.length - currentIndex);
+          const cName = counselorMap.get(userId) || "Counselor";
           for (let i = 0; i < countToGive; i++) {
             const id = targetLeadIds[currentIndex++];
             updateLead.run({ id, userId });
+            insertAssignActivity.run({
+              lead_id: id,
+              title: `Assigned to Counselor: ${cName}`,
+              description: `Quota-allocated assignment (${countToGive} capacity target)`,
+              new_value: cName,
+              metadata: JSON.stringify({ assigned_to: userId, mode: request.mode, quota }),
+            });
             affectedCount++;
           }
           if (currentIndex >= targetLeadIds.length) break;
@@ -632,6 +664,23 @@ export class LeadsService {
       WHERE id IN (${placeholders})
     `).run(userId, ...ids);
 
+    const insertClaimActivity = db.prepare(`
+      INSERT INTO lead_activities (lead_id, activity_type, title, description, old_value, new_value, metadata, performed_by_id, performed_by_name)
+      VALUES (?, 'assigned', ?, ?, 'Unassigned', ?, ?, ?, ?)
+    `);
+
+    for (const id of ids) {
+      insertClaimActivity.run(
+        id,
+        `Claimed by Counselor: ${user.name}`,
+        `Counselor self-allocated lead from the unassigned pool`,
+        user.name,
+        JSON.stringify({ userId: user.id }),
+        user.id,
+        user.name
+      );
+    }
+
     this.invalidateCache();
 
     db.prepare(`
@@ -671,9 +720,20 @@ export class LeadsService {
     if (targetIds.length === 0) return 0;
 
     const updateStmt = db.prepare(`UPDATE leads SET status = @status, updated_at = CURRENT_TIMESTAMP WHERE id = @id`);
+    const insertStatusActivity = db.prepare(`
+      INSERT INTO lead_activities (lead_id, activity_type, title, description, old_value, new_value, performed_by_name)
+      VALUES (?, 'stage_change', ?, ?, NULL, ?, 'Admin')
+    `);
+
     const tx = db.transaction(() => {
       for (const id of targetIds) {
         updateStmt.run({ id, status: newStatus });
+        insertStatusActivity.run(
+          id,
+          `Lifecycle Stage Changed: ${newStatus}`,
+          `Status updated to "${newStatus}" via bulk status action`,
+          newStatus
+        );
       }
       db.prepare(`
         INSERT INTO activity_logs (action_type, description, affected_count)
@@ -801,6 +861,11 @@ export class LeadsService {
       VALUES (@lead_code, @name, @phone, @email, @status, @campaign_id, @raw_attributes)
     `);
 
+    const insertCreatedActivity = db.prepare(`
+      INSERT INTO lead_activities (lead_id, activity_type, title, description, old_value, new_value, metadata, performed_by_name)
+      VALUES (@lead_id, 'created', @title, @description, NULL, @new_value, @metadata, 'System')
+    `);
+
     let importedCount = 0;
     let skippedDuplicates = 0;
     const currentMaxId = (db.prepare("SELECT MAX(id) as maxId FROM leads").get() as any)?.maxId || 0;
@@ -880,7 +945,7 @@ export class LeadsService {
 
         const leadCode = `LD-${String(codeIndex++).padStart(6, "0")}`;
 
-        insertLead.run({
+        const leadRes = insertLead.run({
           lead_code: leadCode,
           name,
           phone,
@@ -888,6 +953,14 @@ export class LeadsService {
           status,
           campaign_id: rowCampaignId,
           raw_attributes: JSON.stringify(rawAttributes),
+        });
+        const newLeadId = Number(leadRes.lastInsertRowid);
+        insertCreatedActivity.run({
+          lead_id: newLeadId,
+          title: "Lead Ingested / Created",
+          description: `Acquired via ${sourceName}${rowCampaignId ? ` (${rowCampaignId})` : ""}`,
+          new_value: status,
+          metadata: JSON.stringify({ lead_code: leadCode, campaign_id: rowCampaignId }),
         });
         importedCount++;
       }
@@ -1226,6 +1299,56 @@ export class LeadsService {
   static getActivityLogs(limit = 50): ActivityLog[] {
     const db = getDatabase();
     return db.prepare(`SELECT * FROM activity_logs ORDER BY created_at DESC LIMIT ?`).all(limit) as ActivityLog[];
+  }
+
+  /**
+   * Retrieves chronological audit trail activities for a specific lead.
+   */
+  static getLeadActivities(leadId: number): LeadActivity[] {
+    const db = getDatabase();
+    return db.prepare(`
+      SELECT * FROM lead_activities 
+      WHERE lead_id = ? 
+      ORDER BY created_at DESC, id DESC
+    `).all(leadId) as LeadActivity[];
+  }
+
+  /**
+   * Logs an immutable event to the individual lead audit trail.
+   */
+  static logLeadActivity(data: {
+    lead_id: number;
+    activity_type: string;
+    title: string;
+    description?: string | null;
+    old_value?: string | null;
+    new_value?: string | null;
+    metadata?: Record<string, any> | string | null;
+    performed_by_id?: string | null;
+    performed_by_name?: string | null;
+    performed_by_role?: string | null;
+    created_at?: string;
+  }): void {
+    const db = getDatabase();
+    db.prepare(`
+      INSERT INTO lead_activities (
+        lead_id, activity_type, title, description, old_value, new_value, metadata, performed_by_id, performed_by_name, performed_by_role, created_at
+      ) VALUES (
+        @lead_id, @activity_type, @title, @description, @old_value, @new_value, @metadata, @performed_by_id, @performed_by_name, @performed_by_role, COALESCE(@created_at, CURRENT_TIMESTAMP)
+      )
+    `).run({
+      lead_id: data.lead_id,
+      activity_type: data.activity_type,
+      title: data.title,
+      description: data.description || null,
+      old_value: data.old_value || null,
+      new_value: data.new_value || null,
+      metadata: typeof data.metadata === 'object' && data.metadata !== null ? JSON.stringify(data.metadata) : (data.metadata || null),
+      performed_by_id: data.performed_by_id || null,
+      performed_by_name: data.performed_by_name || 'System',
+      performed_by_role: data.performed_by_role || null,
+      created_at: data.created_at || null,
+    });
   }
 
   /**
@@ -1746,7 +1869,20 @@ export class LeadsService {
   ): Lead {
     const db = getDatabase();
 
-    const currentLead = db.prepare("SELECT * FROM leads WHERE id = ?").get(leadId) as any;
+    const currentLead = db.prepare(`
+      SELECT 
+        leads.*,
+        users.name as assigned_user_name,
+        campaigns.name as campaign_name,
+        dispositions.name as disposition_name,
+        dispositions.color as disposition_color,
+        dispositions.score as disposition_score
+      FROM leads
+      LEFT JOIN users ON leads.assigned_to = users.id
+      LEFT JOIN campaigns ON leads.campaign_id = campaigns.id
+      LEFT JOIN dispositions ON leads.disposition_id = dispositions.id
+      WHERE leads.id = ?
+    `).get(leadId) as any;
     if (!currentLead) {
       throw new Error(`Lead #${leadId} not found.`);
     }
@@ -1754,9 +1890,10 @@ export class LeadsService {
     let targetStatus = status || currentLead.status;
 
     // If disposition is provided and status wasn't explicitly changed, auto-map status from disposition
-    if (dispositionId && !status) {
-      const disp = db.prepare("SELECT * FROM dispositions WHERE id = ?").get(dispositionId) as Disposition | undefined;
-      if (disp) {
+    let disp: Disposition | undefined = undefined;
+    if (dispositionId) {
+      disp = db.prepare("SELECT * FROM dispositions WHERE id = ?").get(dispositionId) as Disposition | undefined;
+      if (disp && !status) {
         if (disp.code === "ADM_SUBMITTED") targetStatus = "Admitted";
         else if (disp.code === "COUNS_BOOKED" || disp.code === "INT_HIGH") targetStatus = "Interested";
         else if (disp.requires_callback) targetStatus = "Follow-up";
@@ -1764,6 +1901,11 @@ export class LeadsService {
         else if (disp.category === "unreachable") targetStatus = "Contacted";
         else targetStatus = "Contacted";
       }
+    }
+
+    let subDisp: SubDisposition | undefined = undefined;
+    if (subDispositionId) {
+      subDisp = db.prepare("SELECT * FROM sub_dispositions WHERE id = ?").get(subDispositionId) as SubDisposition | undefined;
     }
 
     let updatedNotes = currentLead.notes;
@@ -1792,7 +1934,68 @@ export class LeadsService {
       status: targetStatus,
     });
 
-    // Log in activity logs
+    const counselorName = currentLead.assigned_user_name || "Counselor";
+
+    // 1. Audit Trail: Call Disposition outcome
+    if (dispositionId && disp) {
+      const title = `Call Outcome: ${disp.name}${subDisp ? ` (${subDisp.name})` : ""}`;
+      this.logLeadActivity({
+        lead_id: leadId,
+        activity_type: "disposition",
+        title,
+        description: notes && notes.trim() ? notes.trim() : `Call outcome recorded: ${disp.name}`,
+        new_value: disp.name,
+        metadata: {
+          disposition_id: dispositionId,
+          disposition_name: disp.name,
+          sub_disposition_id: subDispositionId,
+          sub_disposition_name: subDisp?.name,
+          color: disp.color,
+          score: disp.score,
+          call_notes: notes || undefined,
+        },
+        performed_by_name: counselorName,
+      });
+    }
+
+    // 2. Audit Trail: Lifecycle stage transition
+    if (targetStatus && targetStatus !== currentLead.status) {
+      this.logLeadActivity({
+        lead_id: leadId,
+        activity_type: "stage_change",
+        title: `Stage Changed: ${currentLead.status} → ${targetStatus}`,
+        description: `Lead status updated to "${targetStatus}"`,
+        old_value: currentLead.status,
+        new_value: targetStatus,
+        performed_by_name: counselorName,
+      });
+    }
+
+    // 3. Audit Trail: Scheduled callback
+    if (callbackAt) {
+      this.logLeadActivity({
+        lead_id: leadId,
+        activity_type: "callback_scheduled",
+        title: "Follow-up Callback Scheduled",
+        description: `Scheduled callback for ${new Date(callbackAt).toLocaleString()}`,
+        new_value: callbackAt,
+        metadata: { callback_at: callbackAt },
+        performed_by_name: counselorName,
+      });
+    }
+
+    // 4. Audit Trail: Standalone note if added without disposition
+    if (notes && notes.trim() && !dispositionId) {
+      this.logLeadActivity({
+        lead_id: leadId,
+        activity_type: "note",
+        title: "Counselor Interaction Note",
+        description: notes.trim(),
+        performed_by_name: counselorName,
+      });
+    }
+
+    // High level activity log
     db.prepare(`
       INSERT INTO activity_logs (action_type, description, affected_count, metadata, performed_by)
       VALUES ('disposition_update', @desc, 1, @meta, 'Counselor')
@@ -2313,6 +2516,7 @@ export class LeadsService {
     }
 
     const counselorBreakdown: Record<string, number> = {};
+    const counselorMap = new Map<string, string>(counselors.map((c) => [c.id, c.name]));
     let ruleAssigned = 0;
     let roundRobinAssigned = 0;
 
@@ -2320,6 +2524,11 @@ export class LeadsService {
       UPDATE leads 
       SET assigned_to = @userId, assigned_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
       WHERE id = @id
+    `);
+
+    const insertDistAct = db.prepare(`
+      INSERT INTO lead_activities (lead_id, activity_type, title, description, old_value, new_value, metadata, performed_by_name)
+      VALUES (@lead_id, 'assigned', @title, @description, 'Unassigned', @new_value, @metadata, 'System')
     `);
 
     const autoTx = db.transaction(() => {
@@ -2345,7 +2554,15 @@ export class LeadsService {
           roundRobinAssigned++;
         }
 
+        const counselorName = counselorMap.get(assignedToUserId) || "Counselor";
         assignStmt.run({ userId: assignedToUserId, id: lead.id });
+        insertDistAct.run({
+          lead_id: lead.id,
+          title: `Auto-Assigned to: ${counselorName}`,
+          description: `Allocated via automated distribution engine`,
+          new_value: counselorName,
+          metadata: JSON.stringify({ assigned_to: assignedToUserId }),
+        });
         counselorBreakdown[assignedToUserId] = (counselorBreakdown[assignedToUserId] || 0) + 1;
       }
 
@@ -2471,15 +2688,54 @@ export class LeadsService {
 
     if (field === "status") {
       db.prepare("UPDATE leads SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(value, leadId);
+      this.logLeadActivity({
+        lead_id: leadId,
+        activity_type: "stage_change",
+        title: `Stage Changed: ${existing.status} → ${value}`,
+        description: `Stage updated directly to "${value}"`,
+        old_value: existing.status,
+        new_value: String(value),
+        performed_by_name: "User",
+      });
     } else if (field === "assigned_to") {
       db.prepare("UPDATE leads SET assigned_to = ?, assigned_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(value || null, leadId);
+      const user = value ? (db.prepare("SELECT name FROM users WHERE id = ?").get(value) as { name: string } | undefined) : undefined;
+      const counselorName = user ? user.name : (value ? "Counselor" : "Unassigned");
+      this.logLeadActivity({
+        lead_id: leadId,
+        activity_type: "assigned",
+        title: `Assigned to: ${counselorName}`,
+        description: `Ownership updated to ${counselorName}`,
+        new_value: counselorName,
+        performed_by_name: "Admin",
+      });
     } else if (field === "disposition_id") {
       db.prepare("UPDATE leads SET disposition_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(value || null, leadId);
+      const disp = value ? (db.prepare("SELECT name, color, score FROM dispositions WHERE id = ?").get(value) as any) : null;
+      this.logLeadActivity({
+        lead_id: leadId,
+        activity_type: "disposition",
+        title: `Disposition: ${disp ? disp.name : "Cleared"}`,
+        description: disp ? `Call outcome marked as ${disp.name}` : "Disposition removed",
+        new_value: disp?.name || null,
+        metadata: disp ? { color: disp.color, score: disp.score } : null,
+        performed_by_name: "Counselor",
+      });
     } else {
       // Attribute field (e.g. score, school, city, stream)
       const attrs = this.safeParseJson(existing.raw_attributes);
+      const oldValue = attrs[field];
       attrs[field] = value;
       db.prepare("UPDATE leads SET raw_attributes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(JSON.stringify(attrs), leadId);
+      this.logLeadActivity({
+        lead_id: leadId,
+        activity_type: "field_update",
+        title: `Field Updated: ${field}`,
+        description: `Changed from "${oldValue ?? "—"}" to "${value}"`,
+        old_value: oldValue !== undefined ? String(oldValue) : null,
+        new_value: String(value),
+        performed_by_name: "User",
+      });
     }
 
     this.invalidateCache();

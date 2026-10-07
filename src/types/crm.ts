@@ -211,6 +211,29 @@ export interface ActivityLog {
   created_at: string;
 }
 
+export interface LeadActivity {
+  id: number;
+  lead_id: number;
+  activity_type:
+    | 'created'
+    | 'assigned'
+    | 'stage_change'
+    | 'disposition'
+    | 'callback_scheduled'
+    | 'note'
+    | 'field_update'
+    | 'call';
+  title: string;
+  description?: string | null;
+  old_value?: string | null;
+  new_value?: string | null;
+  metadata?: string | null;
+  performed_by_id?: string | null;
+  performed_by_name?: string | null;
+  performed_by_role?: string | null;
+  created_at: string;
+}
+
 export interface WhatsAppTemplate {
   id: string;
   name: string;

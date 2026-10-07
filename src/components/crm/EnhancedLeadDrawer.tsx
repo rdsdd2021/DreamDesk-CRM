@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Lead, User, SchemaMeta, Disposition, Campaign } from "@/types/crm";
+import { Lead, User, SchemaMeta, Disposition, Campaign, LeadActivity } from "@/types/crm";
 import {
   Sheet,
   SheetContent,
@@ -60,6 +60,10 @@ import {
   User as UserIcon,
   Search,
   BookOpen,
+  RotateCw,
+  Send,
+  CalendarClock,
+  ArrowRight,
 } from "lucide-react";
 
 interface EnhancedLeadDrawerProps {
@@ -108,6 +112,78 @@ export function EnhancedLeadDrawer({
   const [callNotes, setCallNotes] = useState("");
   const [savingDisp, setSavingDisp] = useState(false);
   const [successToast, setSuccessToast] = useState(false);
+
+  // Immutable Audit Trail Timeline State
+  const [activities, setActivities] = useState<LeadActivity[]>([]);
+  const [loadingActivities, setLoadingActivities] = useState(false);
+  const [activityFilter, setActivityFilter] = useState<"all" | "call" | "stage_change" | "note" | "assigned">("all");
+  const [newNoteText, setNewNoteText] = useState("");
+  const [submittingNote, setSubmittingNote] = useState(false);
+
+  const fetchActivities = async (leadId: number) => {
+    setLoadingActivities(true);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/activities`);
+      if (res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : data.activities || [];
+        setActivities(list);
+      }
+    } catch (err) {
+      console.error("Failed to load lead activities:", err);
+    } finally {
+      setLoadingActivities(false);
+    }
+  };
+
+  const handleQuickAddNote = async () => {
+    if (!lead || !newNoteText.trim()) return;
+    setSubmittingNote(true);
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/activities`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: "Counselor Interaction Note",
+          description: newNoteText.trim(),
+          activity_type: "note",
+          performed_by_name: lead.assigned_user_name || "Counselor",
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.activities && Array.isArray(data.activities)) {
+          setActivities(data.activities);
+        } else {
+          fetchActivities(lead.id);
+        }
+        setNewNoteText("");
+      }
+    } catch (err) {
+      console.error("Failed to add note to audit trail:", err);
+    } finally {
+      setSubmittingNote(false);
+    }
+  };
+
+  const formatTimeAgo = (isoString?: string | null) => {
+    if (!isoString) return "—";
+    try {
+      const date = new Date(isoString);
+      const now = new Date();
+      const diffSec = Math.floor((now.getTime() - date.getTime()) / 1000);
+      if (diffSec < 60) return "Just now";
+      const diffMin = Math.floor(diffSec / 60);
+      if (diffMin < 60) return `${diffMin}m ago`;
+      const diffHours = Math.floor(diffMin / 60);
+      if (diffHours < 24) return `${diffHours}h ago`;
+      const diffDays = Math.floor(diffHours / 24);
+      if (diffDays < 7) return `${diffDays}d ago`;
+      return date.toLocaleDateString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    } catch {
+      return String(isoString);
+    }
+  };
 
   // Live Calling Timer State
   const [isCalling, setIsCalling] = useState(false);
@@ -161,7 +237,7 @@ export function EnhancedLeadDrawer({
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  // Load allowed dispositions for this lead's campaign
+  // Load allowed dispositions and audit activities for this lead
   useEffect(() => {
     if (!lead) return;
 
@@ -186,7 +262,16 @@ export function EnhancedLeadDrawer({
     };
 
     fetchDispositions();
+    if (lead.id) {
+      fetchActivities(lead.id);
+    }
   }, [lead?.id, lead?.campaign_id, lead?.disposition_id, lead?.sub_disposition_id]);
+
+  useEffect(() => {
+    if (activeTab === "timeline" && lead?.id) {
+      fetchActivities(lead.id);
+    }
+  }, [activeTab, lead?.id]);
 
   // Stepper Keyboard Hotkeys ([ and ])
   useEffect(() => {
@@ -221,6 +306,20 @@ export function EnhancedLeadDrawer({
 
   const selectedDispObj = campaignDispositions.find((d) => d.id === selectedDispId);
   const requiresCallback = selectedDispObj ? Boolean(selectedDispObj.requires_callback) : false;
+
+  const callsCount = activities.filter((a) => a.activity_type === "disposition" || a.activity_type === "call" || a.activity_type === "callback_scheduled").length;
+  const stagesCount = activities.filter((a) => a.activity_type === "stage_change").length;
+  const notesCount = activities.filter((a) => a.activity_type === "note").length;
+  const assignedCount = activities.filter((a) => a.activity_type === "assigned").length;
+
+  const filteredActivities = activities.filter((act) => {
+    if (activityFilter === "all") return true;
+    if (activityFilter === "call") return act.activity_type === "disposition" || act.activity_type === "call" || act.activity_type === "callback_scheduled";
+    if (activityFilter === "stage_change") return act.activity_type === "stage_change";
+    if (activityFilter === "note") return act.activity_type === "note";
+    if (activityFilter === "assigned") return act.activity_type === "assigned";
+    return true;
+  });
 
   // Preset callback helpers
   const setCallbackInHours = (hours: number) => {
@@ -268,6 +367,9 @@ export function EnhancedLeadDrawer({
 
       if (onLeadUpdated) {
         onLeadUpdated(updatedLead);
+      }
+      if (lead?.id) {
+        fetchActivities(lead.id);
       }
 
       setCallNotes("");
@@ -529,8 +631,13 @@ export function EnhancedLeadDrawer({
               <TabsTrigger value="fields" className="text-xs font-semibold rounded-lg">
                 Fields ({dynamicAttributes.length})
               </TabsTrigger>
-              <TabsTrigger value="timeline" className="text-xs font-semibold rounded-lg">
-                Timeline
+              <TabsTrigger value="timeline" className="text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5">
+                <span>Timeline</span>
+                {activities.length > 0 && (
+                  <span className="text-[10px] bg-primary/15 text-primary font-bold px-1.5 py-0.2 rounded-full">
+                    {activities.length}
+                  </span>
+                )}
               </TabsTrigger>
             </TabsList>
 
@@ -557,7 +664,10 @@ export function EnhancedLeadDrawer({
                     <Select
                       value={lead.assigned_to || "unassigned"}
                       onValueChange={(val) => {
-                        if (val !== null) onAssignLead(lead.id, val === "unassigned" ? "" : val);
+                        if (val !== null) {
+                          onAssignLead(lead.id, val === "unassigned" ? "" : val);
+                          setTimeout(() => fetchActivities(lead.id), 350);
+                        }
                       }}
                     >
                       <SelectTrigger className="h-9 text-xs rounded-xl border-border/80 bg-background font-medium">
@@ -585,7 +695,10 @@ export function EnhancedLeadDrawer({
                     <Select
                       value={lead.status}
                       onValueChange={(val) => {
-                        if (val) onUpdateLeadStatus(lead.id, val);
+                        if (val) {
+                          onUpdateLeadStatus(lead.id, val);
+                          setTimeout(() => fetchActivities(lead.id), 350);
+                        }
                       }}
                     >
                       <SelectTrigger className="h-9 text-xs rounded-xl border-border/80 bg-background font-medium">
@@ -1061,69 +1174,253 @@ export function EnhancedLeadDrawer({
 
             {/* TAB 4: AUDIT TIMELINE */}
             <TabsContent value="timeline" className="space-y-4 pt-3 m-0">
+              {/* Header & Filter Controls Card */}
+              <div className="bg-card border border-border/80 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+                      <History className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                        <span>Lead Activity & Audit Trail</span>
+                        <Badge variant="secondary" className="text-[11px] font-bold rounded-lg px-2">
+                          {activities.length} {activities.length === 1 ? "Event" : "Events"}
+                        </Badge>
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground">
+                        Permanent chronological history of calls, stages, notes, and counselor allocations
+                      </p>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => lead?.id && fetchActivities(lead.id)}
+                    disabled={loadingActivities}
+                    className="h-8 text-xs gap-1.5 rounded-lg border-border/80 hover:bg-muted font-medium"
+                  >
+                    <RotateCw className={`w-3.5 h-3.5 ${loadingActivities ? "animate-spin text-primary" : ""}`} />
+                    <span>Refresh</span>
+                  </Button>
+                </div>
+
+                {/* Quick Add Counselor Interaction Note */}
+                <div className="bg-muted/30 border border-border/70 rounded-xl p-3 space-y-2.5">
+                  <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <MessageSquare className="w-3.5 h-3.5 text-primary" />
+                    <span>Add Timestamped Note to Audit Trail</span>
+                  </div>
+                  <Textarea
+                    placeholder="Enter counselor observation, student interaction remarks, or follow-up feedback..."
+                    value={newNoteText}
+                    onChange={(e) => setNewNoteText(e.target.value)}
+                    className="min-h-[64px] text-xs resize-none rounded-lg bg-background border-border/80 focus-visible:ring-primary/20"
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      onClick={handleQuickAddNote}
+                      disabled={submittingNote || !newNoteText.trim()}
+                      className="h-8 px-3 text-xs font-semibold gap-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
+                    >
+                      <Send className="w-3 h-3" />
+                      <span>{submittingNote ? "Logging..." : "Log Note"}</span>
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Activity Category Filter Chips */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setActivityFilter("all")}
+                    className={`px-2.5 py-1 rounded-lg font-medium transition-colors whitespace-nowrap text-xs ${
+                      activityFilter === "all"
+                        ? "bg-primary text-primary-foreground font-semibold shadow-2xs"
+                        : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    All ({activities.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActivityFilter("call")}
+                    className={`px-2.5 py-1 rounded-lg font-medium transition-colors whitespace-nowrap text-xs ${
+                      activityFilter === "call"
+                        ? "bg-primary text-primary-foreground font-semibold shadow-2xs"
+                        : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    Calls & Outcomes ({callsCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActivityFilter("stage_change")}
+                    className={`px-2.5 py-1 rounded-lg font-medium transition-colors whitespace-nowrap text-xs ${
+                      activityFilter === "stage_change"
+                        ? "bg-primary text-primary-foreground font-semibold shadow-2xs"
+                        : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    Stage Changes ({stagesCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActivityFilter("assigned")}
+                    className={`px-2.5 py-1 rounded-lg font-medium transition-colors whitespace-nowrap text-xs ${
+                      activityFilter === "assigned"
+                        ? "bg-primary text-primary-foreground font-semibold shadow-2xs"
+                        : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    Counselors ({assignedCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActivityFilter("note")}
+                    className={`px-2.5 py-1 rounded-lg font-medium transition-colors whitespace-nowrap text-xs ${
+                      activityFilter === "note"
+                        ? "bg-primary text-primary-foreground font-semibold shadow-2xs"
+                        : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    Notes ({notesCount})
+                  </button>
+                </div>
+              </div>
+
+              {/* Timeline Events List */}
               <div className="bg-card border border-border/80 rounded-2xl p-4 sm:p-5 shadow-2xs">
-                <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-4">
-                  Lead Activity & Audit Trail
-                </div>
-
-                <div className="space-y-4 pl-3 border-l-2 border-primary/25 text-xs">
-                  {/* Lead Created */}
-                  <div className="relative pl-4 space-y-1">
-                    <div className="w-3 h-3 rounded-full bg-primary absolute -left-[7px] top-0.5 ring-4 ring-background" />
-                    <div className="font-bold text-foreground">Lead Ingested / Created</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {new Date(lead.created_at).toLocaleString()}
-                    </div>
+                {loadingActivities && activities.length === 0 ? (
+                  <div className="space-y-4 py-6">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="flex gap-3 animate-pulse">
+                        <div className="w-8 h-8 rounded-full bg-muted shrink-0" />
+                        <div className="space-y-2 flex-1">
+                          <div className="h-4 bg-muted rounded w-1/3" />
+                          <div className="h-3 bg-muted rounded w-2/3" />
+                        </div>
+                      </div>
+                    ))}
                   </div>
-
-                  {/* Campaign */}
-                  {lead.campaign_name && (
-                    <div className="relative pl-4 space-y-1">
-                      <div className="w-3 h-3 rounded-full bg-amber-500 absolute -left-[7px] top-0.5 ring-4 ring-background" />
-                      <div className="font-bold text-foreground">
-                        Source Campaign: {lead.campaign_name}
-                      </div>
+                ) : filteredActivities.length === 0 ? (
+                  <div className="py-12 text-center space-y-2">
+                    <div className="w-12 h-12 rounded-2xl bg-muted/60 mx-auto flex items-center justify-center text-muted-foreground">
+                      <History className="w-6 h-6" />
                     </div>
-                  )}
-
-                  {/* Assigned Counselor */}
-                  {lead.assigned_at && (
-                    <div className="relative pl-4 space-y-1">
-                      <div className="w-3 h-3 rounded-full bg-emerald-500 absolute -left-[7px] top-0.5 ring-4 ring-background" />
-                      <div className="font-bold text-foreground">
-                        Assigned to {lead.assigned_user_name || "Counselor"}
-                      </div>
-                      <div className="text-[11px] text-muted-foreground">
-                        {new Date(lead.assigned_at).toLocaleString()}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Disposition */}
-                  {lead.disposition_name && (
-                    <div className="relative pl-4 space-y-1">
-                      <div
-                        className="w-3 h-3 rounded-full absolute -left-[7px] top-0.5 ring-4 ring-background"
-                        style={{ backgroundColor: lead.disposition_color || "#3b82f6" }}
-                      />
-                      <div className="font-bold text-foreground">
-                        Call Disposition: {lead.disposition_name}
-                        {lead.sub_disposition_name && ` (${lead.sub_disposition_name})`}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Status */}
-                  <div className="relative pl-4 space-y-1">
-                    <div className="w-3 h-3 rounded-full bg-blue-500 absolute -left-[7px] top-0.5 ring-4 ring-background" />
-                    <div className="font-bold text-foreground">
-                      Current Stage: {lead.status}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground">
-                      Last modified on {new Date(lead.updated_at).toLocaleString()}
-                    </div>
+                    <p className="text-sm font-semibold text-foreground">No events recorded in this view</p>
+                    <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+                      {activityFilter === "all"
+                        ? "Interactions, call dispositions, and counselor assignments will appear here automatically."
+                        : `No activities found matching the selected filter.`}
+                    </p>
                   </div>
-                </div>
+                ) : (
+                  <div className="relative pl-6 space-y-6 before:absolute before:left-3.5 before:top-2 before:bottom-2 before:w-[2px] before:bg-border/80">
+                    {filteredActivities.map((act) => {
+                      let metaObj: any = null;
+                      if (act.metadata) {
+                        try {
+                          metaObj = typeof act.metadata === "string" ? JSON.parse(act.metadata) : act.metadata;
+                        } catch {
+                          metaObj = null;
+                        }
+                      }
+
+                      // Type-specific icon and border color
+                      let iconEl = <History className="w-3.5 h-3.5" />;
+                      let dotBorderColor = "border-primary/40 text-primary bg-primary/10";
+
+                      if (act.activity_type === "disposition" || act.activity_type === "call") {
+                        iconEl = <PhoneCall className="w-3.5 h-3.5 text-primary" />;
+                        dotBorderColor = "border-primary/40 text-primary bg-primary/10";
+                      } else if (act.activity_type === "stage_change") {
+                        iconEl = <ArrowRight className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />;
+                        dotBorderColor = "border-indigo-500/40 text-indigo-600 dark:text-indigo-400 bg-indigo-500/10";
+                      } else if (act.activity_type === "assigned") {
+                        iconEl = <UserCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />;
+                        dotBorderColor = "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10";
+                      } else if (act.activity_type === "callback_scheduled") {
+                        iconEl = <CalendarClock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />;
+                        dotBorderColor = "border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10";
+                      } else if (act.activity_type === "note") {
+                        iconEl = <MessageSquare className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />;
+                        dotBorderColor = "border-sky-500/40 text-sky-600 dark:text-sky-400 bg-sky-500/10";
+                      } else if (act.activity_type === "created") {
+                        iconEl = <Sparkles className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />;
+                        dotBorderColor = "border-violet-500/40 text-violet-600 dark:text-violet-400 bg-violet-500/10";
+                      } else if (act.activity_type === "field_update") {
+                        iconEl = <FileText className="w-3.5 h-3.5 text-muted-foreground" />;
+                        dotBorderColor = "border-border text-muted-foreground bg-muted";
+                      }
+
+                      return (
+                        <div key={act.id} className="relative group">
+                          {/* Anchor Icon Dot */}
+                          <div
+                            className={`absolute -left-6 top-1 w-7 h-7 rounded-full border ${dotBorderColor} ring-4 ring-card flex items-center justify-center transition-transform group-hover:scale-110 shadow-2xs`}
+                          >
+                            {iconEl}
+                          </div>
+
+                          {/* Event Body Card */}
+                          <div className="bg-background/80 hover:bg-background border border-border/70 hover:border-border rounded-xl p-3.5 space-y-2 transition-all shadow-2xs">
+                            <div className="flex flex-wrap items-center justify-between gap-1.5">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-bold text-foreground">
+                                  {act.title}
+                                </span>
+                                {metaObj?.score !== undefined && metaObj.score > 0 && (
+                                  <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold border-0 h-4.5 px-1.5">
+                                    +{metaObj.score} pts
+                                  </Badge>
+                                )}
+                                {metaObj?.color && (
+                                  <div
+                                    className="w-2.5 h-2.5 rounded-full border border-black/10 shrink-0"
+                                    style={{ backgroundColor: metaObj.color }}
+                                  />
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                                <Badge variant="outline" className="text-[10px] font-medium h-4.5 px-1.5 gap-1 border-border/60">
+                                  <UserIcon className="w-2.5 h-2.5 text-muted-foreground" />
+                                  <span>{act.performed_by_name || "System"}</span>
+                                </Badge>
+                                <span title={new Date(act.created_at).toLocaleString()}>
+                                  {formatTimeAgo(act.created_at)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Old → New Transition Pill */}
+                            {(act.old_value || act.new_value) && act.activity_type !== "note" && (
+                              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted/40 px-2.5 py-1 rounded-lg border border-border/40 font-mono w-fit">
+                                {act.old_value && (
+                                  <>
+                                    <span className="line-through text-muted-foreground/80">{act.old_value}</span>
+                                    <ArrowRight className="w-3 h-3 text-primary shrink-0" />
+                                  </>
+                                )}
+                                <span className="font-semibold text-foreground">{act.new_value}</span>
+                              </div>
+                            )}
+
+                            {/* Detailed Description / Remark */}
+                            {act.description && (
+                              <div className="text-xs text-foreground/90 whitespace-pre-wrap bg-muted/20 p-2.5 rounded-lg border border-border/50 font-normal leading-relaxed">
+                                {act.description}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </TabsContent>
           </Tabs>
