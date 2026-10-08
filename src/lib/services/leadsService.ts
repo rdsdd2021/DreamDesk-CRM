@@ -3,6 +3,7 @@ import {
   Lead,
   FilterParams,
   LeadsResponse,
+  LeadSummaryStats,
   FacetGroup,
   SchemaMeta,
   BulkAssignRequest,
@@ -145,8 +146,8 @@ export class LeadsService {
     // 3. Compute dynamic facets for filterable fields (strictly scoped)
     const facets = this.computeDynamicFacets(params, userScope);
 
-    // 4. Compute database summary (strictly scoped by user permissions)
-    const summary = this.getSummaryStats(userScope);
+    // 4. Compute database summary (contextual to active filters when present, strictly scoped by user permissions)
+    const { summary, globalSummary } = this.getSummaryStats(userScope, params);
 
     return {
       leads,
@@ -156,6 +157,7 @@ export class LeadsService {
       totalPages: Math.ceil(total / limit) || 1,
       facets,
       summary,
+      globalSummary,
     };
   }
 
@@ -1508,9 +1510,27 @@ export class LeadsService {
   }
 
   /**
-   * High level summary statistics, strictly isolated by UserScope.
+   * Helper to check if any user filters or query parameters are active.
    */
-  private static getSummaryStats(userScope?: UserScope) {
+  private static hasActiveFilters(params?: FilterParams): boolean {
+    if (!params) return false;
+    return Boolean(
+      (params.search && params.search.trim()) ||
+      (params.status && params.status.length > 0) ||
+      (params.assigned_to && params.assigned_to.length > 0) ||
+      (params.campaign_id && params.campaign_id.length > 0) ||
+      (params.disposition_id && params.disposition_id.length > 0) ||
+      (params.tags && params.tags.length > 0) ||
+      (params.facets && Object.keys(params.facets).length > 0) ||
+      params.date_from ||
+      params.date_to
+    );
+  }
+
+  /**
+   * Baseline summary statistics across the whole database or assigned scope.
+   */
+  private static getUnfilteredSummaryStats(userScope?: UserScope): LeadSummaryStats {
     const now = Date.now();
     const cacheKey = userScope && !userScope.canViewAllLeads ? `counselor_${userScope.userId}` : "global";
     const cached = this._summaryCacheMap.get(cacheKey);
@@ -1535,11 +1555,12 @@ export class LeadsService {
       });
 
       const userTotal = totalRow ? totalRow.count : 0;
-      const result = {
+      const result: LeadSummaryStats = {
         totalLeads: userTotal,
         unassignedCount: 0,
         assignedCount: userTotal,
         statusBreakdown,
+        isFiltered: false,
       };
       this._summaryCacheMap.set(cacheKey, { data: result, timestamp: now });
       return result;
@@ -1555,14 +1576,88 @@ export class LeadsService {
       statusBreakdown[r.status] = r.count;
     });
 
-    const result = {
+    const result: LeadSummaryStats = {
       totalLeads: totalRow.count,
       unassignedCount: unassignedRow.count,
       assignedCount: assignedRow.count,
       statusBreakdown,
+      isFiltered: false,
     };
     this._summaryCacheMap.set(cacheKey, { data: result, timestamp: now });
     return result;
+  }
+
+  /**
+   * High level summary statistics, dynamically contextual to active filters when present.
+   */
+  private static getSummaryStats(
+    userScope?: UserScope,
+    params?: FilterParams
+  ): { summary: LeadSummaryStats; globalSummary: LeadSummaryStats } {
+    const globalSummary = this.getUnfilteredSummaryStats(userScope);
+
+    if (!this.hasActiveFilters(params)) {
+      return {
+        summary: { ...globalSummary, isFiltered: false },
+        globalSummary,
+      };
+    }
+
+    const db = getDatabase();
+    const { whereClause, queryParams } = this.buildWhereClause(params!, undefined, userScope);
+
+    let joins = "";
+    if (whereClause.includes("users.")) {
+      joins += " LEFT JOIN users ON leads.assigned_to = users.id";
+    }
+    if (whereClause.includes("campaigns.")) {
+      joins += " LEFT JOIN campaigns ON leads.campaign_id = campaigns.id";
+    }
+    if (whereClause.includes("dispositions.")) {
+      joins += " LEFT JOIN dispositions ON leads.disposition_id = dispositions.id";
+    }
+
+    const countSql = `
+      SELECT 
+        COUNT(*) as totalLeads,
+        SUM(CASE WHEN leads.assigned_to IS NULL OR leads.assigned_to = '' THEN 1 ELSE 0 END) as unassignedCount,
+        SUM(CASE WHEN leads.assigned_to IS NOT NULL AND leads.assigned_to != '' THEN 1 ELSE 0 END) as assignedCount
+      FROM leads
+      ${joins}
+      ${whereClause}
+    `;
+    const countsRow = db.prepare(countSql).get(queryParams) as {
+      totalLeads: number;
+      unassignedCount: number;
+      assignedCount: number;
+    } | undefined;
+
+    const statusSql = `
+      SELECT leads.status, COUNT(*) as count
+      FROM leads
+      ${joins}
+      ${whereClause}
+      GROUP BY leads.status
+    `;
+    const statusRows = db.prepare(statusSql).all(queryParams) as { status: string; count: number }[];
+
+    const statusBreakdown: Record<string, number> = {};
+    statusRows.forEach((r) => {
+      statusBreakdown[r.status] = r.count;
+    });
+
+    const filteredSummary: LeadSummaryStats = {
+      totalLeads: countsRow?.totalLeads || 0,
+      unassignedCount: countsRow?.unassignedCount || 0,
+      assignedCount: countsRow?.assignedCount || 0,
+      statusBreakdown,
+      isFiltered: true,
+    };
+
+    return {
+      summary: filteredSummary,
+      globalSummary,
+    };
   }
 
   private static sanitizeSortColumn(column?: string): string {

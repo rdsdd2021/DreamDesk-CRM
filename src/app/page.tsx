@@ -10,6 +10,7 @@ import {
   Disposition,
   FilterParams,
   LeadsResponse,
+  LeadSummaryStats,
   SavedView,
   Campaign,
 } from "@/types/crm";
@@ -228,11 +229,19 @@ export default function CRMPage() {
   const [facets, setFacets] = useState<FacetGroup[]>([]);
   const [schemaMeta, setSchemaMeta] = useState<SchemaMeta[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [summary, setSummary] = useState({
+  const [summary, setSummary] = useState<LeadSummaryStats>({
     totalLeads: 0,
     unassignedCount: 0,
     assignedCount: 0,
     statusBreakdown: {} as Record<string, number>,
+    isFiltered: false,
+  });
+  const [globalSummary, setGlobalSummary] = useState<LeadSummaryStats>({
+    totalLeads: 0,
+    unassignedCount: 0,
+    assignedCount: 0,
+    statusBreakdown: {} as Record<string, number>,
+    isFiltered: false,
   });
 
   // Filter & Query State
@@ -417,6 +426,12 @@ export default function CRMPage() {
       setFacets(data.facets || []);
       if (data.summary) {
         setSummary(data.summary);
+      }
+      if (data.globalSummary) {
+        setGlobalSummary(data.globalSummary);
+        setTotalCount(data.globalSummary.totalLeads);
+      } else if (data.summary && !data.summary.isFiltered) {
+        setGlobalSummary(data.summary);
         setTotalCount(data.summary.totalLeads);
       }
     } catch (err) {
@@ -1169,7 +1184,7 @@ export default function CRMPage() {
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         totalLeadsCount={totalCount}
-        unassignedCount={summary.unassignedCount}
+        unassignedCount={globalSummary.unassignedCount || summary.unassignedCount}
         counselorsCount={users.length}
         currentUser={currentUser}
         allowedViews={permissions?.allowedViews}
@@ -1541,13 +1556,20 @@ export default function CRMPage() {
           {/* VIEW 1: LEADS WORKSPACE */}
           {currentView === "leads" && (
             <div className="space-y-4 max-w-7xl mx-auto">
-              {/* Executive Metrics Overview Bar - Strictly Scoped to User Role */}
+              {/* Executive Metrics Overview Bar - Strictly Scoped to User Role & Contextual to Active Filters */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 {/* Card 1: Total Leads */}
                 <div className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card hover:border-primary/40 hover:shadow-sm transition-all duration-200 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      {isRestrictedCounselor ? "My Assigned Desk" : "Total Database"}
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      {summary.isFiltered ? (
+                        <>
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                          Filtered Cohort
+                        </>
+                      ) : (
+                        isRestrictedCounselor ? "My Assigned Desk" : "Total Database"
+                      )}
                     </span>
                     <div className="p-2 rounded-xl bg-primary/10 text-primary">
                       <GraduationCap className="w-4 h-4" />
@@ -1558,8 +1580,8 @@ export default function CRMPage() {
                   </div>
                   <div className="text-xs text-muted-foreground flex items-center gap-1.5 pt-0.5">
                     <span className="text-emerald-600 dark:text-emerald-400 font-semibold font-mono text-xs">
-                      {totalFilteredCount < summary.totalLeads
-                        ? `${totalFilteredCount.toLocaleString()} matching filters`
+                      {summary.isFiltered
+                        ? `${summary.totalLeads.toLocaleString()} of ${(globalSummary.totalLeads || totalCount).toLocaleString()} total (${globalSummary.totalLeads ? ((summary.totalLeads / globalSummary.totalLeads) * 100).toFixed(1) : 0}%)`
                         : (isRestrictedCounselor ? "All assigned to you" : "All records in WAL")}
                     </span>
                   </div>
@@ -1570,7 +1592,7 @@ export default function CRMPage() {
                   <div className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card hover:border-amber-500/40 hover:shadow-sm transition-all duration-200 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        Pending Follow-ups
+                        {summary.isFiltered ? "Pending Follow-ups in Filter" : "Pending Follow-ups"}
                       </span>
                       <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
                         <Clock className="w-4 h-4" />
@@ -1580,9 +1602,9 @@ export default function CRMPage() {
                       {(summary.statusBreakdown["Follow-up"] || 0).toLocaleString()}
                     </div>
                     <div className="text-xs text-muted-foreground flex items-center justify-between pt-0.5">
-                      <span>Requires call outreach</span>
+                      <span>{summary.isFiltered ? "In filtered cohort" : "Requires call outreach"}</span>
                       <button
-                        onClick={() => setSelectedFacets({ status: ["Follow-up"] })}
+                        onClick={() => setSelectedFacets((prev) => ({ ...prev, status: ["Follow-up"] }))}
                         className="text-primary hover:underline font-semibold text-xs cursor-pointer"
                       >
                         Filter Queue
@@ -1593,7 +1615,7 @@ export default function CRMPage() {
                   <div className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card hover:border-amber-500/40 hover:shadow-sm transition-all duration-200 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        Unallocated Pool
+                        {summary.isFiltered ? "Unallocated in Filter" : "Unallocated Pool"}
                       </span>
                       <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
                         <Clock className="w-4 h-4" />
@@ -1603,11 +1625,11 @@ export default function CRMPage() {
                       {summary.unassignedCount.toLocaleString()}
                     </div>
                     <div className="text-xs text-muted-foreground flex items-center justify-between pt-0.5">
-                      <span>Awaiting counselor</span>
+                      <span>{summary.isFiltered ? "Awaiting counselor in filter" : "Awaiting counselor"}</span>
                       {summary.unassignedCount > 0 && (
                         <button
                           onClick={() => {
-                            setSelectedFacets({ assigned_to: ["unassigned"] });
+                            setSelectedFacets((prev) => ({ ...prev, assigned_to: ["unassigned"] }));
                           }}
                           className="text-primary hover:underline font-semibold text-xs cursor-pointer"
                         >
@@ -1637,7 +1659,7 @@ export default function CRMPage() {
                         ? `${(((summary.statusBreakdown["Interested"] || 0) + (summary.statusBreakdown["Admitted"] || 0)) / summary.totalLeads * 100).toFixed(1)}%`
                         : "0%"}
                     </span>
-                    <span>conversion pipeline</span>
+                    <span>{summary.isFiltered ? "of filtered cohort" : "conversion pipeline"}</span>
                   </div>
                 </div>
 
@@ -1667,23 +1689,31 @@ export default function CRMPage() {
                   <div className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card hover:border-blue-500/40 hover:shadow-sm transition-all duration-200 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        Counselor Roster
+                        {summary.isFiltered ? "Assigned in Filter" : "Counselor Roster"}
                       </span>
                       <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
                         <Users className="w-4 h-4" />
                       </div>
                     </div>
                     <div className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground font-sans tabular-nums">
-                      {users.length} Counselors
+                      {summary.isFiltered
+                        ? summary.assignedCount.toLocaleString()
+                        : `${users.length} Counselors`}
                     </div>
                     <div className="text-xs text-muted-foreground flex items-center justify-between pt-0.5">
-                      <span>{summary.assignedCount.toLocaleString()} assigned</span>
-                      <button
-                        onClick={() => setIsTeamModalOpen(true)}
-                        className="text-primary hover:underline font-semibold text-xs cursor-pointer"
-                      >
-                        Manage Team
-                      </button>
+                      <span>
+                        {summary.isFiltered
+                          ? `${summary.totalLeads > 0 ? ((summary.assignedCount / summary.totalLeads) * 100).toFixed(0) : 0}% assigned in filter`
+                          : `${(globalSummary.assignedCount || summary.assignedCount).toLocaleString()} assigned`}
+                      </span>
+                      {!summary.isFiltered && (
+                        <button
+                          onClick={() => setIsTeamModalOpen(true)}
+                          className="text-primary hover:underline font-semibold text-xs cursor-pointer"
+                        >
+                          Manage Team
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1693,9 +1723,9 @@ export default function CRMPage() {
               <WorkQueueTabs
                 activeQueue={activeQueue}
                 onSelectQueue={handleSelectQueue}
-                unassignedCount={summary.unassignedCount}
-                callbacksCount={summary.statusBreakdown["Follow-up"] || 0}
-                myLeadsCount={summary.totalLeads}
+                unassignedCount={globalSummary.unassignedCount || summary.unassignedCount}
+                callbacksCount={globalSummary.statusBreakdown["Follow-up"] || summary.statusBreakdown["Follow-up"] || 0}
+                myLeadsCount={globalSummary.totalLeads || summary.totalLeads}
                 roleMode={isRestrictedCounselor ? "counselor" : roleMode}
                 onClaimLeads={handleClaimLeads}
                 claimingLeads={claimingLeads}
@@ -2174,7 +2204,7 @@ export default function CRMPage() {
             collapsed={false}
             onToggleCollapse={() => {}}
             totalLeadsCount={totalCount}
-            unassignedCount={summary.unassignedCount}
+            unassignedCount={globalSummary.unassignedCount || summary.unassignedCount}
             counselorsCount={users.length}
             currentUser={currentUser}
             allowedViews={permissions?.allowedViews}

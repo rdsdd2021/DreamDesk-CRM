@@ -224,6 +224,14 @@ export interface FilterParams {
   sort_order?: 'asc' | 'desc';
 }
 
+export interface LeadSummaryStats {
+  totalLeads: number;
+  unassignedCount: number;
+  assignedCount: number;
+  statusBreakdown: Record<string, number>;
+  isFiltered?: boolean;
+}
+
 export interface LeadsResponse {
   leads: Lead[];
   total: number;
@@ -231,12 +239,8 @@ export interface LeadsResponse {
   limit: number;
   totalPages: number;
   facets: FacetGroup[];
-  summary: {
-    totalLeads: number;
-    unassignedCount: number;
-    assignedCount: number;
-    statusBreakdown: Record<string, number>;
-  };
+  summary: LeadSummaryStats;
+  globalSummary?: LeadSummaryStats;
 }
 
 export interface BulkAssignRequest {
