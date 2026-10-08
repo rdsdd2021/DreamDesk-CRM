@@ -388,4 +388,35 @@ export class AuthService {
         END, name ASC
     `).all() as User[];
   }
+
+  /**
+   * Helper to extract and validate session from an incoming NextRequest.
+   */
+  static getSessionFromRequest(request: { cookies: { get: (name: string) => { value?: string } | undefined } }): AuthSession | null {
+    const sessionId = request.cookies.get("dreamdesk_session")?.value;
+    if (!sessionId) return null;
+    return this.getSession(sessionId);
+  }
+
+  /**
+   * Enforces authentication and optional role permission on an incoming request.
+   */
+  static requireAuth(
+    request: { cookies: { get: (name: string) => { value?: string } | undefined } },
+    requiredPermission?: keyof RolePermissions
+  ): { session: AuthSession; errorResponse?: null } | { session?: null; errorResponse: { error: string; status: number } } {
+    const session = this.getSessionFromRequest(request);
+    if (!session) {
+      return { errorResponse: { error: "Authentication required. Please sign in to access this resource.", status: 401 } };
+    }
+    if (requiredPermission && !session.permissions[requiredPermission]) {
+      return {
+        errorResponse: {
+          error: `Access denied. Your role (${session.user.role}) lacks the required '${String(requiredPermission)}' permission.`,
+          status: 403,
+        },
+      };
+    }
+    return { session, errorResponse: null };
+  }
 }

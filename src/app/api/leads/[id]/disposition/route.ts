@@ -1,15 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LeadsService } from "@/lib/services/leadsService";
+import { AuthService } from "@/lib/services/authService";
 
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { session, errorResponse } = AuthService.requireAuth(request);
+    if (errorResponse) {
+      return NextResponse.json({ error: errorResponse.error }, { status: errorResponse.status });
+    }
+
     const { id } = await context.params;
     const leadId = parseInt(id, 10);
     if (isNaN(leadId)) {
       return NextResponse.json({ error: "Invalid lead ID" }, { status: 400 });
+    }
+
+    const lead = LeadsService.getLeadById(leadId);
+    if (!lead) {
+      return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+    }
+
+    // Strict counselor IDOR check
+    if (!session.permissions.canViewAllLeads && lead.assigned_to !== session.user.id) {
+      return NextResponse.json(
+        { error: "Access denied. You can only log dispositions for your assigned leads." },
+        { status: 403 }
+      );
     }
 
     const body = await request.json();
@@ -21,7 +40,8 @@ export async function POST(
       notes,
       callback_at,
       status,
-      sub_disposition_id !== undefined ? sub_disposition_id : null
+      sub_disposition_id !== undefined ? sub_disposition_id : null,
+      session.user
     );
 
     return NextResponse.json(updatedLead);
@@ -40,3 +60,4 @@ export async function PATCH(
 ) {
   return POST(request, context);
 }
+

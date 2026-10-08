@@ -130,14 +130,16 @@ export class PolicyService {
 
     const lockDays = customLockDays ?? (policy.config.lock_days || 7);
 
-    // 1. Check most recent call activity in lead_activities
+    // 1. Check most recent interaction activity performed by the assigned counselor
     const callActivity = db.prepare(`
       SELECT created_at
       FROM lead_activities
-      WHERE lead_id = ? AND activity_type IN ('disposition', 'call')
+      WHERE lead_id = ? 
+        AND activity_type IN ('disposition', 'call', 'note', 'whatsapp')
+        AND (performed_by_id = ? OR performed_by_id IS NULL)
       ORDER BY created_at DESC
       LIMIT 1
-    `).get(leadId) as { created_at: string } | undefined;
+    `).get(leadId, lead.assigned_to) as { created_at: string } | undefined;
 
     let lastCallAt = callActivity?.created_at;
 
@@ -319,13 +321,14 @@ export class PolicyService {
     const isPolicyEnabled = Boolean(policy?.is_enabled);
     const exemptRoles = policy?.config.exempt_roles || ["admin", "team_lead"];
 
-    // Leads assigned with a call within lockDays
+    // Leads assigned with a call/interaction within lockDays
     const lockedRows = db.prepare(`
       SELECT DISTINCT leads.id, leads.assigned_to
       FROM leads
       INNER JOIN lead_activities ON leads.id = lead_activities.lead_id
       WHERE leads.assigned_to IS NOT NULL
-        AND lead_activities.activity_type IN ('disposition', 'call')
+        AND lead_activities.activity_type IN ('disposition', 'call', 'note', 'whatsapp')
+        AND (lead_activities.performed_by_id = leads.assigned_to OR lead_activities.performed_by_id IS NULL)
         AND datetime(lead_activities.created_at) >= datetime('now', '-' || ? || ' days')
     `).all(lockDays) as { id: number; assigned_to: string }[];
 

@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { LeadsService } from "@/lib/services/leadsService";
 import { AuthService } from "@/lib/services/authService";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { session, errorResponse } = AuthService.requireAuth(request);
+    if (errorResponse) {
+      return NextResponse.json({ error: errorResponse.error }, { status: errorResponse.status });
+    }
     const users = LeadsService.getUsers();
     return NextResponse.json(users);
   } catch (error: any) {
@@ -13,12 +17,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const sessionId = request.cookies.get("dreamdesk_session")?.value;
-    if (sessionId) {
-      const session = AuthService.getSession(sessionId);
-      if (session && !session.permissions.canManageTeam) {
-        return NextResponse.json({ error: "Access denied. Insufficient permissions to add staff." }, { status: 403 });
-      }
+    const { session, errorResponse } = AuthService.requireAuth(request, "canManageTeam");
+    if (errorResponse) {
+      return NextResponse.json({ error: errorResponse.error }, { status: errorResponse.status });
     }
 
     const body = await request.json();

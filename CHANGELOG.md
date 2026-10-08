@@ -4,6 +4,41 @@ All notable changes, architectural enhancements, schema migrations, and feature 
 
 ---
 
+## [v2.5.0] — 2026-10-08
+
+### 🔒 Enterprise Security Hardening, Policy Integrity, Zero-Data-Loss Deduplication & UX Synchronization
+**Objective**: Eliminate critical authentication loopholes, enforce strict RBAC across all REST endpoints, prevent cascade data loss during duplicate lead merges, standardize phone normalization, and resolve operator keyboard navigation desynchronization.
+
+#### 1. Security & RBAC Hardening
+- **Universal Session & Permission Middleware (`authService.ts`)**: Added `requireAuth(request, requiredPermission)` helper verifying active sessions and permissions before executing operations.
+- **Lockdown of Critical Endpoints**:
+  - `POST /api/leads/bulk-delete`: Restricted strictly to Super Admins with `canDeleteLeads`.
+  - `POST /api/users`: Fixed cookie bypass vulnerability; strictly verifies `canManageTeam`.
+  - `GET /api/leads`: Enforces authentication; unauthenticated requests receive 401 instead of exfiltrating all 500k student records.
+  - `POST /api/leads/claim`: Enforces counselor self-scoping and prevents IDOR lead poaching.
+  - `GET / POST /api/leads/duplicates`: Restricted to users with `canAssignLeads`.
+  - `GET / POST /api/leads/[id]/activities`: Strict counselor IDOR check and tamper-proof performer identity logged from session.
+  - `POST /api/leads/[id]/disposition`: Strict counselor IDOR check and caller attribution.
+  - `PATCH /api/tasks/[id]`: Enforces task assignment ownership check.
+- **Cryptographic Password Seeding**: New user creation in `LeadsService.createUser` now hashes initial passwords using scrypt with random salts.
+
+#### 2. Zero-Data-Loss Duplicate Merging & Phone Normalization
+- **Historical Activity & Task Re-Parenting (`leadsService.ts`)**: `mergeLeads` now re-links all `lead_activities` and `crm_tasks` to the surviving primary record before executing deletion, preventing `ON DELETE CASCADE` from erasing historical calls, notes, and callbacks.
+- **Standardized Phone Normalization (`normalizePhoneNumber`)**: Strips country codes (`+91`, `91`, leading `0`), whitespace, and symbols. Both duplicate clustering and CSV batch import deduplication now detect matches across formatting variations.
+
+#### 3. 7-Day Counselor Ownership Policy & Task Integrity
+- **Counselor Attribution Binding (`policyService.ts`)**: `checkLeadLock` and `getPolicyStats` now evaluate whether the *currently assigned counselor* performed the call or note (`performed_by_id = lead.assigned_to`), preventing transfer recipients from inheriting unearned locks.
+- **Interaction Expansion**: 7-day lock now protects leads when counselors log consultation notes (`note`) or send WhatsApp messages (`whatsapp`).
+- **Policy Check on Self-Claim**: `claimUnassignedLeads` validates candidates against `PolicyService.validateBulkReassignment` inside an atomic transaction.
+- **Deactivated Counselor Filter**: `autoDistributeLeads` now filters `WHERE status = 'active'` to prevent inactive staff allocation.
+- **Idempotent Task Completion**: `TasksService.completeTask` guards against duplicate completion updates and duplicate timeline log entries.
+
+#### 4. Operator UX & Workflow Synchronization (`page.tsx`)
+- **Hotkey Desynchronization Resolved**: Global calling (<kbd>c</kbd>) and WhatsApp (<kbd>w</kbd>) hotkeys now correctly target the student currently open in `EnhancedLeadDrawer` or active row. Drawer sequential navigation (<kbd>[</kbd> / <kbd>]</kbd>) synchronizes `activeLeadIndex`.
+- **Multi-Page Selection Preserved**: `handleToggleSelectAllPage` now performs a Set union across pages, preventing selections made on previous pages from being discarded.
+
+---
+
 ## [v2.4.0] — 2026-10-08
 
 ### 🌟 Redesigned Lead History: Smart Executive Journey & Multi-Density Timeline

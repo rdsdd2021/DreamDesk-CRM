@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LeadsService } from "@/lib/services/leadsService";
+import { AuthService } from "@/lib/services/authService";
 
 export async function POST(request: NextRequest) {
   try {
+    const { session, errorResponse } = AuthService.requireAuth(request, "canDeleteLeads");
+    if (errorResponse) {
+      return NextResponse.json({ error: errorResponse.error }, { status: errorResponse.status });
+    }
+
     const body = await request.json();
     const { lead_ids, apply_to_all_filtered, filter_params } = body;
 

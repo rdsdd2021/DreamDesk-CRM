@@ -26,6 +26,26 @@ import {
 } from "@/types/crm";
 import { PolicyService } from "@/lib/services/policyService";
 import { TasksService } from "@/lib/services/tasksService";
+import { AuthService } from "@/lib/services/authService";
+
+/**
+ * Normalizes phone numbers to standard 10-digit format (or clean digits)
+ * removing +91, leading zeros, spaces, dashes, and parentheses.
+ */
+export function normalizePhoneNumber(phone?: string | null): string {
+  if (!phone) return "";
+  const cleaned = phone.replace(/[^0-9]/g, "");
+  if (cleaned.length === 12 && cleaned.startsWith("91")) {
+    return cleaned.slice(2);
+  }
+  if (cleaned.length === 11 && cleaned.startsWith("0")) {
+    return cleaned.slice(1);
+  }
+  if (cleaned.length > 10) {
+    return cleaned.slice(-10);
+  }
+  return cleaned;
+}
 
 export class LeadsService {
   private static _facetCacheMap = new Map<string, { data: FacetGroup[]; timestamp: number }>();
@@ -734,60 +754,86 @@ export class LeadsService {
   /**
    * Fast 1-click self-allocation for counselors: claims N fresh unassigned leads.
    */
-  static claimUnassignedLeads(userId: string, count: number = 25): { claimedCount: number; message: string } {
+  static claimUnassignedLeads(
+    userId: string,
+    count: number = 25,
+    currentUser?: User | null
+  ): { claimedCount: number; message: string } {
     const db = getDatabase();
     const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as User | undefined;
     if (!user) throw new Error("Counselor not found");
 
+    // Fetch candidate unassigned leads (buffer up to count * 3 to account for policy-locked leads)
     const unassignedRows = db.prepare(
       "SELECT id FROM leads WHERE assigned_to IS NULL ORDER BY id ASC LIMIT ?"
-    ).all(count) as { id: number }[];
+    ).all(count * 3) as { id: number }[];
 
     if (unassignedRows.length === 0) {
       return { claimedCount: 0, message: "No unassigned leads available in the pool." };
     }
 
-    const ids = unassignedRows.map((r) => r.id);
-    const placeholders = ids.map(() => "?").join(",");
+    const candidateIds = unassignedRows.map((r) => r.id);
 
-    db.prepare(`
-      UPDATE leads 
-      SET assigned_to = ?, assigned_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
-      WHERE id IN (${placeholders})
-    `).run(userId, ...ids);
+    // Validate candidates against 7-day counselor ownership policy
+    const policyResult = PolicyService.validateBulkReassignment({
+      leadIds: candidateIds,
+      newUserId: userId,
+      currentUser,
+      overridePolicy: false,
+    });
 
-    const insertClaimActivity = db.prepare(`
-      INSERT INTO lead_activities (lead_id, activity_type, title, description, old_value, new_value, metadata, performed_by_id, performed_by_name)
-      VALUES (?, 'assigned', ?, ?, 'Unassigned', ?, ?, ?, ?)
-    `);
+    const allowedIds = policyResult.allowedIds.slice(0, count);
 
-    for (const id of ids) {
-      insertClaimActivity.run(
-        id,
-        `Claimed by Counselor: ${user.name}`,
-        `Counselor self-allocated lead from the unassigned pool`,
-        user.name,
-        JSON.stringify({ userId: user.id }),
-        user.id,
-        user.name
-      );
+    if (allowedIds.length === 0) {
+      return {
+        claimedCount: 0,
+        message: "All candidate unassigned leads are currently protected under counselor ownership locks.",
+      };
     }
 
+    const placeholders = allowedIds.map(() => "?").join(",");
+
+    const claimTx = db.transaction(() => {
+      db.prepare(`
+        UPDATE leads 
+        SET assigned_to = ?, assigned_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
+        WHERE id IN (${placeholders})
+      `).run(userId, ...allowedIds);
+
+      const insertClaimActivity = db.prepare(`
+        INSERT INTO lead_activities (lead_id, activity_type, title, description, old_value, new_value, metadata, performed_by_id, performed_by_name)
+        VALUES (?, 'assigned', ?, ?, 'Unassigned', ?, ?, ?, ?)
+      `);
+
+      for (const id of allowedIds) {
+        insertClaimActivity.run(
+          id,
+          `Claimed by Counselor: ${user.name}`,
+          `Counselor self-allocated lead from the unassigned pool`,
+          user.name,
+          JSON.stringify({ userId: user.id }),
+          user.id,
+          user.name
+        );
+      }
+
+      db.prepare(`
+        INSERT INTO activity_logs (action_type, description, affected_count, metadata, performed_by)
+        VALUES ('lead_claim', ?, ?, ?, ?)
+      `).run(
+        `Counselor ${user.name} claimed ${allowedIds.length} unassigned leads`,
+        allowedIds.length,
+        JSON.stringify({ userId, claimedIds: allowedIds }),
+        user.name
+      );
+    });
+
+    claimTx();
     this.invalidateCache();
 
-    db.prepare(`
-      INSERT INTO activity_logs (action_type, description, affected_count, metadata, performed_by)
-      VALUES ('lead_claim', ?, ?, ?, ?)
-    `).run(
-      `Counselor ${user.name} claimed ${ids.length} unassigned leads`,
-      ids.length,
-      JSON.stringify({ userId, claimedIds: ids }),
-      user.name
-    );
-
     return {
-      claimedCount: ids.length,
-      message: `Successfully assigned ${ids.length} fresh leads to ${user.name}!`,
+      claimedCount: allowedIds.length,
+      message: `Successfully assigned ${allowedIds.length} fresh leads to ${user.name}!`,
     };
   }
 
@@ -981,7 +1027,7 @@ export class LeadsService {
     if (skipDuplicates) {
       const rows = db.prepare("SELECT phone FROM leads WHERE phone IS NOT NULL").all() as { phone: string }[];
       rows.forEach((r) => {
-        const digits = r.phone.replace(/[^0-9]/g, "");
+        const digits = normalizePhoneNumber(r.phone);
         if (digits.length >= 7) existingPhones.add(digits);
       });
     }
@@ -1037,9 +1083,9 @@ export class LeadsService {
           }
         }
 
-        // Check for duplicate phone
+        // Check for duplicate phone with normalized 10-digit matching
         if (skipDuplicates && phone) {
-          const digits = String(phone).replace(/[^0-9]/g, "");
+          const digits = normalizePhoneNumber(phone);
           if (digits.length >= 7) {
             if (existingPhones.has(digits)) {
               skippedDuplicates++;
@@ -1371,15 +1417,19 @@ export class LeadsService {
     const colors = ["#2563eb", "#db2777", "#16a34a", "#ea580c", "#9333ea", "#0891b2", "#d97706"];
     const avatar_color = colors[Math.floor(Math.random() * colors.length)];
 
+    const { hash, salt } = AuthService.hashPassword("password123");
+
     db.prepare(`
-      INSERT INTO users (id, name, email, role, status, avatar_color)
-      VALUES (@id, @name, @email, @role, 'active', @avatar_color)
+      INSERT INTO users (id, name, email, role, status, avatar_color, password_hash, salt)
+      VALUES (@id, @name, @email, @role, 'active', @avatar_color, @password_hash, @salt)
     `).run({
       id,
       name: data.name.trim(),
       email: cleanEmail,
       role: data.role || "counselor",
       avatar_color,
+      password_hash: hash,
+      salt: salt,
     });
 
     db.prepare(`
@@ -1981,7 +2031,8 @@ export class LeadsService {
     notes?: string,
     callbackAt?: string | null,
     status?: string,
-    subDispositionId?: string | null
+    subDispositionId?: string | null,
+    currentUser?: User | null
   ): Lead {
     const db = getDatabase();
 
@@ -2050,7 +2101,9 @@ export class LeadsService {
       status: targetStatus,
     });
 
-    const counselorName = currentLead.assigned_user_name || "Counselor";
+    const counselorName = currentUser?.name || currentLead.assigned_user_name || "Counselor";
+    const counselorId = currentUser?.id || currentLead.assigned_to || null;
+    const counselorRole = currentUser?.role || "counselor";
 
     // 1. Audit Trail: Call Disposition outcome
     if (dispositionId && disp) {
@@ -2070,7 +2123,9 @@ export class LeadsService {
           score: disp.score,
           call_notes: notes || undefined,
         },
+        performed_by_id: counselorId,
         performed_by_name: counselorName,
+        performed_by_role: counselorRole,
       });
     }
 
@@ -2083,7 +2138,9 @@ export class LeadsService {
         description: `Lead status updated to "${targetStatus}"`,
         old_value: currentLead.status,
         new_value: targetStatus,
+        performed_by_id: counselorId,
         performed_by_name: counselorName,
+        performed_by_role: counselorRole,
       });
     }
 
@@ -2096,7 +2153,9 @@ export class LeadsService {
         description: `Scheduled callback for ${new Date(callbackAt).toLocaleString()}`,
         new_value: callbackAt,
         metadata: { callback_at: callbackAt },
+        performed_by_id: counselorId,
         performed_by_name: counselorName,
+        performed_by_role: counselorRole,
       });
     }
 
@@ -2440,16 +2499,18 @@ export class LeadsService {
   static getDuplicateClusters(): { phoneDuplicates: DuplicateCluster[]; emailDuplicates: DuplicateCluster[]; totalDuplicateLeads: number } {
     const db = getDatabase();
 
-    // 1. Phone duplicates
+    // 1. Phone duplicates (normalized to 10-digit clean phone to catch +91, spaces and formatting variations)
     const phoneRows = db.prepare(`
-      SELECT phone, COUNT(*) as cnt 
+      SELECT 
+        SUBSTR(REPLACE(REPLACE(REPLACE(REPLACE(phone, '+91', ''), '+', ''), ' ', ''), '-', ''), -10) as clean_phone,
+        COUNT(*) as cnt 
       FROM leads 
-      WHERE phone IS NOT NULL AND TRIM(phone) != '' 
-      GROUP BY phone 
+      WHERE phone IS NOT NULL AND LENGTH(REPLACE(REPLACE(REPLACE(phone, '+', ''), ' ', ''), '-', '')) >= 10
+      GROUP BY clean_phone 
       HAVING cnt > 1 
       ORDER BY cnt DESC 
       LIMIT 100
-    `).all() as { phone: string; cnt: number }[];
+    `).all() as { clean_phone: string; cnt: number }[];
 
     const phoneDuplicates: DuplicateCluster[] = [];
     let leadCount = 0;
@@ -2461,9 +2522,9 @@ export class LeadsService {
         LEFT JOIN users ON leads.assigned_to = users.id
         LEFT JOIN dispositions ON leads.disposition_id = dispositions.id
         LEFT JOIN campaigns ON leads.campaign_id = campaigns.id
-        WHERE leads.phone = ?
+        WHERE SUBSTR(REPLACE(REPLACE(REPLACE(REPLACE(leads.phone, '+91', ''), '+', ''), ' ', ''), '-', ''), -10) = ?
         ORDER BY leads.created_at DESC
-      `).all(pr.phone) as any[];
+      `).all(pr.clean_phone) as any[];
 
       const mappedLeads: Lead[] = clusterLeads.map((r) => ({
         ...r,
@@ -2472,7 +2533,7 @@ export class LeadsService {
 
       leadCount += mappedLeads.length;
       phoneDuplicates.push({
-        key: pr.phone,
+        key: pr.clean_phone,
         field: 'phone',
         count: pr.cnt,
         leads: mappedLeads,
@@ -2571,6 +2632,11 @@ export class LeadsService {
         notes: consolidatedNotes.join("\n\n"),
       });
 
+      // Crucial: Re-link historical activity logs and tasks to the primary surviving record
+      // to prevent ON DELETE CASCADE from wiping out past consultation calls, notes and callbacks!
+      db.prepare(`UPDATE lead_activities SET lead_id = ? WHERE lead_id IN (${placeholders})`).run(primaryLeadId, ...duplicateLeadIds);
+      db.prepare(`UPDATE crm_tasks SET lead_id = ? WHERE lead_id IN (${placeholders})`).run(primaryLeadId, ...duplicateLeadIds);
+
       // Delete duplicate leads
       db.prepare(`DELETE FROM leads WHERE id IN (${placeholders})`).run(...duplicateLeadIds);
 
@@ -2580,8 +2646,8 @@ export class LeadsService {
         lead_id: primaryLeadId,
         activity_type: "field_update",
         title: `Duplicate Records Merged (${duplicateLeadIds.length})`,
-        description: `Merged data and notes from duplicate records: ${duplicateCodes}`,
-        new_value: `${duplicateLeadIds.length} records merged`,
+        description: `Merged data, consultation history and notes from duplicate records: ${duplicateCodes}`,
+        new_value: `${duplicateLeadIds.length} records consolidated`,
         performed_by_name: "Admin",
       });
 
@@ -2629,7 +2695,7 @@ export class LeadsService {
   } {
     const db = getDatabase();
     const rules = db.prepare("SELECT * FROM assignment_rules WHERE is_active = 1 ORDER BY priority ASC").all() as any[];
-    const counselors = db.prepare("SELECT id, name FROM users").all() as { id: string; name: string }[];
+    const counselors = db.prepare("SELECT id, name FROM users WHERE status = 'active'").all() as { id: string; name: string }[];
     if (counselors.length === 0) throw new Error("No counselors available for auto-distribution");
 
     const unassignedRows = db.prepare(`

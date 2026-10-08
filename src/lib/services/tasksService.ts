@@ -320,6 +320,17 @@ export class TasksService {
 
     if (!task) throw new Error(`Task ${taskId} not found`);
 
+    // Idempotency guard: prevent duplicate completion updates and duplicate activity log spam
+    if (task.status === "completed") {
+      return {
+        success: true,
+        task: {
+          ...task,
+          status: "completed",
+        },
+      };
+    }
+
     db.prepare(`
       UPDATE crm_tasks
       SET status = 'completed', completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP

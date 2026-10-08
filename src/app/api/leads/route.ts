@@ -54,25 +54,22 @@ export async function GET(request: NextRequest) {
     }
 
     // Check user session for Strict Private Leads RBAC enforcement
-    const sessionId = request.cookies.get("dreamdesk_session")?.value;
-    let currentUser = null;
-    let userScope = undefined;
-    if (sessionId) {
-      const session = AuthService.getSession(sessionId);
-      if (session) {
-        currentUser = session.user;
-        userScope = {
-          userId: currentUser.id,
-          role: currentUser.role,
-          canViewAllLeads: session.permissions.canViewAllLeads,
-          name: currentUser.name,
-        };
-      }
+    const { session, errorResponse } = AuthService.requireAuth(request);
+    if (errorResponse) {
+      return NextResponse.json({ error: errorResponse.error }, { status: errorResponse.status });
     }
+
+    const currentUser = session.user;
+    const userScope = {
+      userId: currentUser.id,
+      role: currentUser.role,
+      canViewAllLeads: session.permissions.canViewAllLeads,
+      name: currentUser.name,
+    };
 
     let finalAssignedTo = assigned_to;
     // If user is counselor or telecaller, enforce strict private leads!
-    if (userScope && !userScope.canViewAllLeads) {
+    if (!userScope.canViewAllLeads) {
       finalAssignedTo = [userScope.userId];
     }
 

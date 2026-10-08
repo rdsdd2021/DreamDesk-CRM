@@ -616,13 +616,17 @@ export default function CRMPage() {
 
   const handleNextLead = useCallback(() => {
     if (hasNextLead && currentLeadIndex >= 0) {
-      setSelectedLeadForDetail(leads[currentLeadIndex + 1]);
+      const nextIndex = currentLeadIndex + 1;
+      setSelectedLeadForDetail(leads[nextIndex]);
+      setActiveLeadIndex(nextIndex);
     }
   }, [hasNextLead, currentLeadIndex, leads]);
 
   const handlePrevLead = useCallback(() => {
     if (hasPrevLead && currentLeadIndex > 0) {
-      setSelectedLeadForDetail(leads[currentLeadIndex - 1]);
+      const prevIndex = currentLeadIndex - 1;
+      setSelectedLeadForDetail(leads[prevIndex]);
+      setActiveLeadIndex(prevIndex);
     }
   }, [hasPrevLead, currentLeadIndex, leads]);
 
@@ -712,9 +716,10 @@ export default function CRMPage() {
           handleToggleLeadSelection(leads[activeLeadIndex].id);
         }
       } else if (e.key.toLowerCase() === "c") {
-        if (activeLeadIndex !== null && leads[activeLeadIndex]?.phone) {
+        const targetLead = selectedLeadForDetail || (activeLeadIndex !== null ? leads[activeLeadIndex] : null);
+        if (targetLead?.phone) {
           e.preventDefault();
-          window.location.href = `tel:${leads[activeLeadIndex].phone}`;
+          window.location.href = `tel:${targetLead.phone}`;
         }
       } else if (e.key.toLowerCase() === "f") {
         e.preventDefault();
@@ -733,9 +738,10 @@ export default function CRMPage() {
           handleNextLead();
         }
       } else if (e.key.toLowerCase() === "w") {
-        if (activeLeadIndex !== null && leads[activeLeadIndex]?.phone) {
+        const targetLead = selectedLeadForDetail || (activeLeadIndex !== null ? leads[activeLeadIndex] : null);
+        if (targetLead?.phone) {
           e.preventDefault();
-          const cleanPhone = leads[activeLeadIndex].phone!.replace(/[^0-9]/g, "");
+          const cleanPhone = targetLead.phone.replace(/[^0-9]/g, "");
           window.open(`https://wa.me/${cleanPhone}`, "_blank");
         }
       }
@@ -763,11 +769,14 @@ export default function CRMPage() {
     leads.length > 0 && leads.every((l) => selectedLeadIds.includes(l.id));
 
   const handleToggleSelectAllPage = () => {
-    if (isAllPageSelected || isAllFilteredSelected) {
-      setSelectedLeadIds([]);
+    const pageLeadIds = leads.map((l) => l.id);
+    if (isAllPageSelected) {
+      // Unselect only current page items, preserving selections from other pages!
+      setSelectedLeadIds((prev) => prev.filter((id) => !pageLeadIds.includes(id)));
       setIsAllFilteredSelected(false);
     } else {
-      setSelectedLeadIds(leads.map((l) => l.id));
+      // Merge current page items with existing selections across pages without wiping!
+      setSelectedLeadIds((prev) => Array.from(new Set([...prev, ...pageLeadIds])));
       setIsAllFilteredSelected(false);
     }
   };

@@ -1,16 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LeadsService } from "@/lib/services/leadsService";
+import { AuthService } from "@/lib/services/authService";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { user_id, count = 25 } = body;
-
-    if (!user_id) {
-      return NextResponse.json({ error: "Counselor user_id is required" }, { status: 400 });
+    const { session, errorResponse } = AuthService.requireAuth(request);
+    if (errorResponse) {
+      return NextResponse.json({ error: errorResponse.error }, { status: errorResponse.status });
     }
 
-    const result = LeadsService.claimUnassignedLeads(user_id, Number(count) || 25);
+    const body = await request.json();
+    let targetUserId = body.user_id || session.user.id;
+
+    // Only Admin or Team Lead can claim leads on behalf of another user
+    if (targetUserId !== session.user.id && !session.permissions.canAssignLeads) {
+      return NextResponse.json(
+        { error: "Access denied. You can only claim leads for yourself." },
+        { status: 403 }
+      );
+    }
+
+    const count = Math.min(100, Math.max(1, Number(body.count) || 25));
+    const result = LeadsService.claimUnassignedLeads(targetUserId, count, session.user);
     return NextResponse.json(result);
   } catch (error: any) {
     console.error("Failed to claim leads:", error);
@@ -20,3 +31,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+

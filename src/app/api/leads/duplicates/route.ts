@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LeadsService } from "@/lib/services/leadsService";
+import { AuthService } from "@/lib/services/authService";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const { session, errorResponse } = AuthService.requireAuth(req, "canAssignLeads");
+    if (errorResponse) {
+      return NextResponse.json({ error: errorResponse.error }, { status: errorResponse.status });
+    }
     const data = LeadsService.getDuplicateClusters();
     return NextResponse.json(data);
   } catch (error: any) {
@@ -15,6 +20,11 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const { session, errorResponse } = AuthService.requireAuth(req, "canAssignLeads");
+    if (errorResponse) {
+      return NextResponse.json({ error: errorResponse.error }, { status: errorResponse.status });
+    }
+
     const body = await req.json();
     const { primary_lead_id, duplicate_lead_ids } = body;
     if (!primary_lead_id || !Array.isArray(duplicate_lead_ids) || duplicate_lead_ids.length === 0) {
