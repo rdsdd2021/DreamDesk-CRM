@@ -1896,6 +1896,7 @@ export default function CRMPage() {
 
       {/* Enhanced Multi-Tab Lead Drawer */}
       <EnhancedLeadDrawer
+        key={selectedLeadForDetail?.id ?? "closed"}
         lead={selectedLeadForDetail}
         isOpen={Boolean(selectedLeadForDetail)}
         onClose={() => setSelectedLeadForDetail(null)}

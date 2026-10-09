@@ -5,7 +5,15 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "cn"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const Select = SelectPrimitive.Root
+function Select<Value = any, Multiple extends boolean | undefined = false>({
+  value,
+  ...props
+}: SelectPrimitive.Root.Props<Value, Multiple>) {
+  const isControlled = "value" in props || value !== undefined;
+  const safeValue = isControlled ? (value ?? null) : undefined;
+
+  return <SelectPrimitive.Root value={safeValue as any} {...props} />;
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (

@@ -958,7 +958,7 @@ export function EnhancedLeadDrawer({
                       )}
                     </div>
                     <Select
-                      value={lead.status}
+                      value={lead.status || "New"}
                       disabled={!isExemptRole}
                       onValueChange={(val) => {
                         if (val) {
