@@ -110,10 +110,14 @@ Replaces bloated, 3,000px vertical activity feeds with an intelligent, high-dens
 - Create, rename, hide, and reorder custom student attributes on the fly without database migrations.
 - Dynamic attributes (e.g. *JEE Percentile*, *Preferred Stream*, *Hostel Required*, *Parent Phone*) are stored as queryable JSON documents with automatic faceted filter discovery.
 
-### 8. 📞 Customizable Dispositions & 2-Level Sub-Dispositions
-- Standardized call outcomes: *Admission Form Submitted*, *Counseling Session Booked*, *Interested - High Intent*, *Callback Requested*, *Ringing No Response*, *Not Interested*.
-- Nested sub-dispositions (*Fee Paid*, *Provisional Letter Issued*, *Campus Visit Scheduled*, *Awaiting Board Results*).
-- Multi-channel linking: Associate specific disposition sets to specific marketing campaigns.
+### 8. 📞 Telecalling Retry Cadence, 2-Zone Controller & Supervisory Stage Locking
+- **"Unreachable is an Attempt, Not Contact Proof"**: Ringing No Answer, Busy, Switched Off, and Invalid Number increment `attempt_count` and enforce an automated cooling-off window (3h cooldown) without falsely marking the student as *Contacted*.
+- **Configurable Retry Limits**: Unreachable leads remain active in retry queues until max attempts (default: 3) are exhausted, after which they automatically transition to the *Unreachable* pool for SMS/WhatsApp drip re-engagement.
+- **2-Zone Outcome Controller**:
+  - *Zone 1 (1-Click Instant Retry)*: 0.2s 1-click outcome chips (`RNR`, `Busy`, `Switched Off`, `Wrong Number`) with optional queue auto-advance on the Speed Dialer Desk and Student Profile Drawer.
+  - *Zone 2 (Connected Conversation)*: Categorized chips with progressive sub-dispositions, counseling booking confirmation prompts, and mandatory callback presets (`+2h`, `Tomorrow 11 AM`, `Tomorrow 4 PM`, `Next Monday`).
+- **Supervisory Lifecycle Stage Locking**: Counselors cannot manually toggle admission stages; stages are calculated automatically by CRM rules based on validated call outcomes. Manual stage overrides are locked and restricted to Supervisors (`Admin` / `Team Lead`) with full audit trail logging.
+- **Dynamic Objection Rebuttal Assistant**: In-drawer talking points tailored to specific student hesitations (budget/fee installment plans, NAAC A+ placements, hostel safety, scholarship tests).
 
 ### 9. 💬 1-Click WhatsApp & Phone Softphone Integration
 - Integrated WhatsApp message drawer with dynamic variable interpolation (`{name}`, `{stream}`, `{lead_code}`, `{callback_at}`).
