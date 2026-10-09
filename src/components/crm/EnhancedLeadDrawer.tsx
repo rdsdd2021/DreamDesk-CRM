@@ -69,6 +69,7 @@ import {
   X,
   Lock,
   ShieldAlert,
+  ShieldCheck,
 } from "lucide-react";
 
 interface EnhancedLeadDrawerProps {
@@ -578,8 +579,8 @@ export function EnhancedLeadDrawer({
       <SheetContent className="w-full sm:max-w-xl md:max-w-2xl overflow-y-auto p-0 flex flex-col bg-background shadow-2xl">
         {/* Drawer Header */}
         <div className="p-4 sm:p-6 pb-4 bg-muted/40 border-b border-border/80">
-          {/* Top metadata & Lead Stepper Navigation Row (pr-9 gives clear breathing room from Sheet close button) */}
-          <div className="flex items-center justify-between gap-2 mb-3 pr-8 sm:pr-9">
+          {/* Top metadata & Lead Stepper Navigation Row (pr-10 sm:pr-12 gives clear breathing room from Sheet close button) */}
+          <div className="flex items-center justify-between gap-2 mb-3 pr-10 sm:pr-12">
             <div className="flex items-center gap-2 min-w-0">
               <span className="font-mono text-xs font-bold text-foreground bg-background border border-border/80 px-2.5 py-1 rounded-md shadow-2xs shrink-0 select-all">
                 {lead.lead_code}
@@ -859,98 +860,98 @@ export function EnhancedLeadDrawer({
               {/* Counselor, Stage & Campaign Assignment Card */}
               <div className="bg-card border border-border/80 rounded-2xl p-4 sm:p-5 space-y-4 shadow-2xs">
                 <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                  <span>Assigned Ownership & Lifecycle Stage</span>
-                  {lead.campaign_name && (
-                    <span className="text-[11px] text-primary normal-case font-semibold">
-                      Campaign: {lead.campaign_name}
-                    </span>
-                  )}
+                  <span className="flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+                    <span>Assigned Ownership & Lifecycle Stage</span>
+                  </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                  {/* Counselor Assignment */}
-                  <div className="space-y-1.5">
+                {/* Counselor Assignment & 7-Day Fair Allocation Policy */}
+                <div className="space-y-2 pb-3.5 border-b border-border/60">
+                  <div className="flex items-center justify-between">
                     <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                       <UserCheck className="w-3.5 h-3.5 text-primary" />
                       <span>Assigned Counselor</span>
-                      {leadLockInfo?.isLocked && (
-                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 font-semibold gap-1 ml-auto">
-                          <Lock className="w-2.5 h-2.5" />
-                          {leadLockInfo.daysRemaining}d Lock
-                        </Badge>
-                      )}
                     </label>
-
                     {leadLockInfo?.isLocked && (
-                      <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/25 text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-1.5 leading-snug">
-                        <Lock className="w-3 h-3 text-amber-600 shrink-0 mt-0.5" />
-                        <span>
-                          Contacted {leadLockInfo.daysSinceCall}d ago by <strong>{leadLockInfo.counselorName}</strong>.
-                          {isExemptRole
-                            ? " Admin/Team Lead override enabled."
-                            : " Locked under 7-day policy."}
-                        </span>
-                      </div>
-                    )}
-
-                    <Select
-                      value={lead.assigned_to || "unassigned"}
-                      disabled={Boolean(leadLockInfo?.isLocked && !isExemptRole)}
-                      onValueChange={(val) => {
-                        if (val !== null) {
-                          onAssignLead(lead.id, val === "unassigned" ? "" : val);
-                          setTimeout(() => {
-                            fetchActivities(lead.id);
-                            fetchLockStatus();
-                          }, 400);
-                        }
-                      }}
-                    >
-                      <SelectTrigger className={`h-9 text-xs rounded-xl border-border/80 bg-background font-medium ${
-                        leadLockInfo?.isLocked && !isExemptRole ? "opacity-60 cursor-not-allowed" : ""
-                      }`}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="unassigned" className="text-xs">
-                          Unassigned Pool
-                        </SelectItem>
-                        {users.map((u) => (
-                          <SelectItem key={u.id} value={u.id} className="text-xs">
-                            {u.name} ({u.role.replace("_", " ")})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    {leadLockInfo?.isLocked && !isExemptRole && (
-                      <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                        <Lock className="w-2.5 h-2.5 text-amber-600" />
-                        Reassignment locked under 7-day rule. Contact Admin or Team Leader.
-                      </p>
-                    )}
-                    {leadLockInfo?.isLocked && isExemptRole && (
-                      <p className="text-[10px] text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                        <ShieldAlert className="w-2.5 h-2.5 text-blue-600 shrink-0" />
-                        Override active: Reassignment will be logged in audit trail.
-                      </p>
+                      <Badge variant="outline" className="text-[10px] px-2 py-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 font-semibold gap-1">
+                        <Lock className="w-2.5 h-2.5" />
+                        {leadLockInfo.daysRemaining}d Protection Lock
+                      </Badge>
                     )}
                   </div>
 
-                  {/* Stage Selection (Automatic calculation with supervisory override) */}
+                  {leadLockInfo?.isLocked && (
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-800 dark:text-amber-300 flex items-center gap-2">
+                      <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span className="leading-snug">
+                        Contacted {leadLockInfo.daysSinceCall}d ago by <strong>{leadLockInfo.counselorName}</strong>.
+                        {isExemptRole
+                          ? " Reassignment unlocked via Admin / Supervisor permission."
+                          : " Reassignment locked under 7-day fair allocation policy."}
+                      </span>
+                    </div>
+                  )}
+
+                  <Select
+                    value={lead.assigned_to || "unassigned"}
+                    disabled={Boolean(leadLockInfo?.isLocked && !isExemptRole)}
+                    onValueChange={(val) => {
+                      if (val !== null) {
+                        onAssignLead(lead.id, val === "unassigned" ? "" : val);
+                        setTimeout(() => {
+                          fetchActivities(lead.id);
+                          fetchLockStatus();
+                        }, 400);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className={`h-9 text-xs rounded-xl border-border/80 bg-background font-medium ${
+                      leadLockInfo?.isLocked && !isExemptRole ? "opacity-60 cursor-not-allowed bg-muted/30" : ""
+                    }`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unassigned" className="text-xs">
+                        Unassigned Pool
+                      </SelectItem>
+                      {users.map((u) => (
+                        <SelectItem key={u.id} value={u.id} className="text-xs">
+                          {u.name} ({u.role.replace("_", " ")})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {leadLockInfo?.isLocked && !isExemptRole ? (
+                    <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                      <Lock className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                      Ownership locked for {leadLockInfo.daysRemaining} more days. Contact Team Leader to reassign.
+                    </p>
+                  ) : leadLockInfo?.isLocked && isExemptRole ? (
+                    <p className="text-[10px] text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                      <ShieldAlert className="w-2.5 h-2.5 text-blue-600 shrink-0" />
+                      Supervisor override active: Any reassignment will be recorded in audit log.
+                    </p>
+                  ) : null}
+                </div>
+
+                {/* Lifecycle Stage & Marketing Campaign Attribution */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  {/* Admission Stage */}
                   <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <div className="flex items-center justify-between gap-1">
+                      <label className="text-xs font-semibold text-foreground flex items-center gap-1.5 shrink-0">
                         <Tag className="w-3.5 h-3.5 text-primary" />
                         <span>Admission Stage</span>
                       </label>
                       {!isExemptRole ? (
-                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-muted/60 text-muted-foreground border-border/80 font-medium gap-1">
+                        <Badge variant="outline" className="text-[9px] px-1.5 py-0.5 bg-muted/60 text-muted-foreground border-border/80 font-medium gap-1 shrink-0">
                           <Lock className="w-2.5 h-2.5" />
                           Auto-Calculated
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30 font-semibold gap-1">
+                        <Badge variant="outline" className="text-[9px] px-1.5 py-0.5 bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30 font-semibold gap-1 shrink-0">
                           <ShieldAlert className="w-2.5 h-2.5" />
                           Supervisor Override
                         </Badge>
@@ -982,22 +983,24 @@ export function EnhancedLeadDrawer({
                     {!isExemptRole ? (
                       <p className="text-[10px] text-muted-foreground flex items-center gap-1 leading-snug">
                         <Lock className="w-2.5 h-2.5 text-muted-foreground shrink-0" />
-                        Stage is calculated automatically by CRM from validated call outcomes. Manual stage overrides require Supervisor (Admin / Team Lead) permission.
+                        Calculated by CRM from call outcomes.
                       </p>
                     ) : (
                       <p className="text-[10px] text-blue-600 dark:text-blue-400 flex items-center gap-1 leading-snug">
                         <ShieldAlert className="w-2.5 h-2.5 text-blue-600 shrink-0" />
-                        Supervisor override active: Any manual stage change will be logged in audit trail.
+                        Manual changes recorded in audit log.
                       </p>
                     )}
                   </div>
 
                   {/* Campaign Attribution */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                      <Target className="w-3.5 h-3.5 text-primary" />
-                      <span>Attributed Campaign</span>
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                        <Target className="w-3.5 h-3.5 text-primary" />
+                        <span>Attributed Campaign</span>
+                      </label>
+                    </div>
                     <Select
                       value={lead.campaign_id || "unassigned"}
                       onValueChange={(val) => {
@@ -1021,6 +1024,9 @@ export function EnhancedLeadDrawer({
                         ))}
                       </SelectContent>
                     </Select>
+                    <p className="text-[10px] text-muted-foreground leading-snug">
+                      Marketing acquisition channel attribution.
+                    </p>
                   </div>
                 </div>
               </div>
