@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import Papa from "papaparse";
 import { Campaign } from "@/types/crm";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -51,6 +52,7 @@ export function ImportModal({
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -64,9 +66,11 @@ export function ImportModal({
     }
   }, [isOpen]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (!selectedFile) return;
+  const processFile = (selectedFile: File) => {
+    if (!selectedFile.name.toLowerCase().endsWith(".csv") && selectedFile.type !== "text/csv") {
+      setError("Please select a valid CSV file (.csv).");
+      return;
+    }
 
     setFile(selectedFile);
     setError(null);
@@ -90,6 +94,43 @@ export function ImportModal({
         setError(err.message || "Failed to parse CSV file.");
       },
     });
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      processFile(selectedFile);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const droppedFiles = e.dataTransfer.files;
+    if (droppedFiles && droppedFiles.length > 0) {
+      processFile(droppedFiles[0]);
+    }
   };
 
   const handleExecuteImport = async () => {
@@ -163,7 +204,16 @@ export function ImportModal({
           {/* File Dropzone */}
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-muted-foreground/30 hover:border-primary/60 rounded-xl p-6 text-center cursor-pointer transition-colors bg-muted/10 hover:bg-accent/30"
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={cn(
+              "border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all group",
+              isDragging
+                ? "border-primary bg-primary/10 ring-4 ring-primary/20 scale-[1.01]"
+                : "border-muted-foreground/30 hover:border-primary/60 bg-muted/10 hover:bg-accent/30"
+            )}
           >
             <input
               ref={fileInputRef}
@@ -172,12 +222,27 @@ export function ImportModal({
               onChange={handleFileChange}
               className="hidden"
             />
-            <FileSpreadsheet className="w-10 h-10 text-primary/70 mx-auto mb-2" />
+            <div
+              className={cn(
+                "w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-2 transition-transform",
+                isDragging
+                  ? "bg-primary text-primary-foreground scale-110 shadow-md animate-bounce"
+                  : "text-primary/70 group-hover:scale-105"
+              )}
+            >
+              <FileSpreadsheet className="w-8 h-8" />
+            </div>
             <div className="text-sm font-semibold text-foreground">
-              {file ? file.name : "Click or drag CSV file to upload"}
+              {isDragging
+                ? "Drop your CSV file here to start parsing!"
+                : file
+                ? file.name
+                : "Click or drag CSV file to upload"}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Supports 50k+ rows. Flexible headers (School, Stream, Board, City, etc.)
+              {isDragging
+                ? "Release file now to auto-detect columns."
+                : "Supports 50k+ rows. Flexible headers (School, Stream, Board, City, etc.)"}
             </p>
           </div>
 

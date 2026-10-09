@@ -570,64 +570,66 @@ export function EnhancedLeadDrawer({
     .join("")
     .toUpperCase();
 
+  const displayIndex = (leadIndex !== undefined ? leadIndex + 1 : 1).toLocaleString();
+  const displayTotal = (totalLeadsCount ?? 0).toLocaleString();
+
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="w-full sm:max-w-xl md:max-w-2xl overflow-y-auto p-0 flex flex-col bg-background shadow-2xl">
         {/* Drawer Header */}
         <div className="p-4 sm:p-6 pb-4 bg-muted/40 border-b border-border/80">
-          {/* Top metadata & Lead Stepper Row */}
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-xs font-bold text-foreground bg-background border border-border/80 px-2.5 py-1 rounded-md shadow-2xs">
+          {/* Top metadata & Lead Stepper Navigation Row (pr-9 gives clear breathing room from Sheet close button) */}
+          <div className="flex items-center justify-between gap-2 mb-3 pr-8 sm:pr-9">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="font-mono text-xs font-bold text-foreground bg-background border border-border/80 px-2.5 py-1 rounded-md shadow-2xs shrink-0 select-all">
                 {lead.lead_code}
               </span>
 
               {onPrevLead && onNextLead && (
-                <div className="flex items-center gap-1 rounded-lg border border-border/80 bg-background/90 px-1 py-0.5 shadow-2xs">
+                <div className="flex items-center gap-0.5 rounded-lg border border-border/80 bg-background/90 px-1 py-0.5 shadow-2xs shrink-0 whitespace-nowrap">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 rounded-md cursor-pointer hover:bg-muted"
+                    className="h-6 w-6 rounded-md hover:bg-muted shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
                     disabled={!hasPrevLead}
                     onClick={onPrevLead}
                     title="Previous Lead (Shortcut: [ or Alt+Left)"
                   >
-                    <ChevronLeft className="h-4 w-4" />
+                    <ChevronLeft className="h-3.5 w-3.5" />
                   </Button>
-                  <span className="text-xs font-mono text-muted-foreground px-1 tabular-nums font-semibold">
-                    {(leadIndex ?? 0) + 1} / {totalLeadsCount ?? 0}
+                  <span className="text-xs font-mono text-muted-foreground px-1.5 tabular-nums font-semibold select-none whitespace-nowrap">
+                    {displayIndex} / {displayTotal}
                   </span>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 rounded-md cursor-pointer hover:bg-muted"
+                    className="h-6 w-6 rounded-md hover:bg-muted shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
                     disabled={!hasNextLead}
                     onClick={onNextLead}
                     title="Next Lead (Shortcut: ] or Alt+Right)"
                   >
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronRight className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               )}
             </div>
 
-            {/* Badges */}
-            <div className="flex items-center gap-1.5 flex-wrap justify-end">
-              {lead.disposition_name && (
-                <span
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold text-white shadow-2xs"
-                  style={{ backgroundColor: lead.disposition_color || "#3b82f6" }}
+            {/* Status & Attempt Badges */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {(lead.attempt_count || 0) > 0 && (
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md shrink-0 ${
+                    (lead.attempt_count || 0) >= 3
+                      ? "bg-rose-500/10 text-rose-600 border-rose-500/30 dark:text-rose-400"
+                      : "bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-400"
+                  }`}
+                  title={`${lead.attempt_count} dial attempt(s)`}
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                  {lead.disposition_name}
-                </span>
+                  Att {(lead.attempt_count || 0)}/3
+                </Badge>
               )}
-              {lead.sub_disposition_name && (
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-background border border-border/80 text-foreground shadow-2xs">
-                  {lead.sub_disposition_name}
-                </span>
-              )}
-              <Badge variant="outline" className="text-xs font-semibold px-2.5 py-0.5 border-border/80 bg-background">
+              <Badge variant="outline" className="text-xs font-semibold px-2.5 py-0.5 border-border/80 bg-background shrink-0 capitalize">
                 {lead.status}
               </Badge>
             </div>
@@ -642,7 +644,32 @@ export function EnhancedLeadDrawer({
               <SheetTitle className="text-xl sm:text-2xl font-bold tracking-tight text-foreground truncate">
                 {lead.name || "Student Profile"}
               </SheetTitle>
-              <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
+
+              {/* Disposition & Sub-disposition Badges (placed cleanly beneath student name) */}
+              {(lead.disposition_name || lead.sub_disposition_name) && (
+                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                  {lead.disposition_name && (
+                    <span
+                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold text-white shadow-2xs max-w-[260px] truncate shrink-0"
+                      style={{ backgroundColor: lead.disposition_color || "#3b82f6" }}
+                      title={`Disposition: ${lead.disposition_name}`}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />
+                      <span className="truncate">{lead.disposition_name}</span>
+                    </span>
+                  )}
+                  {lead.sub_disposition_name && (
+                    <span
+                      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-background border border-border/80 text-foreground shadow-2xs max-w-[260px] truncate shrink-0"
+                      title={`Sub-disposition: ${lead.sub_disposition_name}`}
+                    >
+                      <span className="truncate">{lead.sub_disposition_name}</span>
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2 flex-wrap">
                 <span className="flex items-center gap-1 font-medium">
                   <Calendar className="w-3.5 h-3.5 text-muted-foreground/70" />
                   <span>Enrolled {new Date(lead.created_at).toLocaleDateString()}</span>
@@ -1255,7 +1282,7 @@ export function EnhancedLeadDrawer({
                   </Badge>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                <div className="grid grid-cols-2 gap-2 pt-1">
                   {unreachableOptions.map((opt) => {
                     const isLogging = loggingUnreachableId === opt.id;
                     return (

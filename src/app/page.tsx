@@ -1916,7 +1916,7 @@ export default function CRMPage() {
         onPrevLead={handlePrevLead}
         hasPrevLead={hasPrevLead}
         hasNextLead={hasNextLead}
-        leadIndex={currentLeadIndex >= 0 ? currentLeadIndex + 1 : undefined}
+        leadIndex={currentLeadIndex >= 0 ? currentLeadIndex : undefined}
         totalLeadsCount={leads.length}
       />
 

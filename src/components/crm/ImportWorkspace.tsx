@@ -25,6 +25,7 @@ import {
   HelpCircle,
   Layers,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ImportWorkspaceProps {
   campaigns: Campaign[];
@@ -126,12 +127,15 @@ export function ImportWorkspace({
     newHeadersFound: string[];
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (!selectedFile) return;
+  const processFile = (selectedFile: File) => {
+    if (!selectedFile.name.toLowerCase().endsWith(".csv") && selectedFile.type !== "text/csv") {
+      setError("Please select a valid CSV file (.csv).");
+      return;
+    }
 
     setFile(selectedFile);
     setSourceName(selectedFile.name.replace(/\.[^/.]+$/, ""));
@@ -163,6 +167,43 @@ export function ImportWorkspace({
         setError(err.message || "Failed to read CSV file.");
       },
     });
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      processFile(selectedFile);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const droppedFiles = e.dataTransfer.files;
+    if (droppedFiles && droppedFiles.length > 0) {
+      processFile(droppedFiles[0]);
+    }
   };
 
   const handleMappingChange = (csvCol: string, targetValue: string) => {
@@ -342,7 +383,16 @@ export function ImportWorkspace({
         <div className="space-y-4">
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-border/80 hover:border-primary/60 rounded-2xl p-12 text-center cursor-pointer transition-all bg-card hover:bg-muted/30 group shadow-sm"
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={cn(
+              "border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all bg-card group shadow-sm",
+              isDragging
+                ? "border-primary bg-primary/10 ring-4 ring-primary/20 scale-[1.01]"
+                : "border-border/80 hover:border-primary/60 hover:bg-muted/30"
+            )}
           >
             <input
               ref={fileInputRef}
@@ -351,19 +401,28 @@ export function ImportWorkspace({
               onChange={handleFileChange}
               className="hidden"
             />
-            <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform">
+            <div
+              className={cn(
+                "w-16 h-16 rounded-2xl text-primary flex items-center justify-center mx-auto mb-4 transition-transform",
+                isDragging
+                  ? "bg-primary text-primary-foreground scale-110 shadow-md animate-bounce"
+                  : "bg-primary/10 group-hover:scale-105"
+              )}
+            >
               <FileSpreadsheet className="w-8 h-8" />
             </div>
             <h3 className="text-base font-bold text-foreground">
-              Click to select or drag and drop your CSV spreadsheet
+              {isDragging ? "Drop your CSV file here to start parsing!" : "Click to select or drag and drop your CSV spreadsheet"}
             </h3>
             <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
-              Supports files with 50,000+ rows. Any custom column names are supported and can be mapped in the next step.
+              {isDragging
+                ? "Release file now to auto-detect columns and start field mapping."
+                : "Supports files with 50,000+ rows. Any custom column names are supported and can be mapped in the next step."}
             </p>
             <div className="mt-4 flex items-center justify-center gap-2">
-              <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5">
+              <Button size="sm" variant={isDragging ? "default" : "outline"} className="h-8 text-xs gap-1.5 pointer-events-none">
                 <Upload className="w-3.5 h-3.5" />
-                <span>Browse Local Computer</span>
+                <span>{isDragging ? "Release to Drop" : "Browse Local Computer"}</span>
               </Button>
             </div>
           </div>
