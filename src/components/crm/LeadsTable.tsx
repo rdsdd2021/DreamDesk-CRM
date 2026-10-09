@@ -123,7 +123,16 @@ interface LeadsTableProps {
   users: User[];
   loading: boolean;
   dispositions?: Disposition[];
-  onQuickDispositionChange?: (leadId: number, dispositionId: string) => void;
+  onQuickDispositionChange?: (
+    leadId: number,
+    dispositionId: string,
+    extra?: {
+      call_outcome?: string;
+      callback_at?: string;
+      notes?: string;
+      sub_disposition_id?: string;
+    }
+  ) => void;
   density?: "compact" | "comfortable";
   activeLeadId?: number | null;
   onInlineUpdate?: (leadId: number, field: string, value: any) => void;
@@ -225,6 +234,13 @@ export function LeadsTable({
             <span>Not Interested</span>
           </span>
         );
+      case "unreachable":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium border bg-orange-50 text-orange-700 border-orange-200/70 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800/40">
+            <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+            <span>Unreachable</span>
+          </span>
+        );
       default:
         return (
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium border bg-muted text-muted-foreground border-border/80">
@@ -233,6 +249,39 @@ export function LeadsTable({
           </span>
         );
     }
+  };
+
+  const renderAttemptPill = (lead: Lead) => {
+    const attempts = lead.attempt_count || 0;
+    const isCoolingDown = Boolean(lead.cooldown_until && new Date(lead.cooldown_until) > new Date());
+
+    if (attempts === 0 && !isCoolingDown) return null;
+
+    return (
+      <div className="flex items-center gap-1 flex-wrap">
+        {attempts > 0 && (
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-mono text-[10px] font-bold border",
+              attempts >= 3
+                ? "bg-rose-500/10 text-rose-600 border-rose-500/30 dark:text-rose-400"
+                : "bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-400"
+            )}
+            title={`${attempts} call attempt(s) made (Max: 3)`}
+          >
+            <span>Att #{attempts}/3</span>
+          </span>
+        )}
+        {isCoolingDown && (
+          <span
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-blue-500/10 text-blue-700 border border-blue-500/30 dark:text-blue-400 animate-pulse"
+            title={`Retry cooldown active until ${new Date(lead.cooldown_until!).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
+          >
+            <span>⏳ Cooldown</span>
+          </span>
+        )}
+      </div>
+    );
   };
 
   const dynamicColumns = schemaMeta.filter(
@@ -315,6 +364,7 @@ export function LeadsTable({
                         <Badge variant="outline" className="font-mono text-[10px] font-semibold px-1.5 py-0.5 text-muted-foreground rounded-md">
                           {lead.lead_code}
                         </Badge>
+                        {renderAttemptPill(lead)}
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
                         {rawAttrs.stream && <span className="font-medium text-foreground/90">{rawAttrs.stream}</span>}
@@ -340,7 +390,7 @@ export function LeadsTable({
                       <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                         Change Stage
                       </div>
-                      {["New", "Contacted", "Interested", "Follow-up", "Admitted", "Not Interested"].map((st) => (
+                      {["New", "Contacted", "Interested", "Follow-up", "Admitted", "Not Interested", "Unreachable"].map((st) => (
                         <DropdownMenuItem
                           key={st}
                           onClick={() => onInlineUpdate?.(lead.id, "status", st)}
@@ -429,14 +479,27 @@ export function LeadsTable({
                           )}
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start" className="w-56 text-xs max-h-60 overflow-y-auto">
-                          <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Fast Call Outcome</div>
-                          {dispositions.map((d) => (
-                            <DropdownMenuItem key={d.id} onClick={() => onQuickDispositionChange(lead.id, d.id)} className="gap-2 cursor-pointer text-xs">
-                              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
-                              <span className="truncate flex-1">{d.name}</span>
-                              <span className="text-[10px] font-mono text-muted-foreground">{d.score > 0 ? `+${d.score}` : d.score}</span>
-                            </DropdownMenuItem>
-                          ))}
+                          {dispositions.map((d) => {
+                            const isUnreach =
+                              d.category === "unreachable" ||
+                              d.code === "INVALID_NUM" ||
+                              ["RNR", "BUSY", "SWITCH_OFF", "INVALID_NUM"].includes(d.code);
+                            return (
+                              <DropdownMenuItem
+                                key={d.id}
+                                onClick={() =>
+                                  onQuickDispositionChange(lead.id, d.id, {
+                                    call_outcome: isUnreach ? "unreachable" : "connected",
+                                  })
+                                }
+                                className="gap-2 cursor-pointer text-xs"
+                              >
+                                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                                <span className="truncate flex-1">{d.name}</span>
+                                <span className="text-[10px] font-mono text-muted-foreground">{d.score > 0 ? `+${d.score}` : d.score}</span>
+                              </DropdownMenuItem>
+                            );
+                          })}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     ) : (
@@ -860,28 +923,31 @@ export function LeadsTable({
                     {/* Status Badge (Inline Editable) */}
                     {visibleColumns.includes("status") && (
                       <TableCell onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger className="focus:outline-none cursor-pointer group">
-                            <span className="inline-flex items-center gap-1 hover:ring-2 hover:ring-primary/20 rounded-md transition-all">
-                              {getStatusBadge(lead.status)}
-                              <ChevronDown className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-muted-foreground transition-opacity" />
-                            </span>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start" className="w-40 text-xs">
-                            <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                              Change Stage
-                            </div>
-                            {["New", "Contacted", "Interested", "Follow-up", "Admitted", "Not Interested"].map((st) => (
-                              <DropdownMenuItem
-                                key={st}
-                                onClick={() => onInlineUpdate?.(lead.id, "status", st)}
-                                className={`gap-2 cursor-pointer text-xs ${lead.status === st ? "font-bold bg-primary/10 text-primary" : ""}`}
-                              >
-                                {getStatusBadge(st)}
-                              </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <div className="space-y-1">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger className="focus:outline-none cursor-pointer group">
+                              <span className="inline-flex items-center gap-1 hover:ring-2 hover:ring-primary/20 rounded-md transition-all">
+                                {getStatusBadge(lead.status)}
+                                <ChevronDown className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-muted-foreground transition-opacity" />
+                              </span>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-40 text-xs">
+                              <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                Change Stage
+                              </div>
+                              {["New", "Contacted", "Interested", "Follow-up", "Admitted", "Not Interested", "Unreachable"].map((st) => (
+                                <DropdownMenuItem
+                                  key={st}
+                                  onClick={() => onInlineUpdate?.(lead.id, "status", st)}
+                                  className={`gap-2 cursor-pointer text-xs ${lead.status === st ? "font-bold bg-primary/10 text-primary" : ""}`}
+                                >
+                                  {getStatusBadge(st)}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          {renderAttemptPill(lead)}
+                        </div>
                       </TableCell>
                     )}
 
@@ -922,22 +988,32 @@ export function LeadsTable({
                               <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                                 Fast Call Outcome
                               </div>
-                              {dispositions.map((d) => (
-                                <DropdownMenuItem
-                                  key={d.id}
-                                  onClick={() => onQuickDispositionChange(lead.id, d.id)}
-                                  className="gap-2 cursor-pointer text-xs"
-                                >
-                                  <span
-                                    className="w-2 h-2 rounded-full shrink-0"
-                                    style={{ backgroundColor: d.color }}
-                                  />
-                                  <span className="truncate flex-1">{d.name}</span>
-                                  <span className="text-[10px] font-mono text-muted-foreground">
-                                    {d.score > 0 ? `+${d.score}` : d.score}
-                                  </span>
-                                </DropdownMenuItem>
-                              ))}
+                              {dispositions.map((d) => {
+                                const isUnreach =
+                                  d.category === "unreachable" ||
+                                  d.code === "INVALID_NUM" ||
+                                  ["RNR", "BUSY", "SWITCH_OFF", "INVALID_NUM"].includes(d.code);
+                                return (
+                                  <DropdownMenuItem
+                                    key={d.id}
+                                    onClick={() =>
+                                      onQuickDispositionChange(lead.id, d.id, {
+                                        call_outcome: isUnreach ? "unreachable" : "connected",
+                                      })
+                                    }
+                                    className="gap-2 cursor-pointer text-xs"
+                                  >
+                                    <span
+                                      className="w-2 h-2 rounded-full shrink-0"
+                                      style={{ backgroundColor: d.color }}
+                                    />
+                                    <span className="truncate flex-1">{d.name}</span>
+                                    <span className="text-[10px] font-mono text-muted-foreground">
+                                      {d.score > 0 ? `+${d.score}` : d.score}
+                                    </span>
+                                  </DropdownMenuItem>
+                                );
+                              })}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         ) : lead.disposition_name ? (

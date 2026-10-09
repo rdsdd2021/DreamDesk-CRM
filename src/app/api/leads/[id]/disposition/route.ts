@@ -32,7 +32,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { disposition_id, sub_disposition_id, notes, callback_at, status } = body;
+    const { disposition_id, sub_disposition_id, notes, callback_at, status, call_outcome } = body;
 
     const updatedLead = LeadsService.updateLeadDisposition(
       leadId,
@@ -41,7 +41,8 @@ export async function POST(
       callback_at,
       status,
       sub_disposition_id !== undefined ? sub_disposition_id : null,
-      session.user
+      session.user,
+      call_outcome !== undefined ? call_outcome : null
     );
 
     return NextResponse.json(updatedLead);

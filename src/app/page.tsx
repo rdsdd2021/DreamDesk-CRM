@@ -516,31 +516,34 @@ export default function CRMPage() {
   };
 
   // Fast In-Table Call Outcome Logging
-  const handleQuickDispositionChange = async (leadId: number, dispositionId: string) => {
+  const handleQuickDispositionChange = async (
+    leadId: number,
+    dispositionId: string,
+    extra?: { call_outcome?: string; callback_at?: string; notes?: string; sub_disposition_id?: string }
+  ) => {
     const disp = dispositions.find((d) => d.id === dispositionId);
-    setLeads((prev) =>
-      prev.map((l) => {
-        if (l.id === leadId) {
-          return {
-            ...l,
-            disposition_id: dispositionId,
-            disposition_name: disp?.name || l.disposition_name,
-            disposition_color: disp?.color || l.disposition_color,
-            status: disp?.category === "positive" ? "Interested" : l.status,
-          };
-        }
-        return l;
-      })
-    );
-
     try {
       const res = await fetch(`/api/leads/${leadId}/disposition`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ disposition_id: dispositionId }),
+        body: JSON.stringify({
+          disposition_id: dispositionId,
+          call_outcome: extra?.call_outcome,
+          callback_at: extra?.callback_at,
+          notes: extra?.notes,
+          sub_disposition_id: extra?.sub_disposition_id,
+        }),
       });
       if (!res.ok) throw new Error("Failed to update disposition");
-      showToast(`Logged outcome: ${disp?.name || "Updated"}`, "success");
+      const updatedLead = await res.json();
+      setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...updatedLead } : l)));
+
+      if (disp?.category === "unreachable" || extra?.call_outcome === "unreachable") {
+        const attemptMsg = updatedLead.attempt_count ? `Attempt #${updatedLead.attempt_count}/3 logged.` : "Attempt logged.";
+        showToast(`${attemptMsg} Cooldown active. Lead kept in retry queue.`, "success");
+      } else {
+        showToast(`Logged outcome: ${disp?.name || "Updated"}`, "success");
+      }
     } catch (err: any) {
       showToast(err.message || "Failed to update disposition", "error");
       fetchLeads();

@@ -115,6 +115,10 @@ export interface Lead {
   sub_disposition_id?: string | null;
   sub_disposition_name?: string | null;
   callback_at?: string | null;
+  attempt_count?: number;
+  last_attempt_at?: string | null;
+  cooldown_until?: string | null;
+  call_outcome?: string | null;
   tags?: string[];
   raw_attributes: Record<string, any>;
   notes: string | null;

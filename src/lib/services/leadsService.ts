@@ -2127,7 +2127,8 @@ export class LeadsService {
     callbackAt?: string | null,
     status?: string,
     subDispositionId?: string | null,
-    currentUser?: User | null
+    currentUser?: User | null,
+    callOutcome?: string | null
   ): Lead {
     const db = getDatabase();
 
@@ -2149,18 +2150,59 @@ export class LeadsService {
       throw new Error(`Lead #${leadId} not found.`);
     }
 
-    let targetStatus = status || currentLead.status;
+    // Read retry & cooldown policy from crm_policies
+    let maxAttempts = 3;
+    let cooldownHours = 3;
+    try {
+      const retryPolicyRow = db.prepare("SELECT config FROM crm_policies WHERE id = 'dialer_retry_policy' AND is_enabled = 1").get() as { config: string } | undefined;
+      if (retryPolicyRow?.config) {
+        const parsed = JSON.parse(retryPolicyRow.config);
+        if (parsed.max_attempts) maxAttempts = Number(parsed.max_attempts);
+        if (parsed.cooldown_hours) cooldownHours = Number(parsed.cooldown_hours);
+      }
+    } catch {}
 
-    // If disposition is provided and status wasn't explicitly changed, auto-map status from disposition
     let disp: Disposition | undefined = undefined;
     if (dispositionId) {
       disp = db.prepare("SELECT * FROM dispositions WHERE id = ?").get(dispositionId) as Disposition | undefined;
-      if (disp && !status) {
+    }
+
+    // Determine if call was unreachable
+    const isUnreachable =
+      callOutcome === "unreachable" ||
+      callOutcome === "no_answer" ||
+      callOutcome === "busy" ||
+      callOutcome === "switched_off" ||
+      disp?.category === "unreachable" ||
+      ["RNR", "BUSY", "SWITCH_OFF", "INVALID_NUM"].includes(disp?.code || "");
+
+    let targetStatus = status || currentLead.status;
+    let nextAttemptCount = currentLead.attempt_count || 0;
+    let cooldownUntil: string | null = null;
+    const finalCallOutcome = callOutcome || (isUnreachable ? "unreachable" : "answered");
+
+    if (isUnreachable) {
+      nextAttemptCount += 1;
+      const cooldownDate = new Date(Date.now() + cooldownHours * 60 * 60 * 1000).toISOString();
+      cooldownUntil = cooldownDate;
+
+      if (!status) {
+        if (nextAttemptCount >= maxAttempts) {
+          targetStatus = "Unreachable";
+          cooldownUntil = null; // Max attempts exhausted
+        } else {
+          // Keep lead in active retry state — DO NOT mark as Contacted!
+          targetStatus = currentLead.status === "New" ? "New" : (currentLead.status || "New");
+        }
+      }
+    } else if (disp) {
+      // Call connected / answered!
+      cooldownUntil = null;
+      if (!status) {
         if (disp.code === "ADM_SUBMITTED") targetStatus = "Admitted";
         else if (disp.code === "COUNS_BOOKED" || disp.code === "INT_HIGH") targetStatus = "Interested";
         else if (disp.requires_callback) targetStatus = "Follow-up";
         else if (disp.category === "negative") targetStatus = "Not Interested";
-        else if (disp.category === "unreachable") targetStatus = "Contacted";
         else targetStatus = "Contacted";
       }
     }
@@ -2185,6 +2227,10 @@ export class LeadsService {
         callback_at = @callbackAt,
         notes = @notes,
         status = @status,
+        attempt_count = @attemptCount,
+        last_attempt_at = CURRENT_TIMESTAMP,
+        cooldown_until = @cooldownUntil,
+        call_outcome = @callOutcome,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = @leadId
     `).run({
@@ -2194,15 +2240,41 @@ export class LeadsService {
       callbackAt: callbackAt || null,
       notes: updatedNotes,
       status: targetStatus,
+      attemptCount: nextAttemptCount,
+      cooldownUntil: cooldownUntil,
+      callOutcome: finalCallOutcome,
     });
 
     const counselorName = currentUser?.name || currentLead.assigned_user_name || "Counselor";
     const counselorId = currentUser?.id || currentLead.assigned_to || null;
     const counselorRole = currentUser?.role || "counselor";
 
-    // 1. Audit Trail: Call Disposition outcome
-    if (dispositionId && disp) {
-      const title = `Call Outcome: ${disp.name}${subDisp ? ` (${subDisp.name})` : ""}`;
+    // 1. Audit Trail: Call Disposition outcome or Unreachable Attempt
+    if (isUnreachable) {
+      const title = `Attempt #${nextAttemptCount}: ${disp?.name || "Unreachable"}`;
+      const desc = nextAttemptCount >= maxAttempts
+        ? `Student unreachable. Max attempts exhausted (${nextAttemptCount}/${maxAttempts}). Lead marked as Unreachable.`
+        : `Student unreachable. Attempt #${nextAttemptCount} logged. Cooldown active for ${cooldownHours}h (Next eligible retry at ${new Date(cooldownUntil!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}).`;
+
+      this.logLeadActivity({
+        lead_id: leadId,
+        activity_type: "call_attempt",
+        title,
+        description: notes && notes.trim() ? `${desc} Note: ${notes.trim()}` : desc,
+        new_value: disp?.name || "Unreachable",
+        metadata: {
+          attempt_count: nextAttemptCount,
+          max_attempts: maxAttempts,
+          cooldown_until: cooldownUntil,
+          is_unreachable: true,
+          call_notes: notes || undefined,
+        },
+        performed_by_id: counselorId,
+        performed_by_name: counselorName,
+        performed_by_role: counselorRole,
+      });
+    } else if (dispositionId && disp) {
+      const title = `Call Connected: ${disp.name}${subDisp ? ` (${subDisp.name})` : ""}`;
       this.logLeadActivity({
         lead_id: leadId,
         activity_type: "disposition",
@@ -2217,6 +2289,7 @@ export class LeadsService {
           color: disp.color,
           score: disp.score,
           call_notes: notes || undefined,
+          call_outcome: "answered",
         },
         performed_by_id: counselorId,
         performed_by_name: counselorName,
@@ -2982,11 +3055,19 @@ export class LeadsService {
     if (!existing) throw new Error(`Lead ${leadId} not found`);
 
     if (field === "status") {
+      const isExempt =
+        options?.currentUser?.role === "admin" ||
+        options?.currentUser?.role === "team_lead";
+      if (options?.currentUser && !isExempt && !options?.overridePolicy) {
+        throw new Error(
+          "Policy Restriction: Lead stage is calculated automatically by CRM from validated call outcomes. Manual stage change requires Supervisor (Admin or Team Lead) permission."
+        );
+      }
       db.prepare("UPDATE leads SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(value, leadId);
       this.logLeadActivity({
         lead_id: leadId,
         activity_type: "stage_change",
-        title: `Stage Changed: ${existing.status} → ${value}`,
+        title: `Stage Changed: ${existing.status} → ${value}${isExempt ? " (Supervisor Override)" : ""}`,
         description: `Stage updated directly to "${value}"`,
         old_value: existing.status,
         new_value: String(value),

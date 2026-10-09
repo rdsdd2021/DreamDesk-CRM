@@ -447,16 +447,63 @@ export function EnhancedLeadDrawer({
     setCallbackDate(iso);
   };
 
-  const handleSaveDisposition = async () => {
+  const [loggingUnreachableId, setLoggingUnreachableId] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState("Call disposition and note saved successfully!");
+
+  const handleInstantUnreachable = async (opt: { id: string; label: string; code: string }) => {
     if (!lead) return;
+    setLoggingUnreachableId(opt.id);
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/disposition`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          disposition_id: opt.id,
+          call_outcome: "unreachable",
+          notes: callNotes.trim() ? `[${opt.label}] ${callNotes.trim()}` : `Call Attempt: ${opt.label}`,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to log unreachable call attempt");
+      const updatedLead = await res.json();
+
+      if (onLeadUpdated) {
+        onLeadUpdated(updatedLead);
+      }
+      if (lead?.id) {
+        fetchActivities(lead.id);
+      }
+
+      setCallNotes("");
+      setToastMessage(`Logged "${opt.label}" (Attempt #${updatedLead.attempt_count || 1}). Lead remains active for retry.`);
+      setSuccessToast(true);
+      setTimeout(() => setSuccessToast(false), 3500);
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setLoggingUnreachableId(null);
+    }
+  };
+
+  const handleSaveConnectedDisposition = async () => {
+    if (!lead) return;
+    if (!selectedDispId) {
+      alert("Please select a call outcome before saving.");
+      return;
+    }
+    if (requiresCallback && !callbackDate) {
+      alert("Please specify a follow-up callback date and time.");
+      return;
+    }
     setSavingDisp(true);
     try {
       const res = await fetch(`/api/leads/${lead.id}/disposition`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          disposition_id: selectedDispId || null,
+          disposition_id: selectedDispId,
           sub_disposition_id: selectedSubDispId || null,
+          call_outcome: "connected",
           notes: callNotes.trim() || undefined,
           callback_at: requiresCallback && callbackDate ? callbackDate : null,
         }),
@@ -473,8 +520,9 @@ export function EnhancedLeadDrawer({
       }
 
       setCallNotes("");
+      setToastMessage("Connected call outcome and conversation saved successfully!");
       setSuccessToast(true);
-      setTimeout(() => setSuccessToast(false), 3000);
+      setTimeout(() => setSuccessToast(false), 3500);
     } catch (err: any) {
       alert("Error: " + err.message);
     } finally {
@@ -486,7 +534,34 @@ export function EnhancedLeadDrawer({
   const positiveDisps = campaignDispositions.filter((d) => d.category === "positive");
   const neutralDisps = campaignDispositions.filter((d) => d.category === "neutral");
   const unreachableDisps = campaignDispositions.filter((d) => d.category === "unreachable");
-  const negativeDisps = campaignDispositions.filter((d) => d.category === "negative");
+  const negativeDisps = campaignDispositions.filter((d) => d.category === "negative" && d.code !== "INVALID_NUM");
+
+  const unreachableOptions = [
+    {
+      id: campaignDispositions.find((d) => d.code === "RNR")?.id || "disp_rnr",
+      label: "Ringing - No Response",
+      icon: "📞",
+      code: "RNR",
+    },
+    {
+      id: campaignDispositions.find((d) => d.code === "BUSY")?.id || "disp_busy",
+      label: "Line Busy / Cut",
+      icon: "📵",
+      code: "BUSY",
+    },
+    {
+      id: campaignDispositions.find((d) => d.code === "SWITCH_OFF")?.id || "disp_switched_off",
+      label: "Switched Off",
+      icon: "📴",
+      code: "SWITCH_OFF",
+    },
+    {
+      id: campaignDispositions.find((d) => d.code === "INVALID_NUM")?.id || "disp_invalid_num",
+      label: "Invalid / Wrong Number",
+      icon: "🚫",
+      code: "INVALID_NUM",
+    },
+  ];
 
   // Initials for avatar
   const initials = (lead.name || "S")
@@ -836,14 +911,28 @@ export function EnhancedLeadDrawer({
                     )}
                   </div>
 
-                  {/* Stage Selection */}
+                  {/* Stage Selection (Automatic calculation with supervisory override) */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                      <Tag className="w-3.5 h-3.5 text-primary" />
-                      <span>Admission Stage</span>
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-primary" />
+                        <span>Admission Stage</span>
+                      </label>
+                      {!isExemptRole ? (
+                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-muted/60 text-muted-foreground border-border/80 font-medium gap-1">
+                          <Lock className="w-2.5 h-2.5" />
+                          Auto-Calculated
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30 font-semibold gap-1">
+                          <ShieldAlert className="w-2.5 h-2.5" />
+                          Supervisor Override
+                        </Badge>
+                      )}
+                    </div>
                     <Select
                       value={lead.status}
+                      disabled={!isExemptRole}
                       onValueChange={(val) => {
                         if (val) {
                           onUpdateLeadStatus(lead.id, val);
@@ -851,17 +940,30 @@ export function EnhancedLeadDrawer({
                         }
                       }}
                     >
-                      <SelectTrigger className="h-9 text-xs rounded-xl border-border/80 bg-background font-medium">
+                      <SelectTrigger className={`h-9 text-xs rounded-xl border-border/80 bg-background font-medium ${
+                        !isExemptRole ? "opacity-75 cursor-not-allowed bg-muted/30" : ""
+                      }`}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {["New", "Contacted", "Interested", "Follow-up", "Admitted", "Not Interested", "Invalid"].map((s) => (
+                        {["New", "Contacted", "Interested", "Follow-up", "Admitted", "Not Interested", "Unreachable", "Invalid"].map((s) => (
                           <SelectItem key={s} value={s} className="text-xs">
                             {s}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {!isExemptRole ? (
+                      <p className="text-[10px] text-muted-foreground flex items-center gap-1 leading-snug">
+                        <Lock className="w-2.5 h-2.5 text-muted-foreground shrink-0" />
+                        Stage is calculated automatically by CRM from validated call outcomes. Manual stage overrides require Supervisor (Admin / Team Lead) permission.
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-blue-600 dark:text-blue-400 flex items-center gap-1 leading-snug">
+                        <ShieldAlert className="w-2.5 h-2.5 text-blue-600 shrink-0" />
+                        Supervisor override active: Any manual stage change will be logged in audit trail.
+                      </p>
+                    )}
                   </div>
 
                   {/* Campaign Attribution */}
@@ -1103,15 +1205,97 @@ export function EnhancedLeadDrawer({
 
             {/* TAB 2: CALL & OUTCOME LOGGING */}
             <TabsContent value="calls" className="space-y-4 pt-3 m-0">
+              {/* Telecalling Retry Cadence & Policy Tracker */}
+              <div className="flex items-center justify-between p-3.5 rounded-2xl border border-border/80 bg-muted/30 shadow-2xs">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <RotateCw className="w-3.5 h-3.5 text-primary" />
+                    <span>Dialing Cadence:</span>
+                  </span>
+                  <Badge
+                    variant="outline"
+                    className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md ${
+                      (lead.attempt_count || 0) >= 3
+                        ? "bg-rose-500/10 text-rose-600 border-rose-500/30 dark:text-rose-400"
+                        : "bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-400"
+                    }`}
+                  >
+                    Attempt {(lead.attempt_count || 0)} / 3
+                  </Badge>
+                  {lead.cooldown_until && new Date(lead.cooldown_until) > new Date() && (
+                    <Badge
+                      variant="outline"
+                      className="text-xs font-medium px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-700 border-blue-500/30 dark:text-blue-400 animate-pulse flex items-center gap-1"
+                    >
+                      <Clock className="w-3 h-3" />
+                      Cooldown until {new Date(lead.cooldown_until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </Badge>
+                  )}
+                </div>
+                {lead.last_attempt_at && (
+                  <span className="text-[11px] text-muted-foreground font-medium">
+                    Last: {formatTimeAgo(lead.last_attempt_at)}
+                  </span>
+                )}
+              </div>
+
+              {/* ZONE 1: UNREACHABLE (1-CLICK INSTANT RETRY) */}
+              <div className="p-4 rounded-2xl border border-orange-500/25 bg-orange-500/5 space-y-3 shadow-2xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-bold text-orange-700 dark:text-orange-400 flex items-center gap-1.5 uppercase tracking-wide">
+                      <PhoneCall className="w-3.5 h-3.5 text-orange-600" />
+                      <span>Zone 1: Unreachable / Did Not Connect</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      1-Click registers attempt & 3h cooldown. Lead remains active in retry queue (not falsely marked as Contacted).
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-[10px] bg-orange-500/10 text-orange-700 border-orange-500/30 shrink-0 font-semibold">
+                    1-Click Instant
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                  {unreachableOptions.map((opt) => {
+                    const isLogging = loggingUnreachableId === opt.id;
+                    return (
+                      <Button
+                        key={opt.id}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={loggingUnreachableId !== null || savingDisp}
+                        onClick={() => handleInstantUnreachable(opt)}
+                        className="h-10 text-xs font-semibold rounded-xl border-orange-500/30 bg-background hover:bg-orange-500/15 text-orange-700 dark:text-orange-300 hover:text-orange-800 dark:hover:text-orange-200 justify-start gap-1.5 px-2.5 transition-all shadow-2xs hover:shadow-xs cursor-pointer"
+                      >
+                        {isLogging ? (
+                          <RotateCw className="w-3.5 h-3.5 animate-spin shrink-0 text-orange-600" />
+                        ) : (
+                          <span className="text-sm shrink-0">{opt.icon}</span>
+                        )}
+                        <span className="truncate">{opt.label}</span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* ZONE 2: CALL CONNECTED (STUDENT CONVERSATION) */}
               <div className="bg-card border border-border/80 rounded-2xl p-4 sm:p-5 space-y-4 shadow-2xs">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <PhoneCall className="w-3.5 h-3.5 text-primary" />
-                    <span>Call Disposition & Telecaller Engine</span>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wide">
+                      <MessageSquare className="w-3.5 h-3.5 text-primary" />
+                      <span>Zone 2: Call Connected (Student Conversation)</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Student or parent answered the call. Select conversation outcome, sub-reasons, and follow-up plan.
+                    </p>
                   </div>
                   {selectedDispObj && (
                     <span
-                      className="text-xs font-semibold px-2 py-0.5 rounded-full text-white"
+                      className="text-xs font-semibold px-2.5 py-0.5 rounded-full text-white shadow-2xs shrink-0"
                       style={{ backgroundColor: selectedDispObj.color || "#3b82f6" }}
                     >
                       Score: {selectedDispObj.score > 0 ? `+${selectedDispObj.score}` : selectedDispObj.score}
@@ -1120,11 +1304,7 @@ export function EnhancedLeadDrawer({
                 </div>
 
                 {/* Categorized Visual Disposition Selector */}
-                <div className="space-y-3">
-                  <label className="text-xs font-semibold text-foreground">
-                    Select Call Outcome
-                  </label>
-
+                <div className="space-y-3 pt-1">
                   {/* Positive Outcomes */}
                   {positiveDisps.length > 0 && (
                     <div className="space-y-1.5">
@@ -1183,35 +1363,6 @@ export function EnhancedLeadDrawer({
                     </div>
                   )}
 
-                  {/* Unreachable Outcomes */}
-                  {unreachableDisps.length > 0 && (
-                    <div className="space-y-1.5">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-orange-600 dark:text-orange-400">
-                        Unreachable / Not Connecting
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {unreachableDisps.map((d) => {
-                          const isSelected = selectedDispId === d.id;
-                          return (
-                            <button
-                              key={d.id}
-                              type="button"
-                              onClick={() => setSelectedDispId(isSelected ? "" : d.id)}
-                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
-                                isSelected
-                                  ? "bg-orange-600 text-white border-orange-600 shadow-xs ring-2 ring-orange-500/20"
-                                  : "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/25 hover:bg-orange-500/20"
-                              }`}
-                            >
-                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: isSelected ? "#fff" : d.color }} />
-                              <span>{d.name}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
                   {/* Negative Outcomes */}
                   {negativeDisps.length > 0 && (
                     <div className="space-y-1.5">
@@ -1242,12 +1393,12 @@ export function EnhancedLeadDrawer({
                   )}
                 </div>
 
-                {/* Sub-Disposition Dropdown (if available) */}
+                {/* Sub-Disposition Dropdown (Conditional) */}
                 {selectedDispObj?.sub_dispositions && selectedDispObj.sub_dispositions.length > 0 && (
                   <div className="space-y-1.5 pt-1 animate-in fade-in-50 duration-200">
                     <label className="text-xs font-semibold text-foreground flex items-center gap-1.5 text-primary">
                       <CornerDownRight className="w-3.5 h-3.5" />
-                      <span>Specific Reason / Sub-Outcome</span>
+                      <span>Specific Reason / Sub-Outcome (Conditional)</span>
                     </label>
                     <Select
                       value={selectedSubDispId || "none"}
@@ -1269,6 +1420,19 @@ export function EnhancedLeadDrawer({
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                )}
+
+                {/* Counseling Booking (Conditional Prompt) */}
+                {selectedDispObj?.code === "COUNS_BOOKED" && (
+                  <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 space-y-1 text-xs">
+                    <div className="font-bold flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>Counseling Session Confirmed</span>
+                    </div>
+                    <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
+                      Remind candidate to keep 10th & 12th marksheets ready and note campus or online counseling slot in the remarks below.
+                    </p>
                   </div>
                 )}
 
@@ -1369,22 +1533,22 @@ export function EnhancedLeadDrawer({
                   />
                 </div>
 
-                {/* Save Disposition Button */}
+                {/* Save Connected Disposition Button */}
                 <div className="pt-2">
                   <Button
                     size="sm"
-                    onClick={handleSaveDisposition}
-                    disabled={savingDisp}
-                    className="w-full h-10 text-xs sm:text-sm font-bold gap-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+                    onClick={handleSaveConnectedDisposition}
+                    disabled={savingDisp || !selectedDispId || (requiresCallback && !callbackDate)}
+                    className="w-full h-10 text-xs sm:text-sm font-bold gap-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm cursor-pointer"
                   >
                     <Save className="w-4 h-4" />
-                    <span>{savingDisp ? "Saving Outcome..." : "Save Call Outcome & Disposition"}</span>
+                    <span>{savingDisp ? "Saving Conversation..." : "Save Connected Call Outcome"}</span>
                   </Button>
 
                   {successToast && (
                     <div className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1.5 animate-in fade-in">
                       <CheckCircle2 className="w-4 h-4" />
-                      <span>Call disposition and note saved successfully!</span>
+                      <span>{toastMessage}</span>
                     </div>
                   )}
                 </div>
@@ -1496,12 +1660,18 @@ export function EnhancedLeadDrawer({
 
           <Button
             size="sm"
-            onClick={handleSaveDisposition}
-            disabled={savingDisp || (!selectedDispId && !callNotes.trim())}
-            className="flex-1 h-11 text-xs font-bold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-xs"
+            onClick={() => {
+              if (selectedDispId) {
+                handleSaveConnectedDisposition();
+              } else {
+                setActiveTab("calls");
+              }
+            }}
+            disabled={savingDisp}
+            className="flex-1 h-11 text-xs font-bold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-xs cursor-pointer"
           >
             <Save className="w-4 h-4" />
-            <span>{savingDisp ? "Saving..." : "Log Outcome"}</span>
+            <span>{savingDisp ? "Saving..." : selectedDispId ? "Log Outcome" : "Log Call"}</span>
           </Button>
         </div>
 

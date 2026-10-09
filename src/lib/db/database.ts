@@ -204,6 +204,10 @@ function initializeSchema(db: Database.Database) {
       disposition_id TEXT REFERENCES dispositions(id) ON DELETE SET NULL,
       sub_disposition_id TEXT REFERENCES sub_dispositions(id) ON DELETE SET NULL,
       callback_at DATETIME,
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      last_attempt_at DATETIME,
+      cooldown_until DATETIME,
+      call_outcome TEXT,
       tags TEXT DEFAULT '[]',
       raw_attributes TEXT NOT NULL DEFAULT '{}',
       notes TEXT,
@@ -218,7 +222,7 @@ function initializeSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_leads_name ON leads(name);
   `);
 
-  // Migration check: Add campaign_id, disposition_id, sub_disposition_id, callback_at, tags to existing leads table if missing
+  // Migration check: Add campaign_id, disposition_id, sub_disposition_id, callback_at, tags, attempt_count, cooldown_until, call_outcome
   const leadCols = db.pragma("table_info(leads)") as { name: string }[];
   const existingColNames = new Set(leadCols.map((c) => c.name));
 
@@ -233,6 +237,18 @@ function initializeSchema(db: Database.Database) {
   }
   if (!existingColNames.has("callback_at")) {
     db.exec("ALTER TABLE leads ADD COLUMN callback_at DATETIME;");
+  }
+  if (!existingColNames.has("attempt_count")) {
+    db.exec("ALTER TABLE leads ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0;");
+  }
+  if (!existingColNames.has("last_attempt_at")) {
+    db.exec("ALTER TABLE leads ADD COLUMN last_attempt_at DATETIME;");
+  }
+  if (!existingColNames.has("cooldown_until")) {
+    db.exec("ALTER TABLE leads ADD COLUMN cooldown_until DATETIME;");
+  }
+  if (!existingColNames.has("call_outcome")) {
+    db.exec("ALTER TABLE leads ADD COLUMN call_outcome TEXT;");
   }
   if (!existingColNames.has("tags")) {
     db.exec("ALTER TABLE leads ADD COLUMN tags TEXT DEFAULT '[]';");
@@ -255,6 +271,8 @@ function initializeSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_leads_disposition ON leads(disposition_id);
     CREATE INDEX IF NOT EXISTS idx_leads_sub_disposition ON leads(sub_disposition_id);
     CREATE INDEX IF NOT EXISTS idx_leads_callback ON leads(callback_at);
+    CREATE INDEX IF NOT EXISTS idx_leads_cooldown ON leads(cooldown_until);
+    CREATE INDEX IF NOT EXISTS idx_leads_attempts ON leads(attempt_count);
   `);
 
   // 7. Activity Logs for Bulk Operations
@@ -856,6 +874,28 @@ function initPolicies(db: Database.Database) {
           allow_unassign: false,
           require_reason_for_override: false,
           notification_message: 'Lead is locked under the 7-day anti-poaching policy. Reassignment is restricted to Admins and Team Leaders.',
+        })
+      );
+    }
+
+    const existingRetry = db.prepare("SELECT id FROM crm_policies WHERE id = 'dialer_retry_policy'").get();
+    if (!existingRetry) {
+      db.prepare(`
+        INSERT INTO crm_policies (id, name, description, policy_type, is_enabled, config)
+        VALUES (
+          'dialer_retry_policy',
+          'Unreachable Retry Cadence & Cooldown Policy',
+          'Automates retry rules for unanswered calls. Retries are capped at max attempts with cooldown periods to prevent student spamming.',
+          'dialer_retry_policy',
+          1,
+          ?
+        )
+      `).run(
+        JSON.stringify({
+          max_attempts: 3,
+          cooldown_hours: 3,
+          exhausted_status: 'Unreachable',
+          auto_advance_dialer: true,
         })
       );
     }
