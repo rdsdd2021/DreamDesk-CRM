@@ -156,6 +156,8 @@ export function EnhancedLeadDrawer({
   const [callNotes, setCallNotes] = useState("");
   const [savingDisp, setSavingDisp] = useState(false);
   const [successToast, setSuccessToast] = useState(false);
+  const [loggingUnreachableId, setLoggingUnreachableId] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState("Call disposition and note saved successfully!");
 
   // Immutable Audit Trail Timeline State
   const [activities, setActivities] = useState<LeadActivity[]>([]);
@@ -446,9 +448,6 @@ export function EnhancedLeadDrawer({
     const iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     setCallbackDate(iso);
   };
-
-  const [loggingUnreachableId, setLoggingUnreachableId] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState("Call disposition and note saved successfully!");
 
   const handleInstantUnreachable = async (opt: { id: string; label: string; code: string }) => {
     if (!lead) return;
