@@ -243,6 +243,9 @@ export interface LeadsResponse {
   globalSummary?: LeadSummaryStats;
 }
 
+export type WorkQueueId = "all" | "callbacks" | "unassigned" | "high_intent" | "followups" | "unreached";
+
+
 export interface BulkAssignRequest {
   mode: 'auto' | 'quota' | 'single';
   lead_ids?: number[];

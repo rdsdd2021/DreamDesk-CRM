@@ -27,6 +27,9 @@ import { KeyboardShortcutsModal } from "@/components/crm/KeyboardShortcutsModal"
 import { DynamicFacetToolbar } from "@/components/crm/DynamicFacetToolbar";
 import { FilterSidebar } from "@/components/crm/FilterSidebar";
 import { LeadsTable } from "@/components/crm/LeadsTable";
+import { CompactKpiBar } from "@/components/crm/CompactKpiBar";
+import { UnifiedCommandBar } from "@/components/crm/UnifiedCommandBar";
+import { SpeedDialerWorkspace } from "@/components/crm/SpeedDialerWorkspace";
 import { BulkActionBar } from "@/components/crm/BulkActionBar";
 import { BulkAssignModal } from "@/components/crm/BulkAssignModal";
 import { BulkTagsModal } from "@/components/crm/BulkTagsModal";
@@ -198,19 +201,7 @@ export default function CRMPage() {
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
   const toggleFilterSidebar = () => {
-    if (typeof window !== "undefined" && window.innerWidth < 768) {
-      setIsMobileFilterOpen(true);
-      return;
-    }
-    setFilterSidebarOpen((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem("dreamdesk_filter_sidebar_open", String(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
+    setFilterDrawerOpen((prev) => !prev);
   };
 
   // Counselor Role Filter (Admin: all leads, or Counselor: my leads)
@@ -296,6 +287,8 @@ export default function CRMPage() {
   const [density, setDensity] = useState<"compact" | "comfortable">("comfortable");
   const [activeLeadIndex, setActiveLeadIndex] = useState<number | null>(null);
   const [claimingLeads, setClaimingLeads] = useState(false);
+  const [leadsViewMode, setLeadsViewMode] = useState<"table" | "dialer">("table");
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
 
   // Toast Notification State
   const [toastMessage, setToastMessage] = useState<{
@@ -746,11 +739,17 @@ export default function CRMPage() {
         if (selectedLeadForDetail) {
           e.preventDefault();
           handlePrevLead();
+        } else if (leadsViewMode === "dialer") {
+          e.preventDefault();
+          setActiveLeadIndex((prev) => (prev === null ? 0 : Math.max(0, prev - 1)));
         }
       } else if (e.key === "]" || (e.altKey && e.key === "ArrowRight")) {
         if (selectedLeadForDetail) {
           e.preventDefault();
           handleNextLead();
+        } else if (leadsViewMode === "dialer") {
+          e.preventDefault();
+          setActiveLeadIndex((prev) => (prev === null ? (leads.length > 1 ? 1 : 0) : Math.min(leads.length - 1, prev + 1)));
         }
       } else if (e.key.toLowerCase() === "w") {
         const targetLead = selectedLeadForDetail || (activeLeadIndex !== null ? leads[activeLeadIndex] : null);
@@ -764,7 +763,7 @@ export default function CRMPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [leads, activeLeadIndex, dispositions, toggleFilterSidebar, selectedLeadForDetail, handleNextLead, handlePrevLead]);
+  }, [leads, activeLeadIndex, dispositions, toggleFilterSidebar, selectedLeadForDetail, handleNextLead, handlePrevLead, leadsViewMode]);
 
   const handleToggleColumnVisibility = (key: string) => {
     setVisibleColumns((prev) =>
@@ -1415,106 +1414,6 @@ export default function CRMPage() {
               </DropdownMenu>
             )}
 
-            {/* Generate Test Data Dropdown (Admin Only) */}
-            {permissions?.canManageSchema && (
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  className={cn(
-                    buttonVariants({ variant: "outline", size: "sm" }),
-                    "h-8 text-xs gap-1.5 font-medium cursor-pointer"
-                  )}
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-primary" />
-                  <span className="hidden sm:inline">Generate</span>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 text-xs">
-                  <DropdownMenuLabel className="text-xs font-semibold">
-                    Generate Student Leads
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => handleGenerateSampleLeads(500)} className="cursor-pointer">
-                    +500 Student Leads
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleGenerateSampleLeads(2500)} className="cursor-pointer">
-                    +2,500 Student Leads
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleGenerateSampleLeads(10000)} className="cursor-pointer">
-                    +10,000 High-Volume Batch
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleGenerateSampleLeads(50000)} className="cursor-pointer font-bold text-primary">
-                    ⚡ +50,000 Stress Test Batch
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-
-            {/* Scheduled Tasks & Callbacks Workspace Launcher */}
-            <Button
-              size="sm"
-              variant={currentView === "tasks" ? "secondary" : "outline"}
-              onClick={() => setCurrentView("tasks")}
-              className={`h-8 text-xs gap-1.5 font-medium border-border/80 hover:bg-muted ${
-                currentView === "tasks" ? "bg-amber-500/10 text-amber-600 border-amber-500/30" : ""
-              }`}
-              title="Open Scheduled Callbacks & Tasks Workspace (T)"
-            >
-              <Clock className="w-3.5 h-3.5 text-amber-500" />
-              <span className="hidden sm:inline">Tasks</span>
-            </Button>
-
-            {/* Duplicate Radar & Merge (Admin & Team Lead Only) */}
-            {permissions?.canViewAllLeads && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setIsDuplicatesModalOpen(true)}
-                className="h-8 text-xs gap-1.5 font-medium border-border/80 hover:bg-muted"
-                title="Scan & Merge Duplicate Leads"
-              >
-                <GitMerge className="w-3.5 h-3.5 text-indigo-500" />
-                <span className="hidden sm:inline">Duplicates</span>
-              </Button>
-            )}
-
-            {/* Ingestion & Field Mapping Studio (Admins & Team Leads Only) */}
-            {permissions?.canImportLeads && (
-              <Button
-                size="sm"
-                variant={currentView === "import" ? "secondary" : "outline"}
-                onClick={() => setCurrentView("import")}
-                className={`h-8 text-xs gap-1.5 font-medium border-border/80 hover:bg-muted ${
-                  currentView === "import" ? "bg-primary/10 text-primary border-primary/30" : ""
-                }`}
-                title="Open CSV Ingestion & Field Mapping Studio"
-              >
-                <Upload className="w-3.5 h-3.5 text-primary" />
-                <span className="hidden sm:inline">Import & Map</span>
-              </Button>
-            )}
-
-            {/* Filter Sidebar Toggle (Leads Workspace) */}
-            {currentView === "leads" && (
-              <Button
-                variant={filterSidebarOpen ? "secondary" : "outline"}
-                size="sm"
-                onClick={toggleFilterSidebar}
-                className={cn(
-                  "h-8 text-xs gap-1.5 font-medium cursor-pointer transition-colors",
-                  filterSidebarOpen
-                    ? "border-primary/40 bg-primary/10 text-primary font-semibold hover:bg-primary/15"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-                title={filterSidebarOpen ? "Collapse Filter Panel (F)" : "Expand Filter Panel (F)"}
-              >
-                <SlidersHorizontal className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Filters</span>
-                {Object.values(selectedFacets).some((vals) => vals && vals.length > 0) && (
-                  <Badge variant="default" className="h-4 px-1 text-[9px] rounded-full">
-                    {Object.values(selectedFacets).reduce((acc, v) => acc + (v?.length || 0), 0)}
-                  </Badge>
-                )}
-              </Button>
-            )}
 
             {/* Dark / Light Theme Toggle */}
             <Button
@@ -1533,277 +1432,170 @@ export default function CRMPage() {
           </div>
         </header>
 
-        {/* View Routing Body with Docked Left Filter Sidebar */}
+        {/* View Routing Body with Slide-Over Filter Drawer */}
         <div className="flex-1 flex min-h-0 overflow-hidden relative">
-          {/* Dedicated Left Filter Sidebar (docked next to main menu for leads workspace) */}
+          {/* Slide-over Filter Sheet for Leads Workspace */}
           {currentView === "leads" && (
-            <FilterSidebar
-              collapsed={!filterSidebarOpen}
-              onToggleCollapse={toggleFilterSidebar}
-              facets={facets}
-              selectedFacets={selectedFacets}
-              onFacetToggle={handleFacetToggle}
-              onClearAllFilters={handleClearAllFilters}
-              schemaMeta={schemaMeta}
-              totalFilteredCount={totalFilteredCount}
-              totalCount={totalCount}
-              users={users}
-              isRestrictedCounselor={isRestrictedCounselor}
-            />
+            <Sheet open={filterDrawerOpen} onOpenChange={setFilterDrawerOpen}>
+              <SheetContent side="right" className="p-0 sm:max-w-md w-full border-l border-border/80 shadow-2xl flex flex-col">
+                <SheetTitle className="sr-only">Filter Leads</SheetTitle>
+                <SheetDescription className="sr-only">Configure facets and lead filters</SheetDescription>
+                <FilterSidebar
+                  collapsed={false}
+                  onToggleCollapse={() => setFilterDrawerOpen(false)}
+                  facets={facets}
+                  selectedFacets={selectedFacets}
+                  onFacetToggle={handleFacetToggle}
+                  onClearAllFilters={handleClearAllFilters}
+                  schemaMeta={schemaMeta}
+                  totalFilteredCount={totalFilteredCount}
+                  totalCount={totalCount}
+                  users={users}
+                  isRestrictedCounselor={isRestrictedCounselor}
+                  isMobileDrawer={true}
+                  onCloseMobile={() => setFilterDrawerOpen(false)}
+                />
+              </SheetContent>
+            </Sheet>
           )}
 
-          <main className="flex-1 overflow-y-auto p-3 sm:p-6 pb-24 md:pb-6 min-w-0">
+          <main className="flex-1 overflow-y-auto p-3 sm:p-5 pb-24 md:pb-6 min-w-0">
           {/* VIEW 1: LEADS WORKSPACE */}
           {currentView === "leads" && (
-            <div className="space-y-4 max-w-7xl mx-auto">
-              {/* Executive Metrics Overview Bar - Strictly Scoped to User Role & Contextual to Active Filters */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                {/* Card 1: Total Leads */}
-                <div className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card hover:border-primary/40 hover:shadow-sm transition-all duration-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      {summary.isFiltered ? (
-                        <>
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                          Filtered Cohort
-                        </>
-                      ) : (
-                        isRestrictedCounselor ? "My Assigned Desk" : "Total Database"
-                      )}
-                    </span>
-                    <div className="p-2 rounded-xl bg-primary/10 text-primary">
-                      <GraduationCap className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <div className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground font-sans tabular-nums">
-                    {summary.totalLeads.toLocaleString()}
-                  </div>
-                  <div className="text-xs text-muted-foreground flex items-center gap-1.5 pt-0.5">
-                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold font-mono text-xs">
-                      {summary.isFiltered
-                        ? `${summary.totalLeads.toLocaleString()} of ${(globalSummary.totalLeads || totalCount).toLocaleString()} total (${globalSummary.totalLeads ? ((summary.totalLeads / globalSummary.totalLeads) * 100).toFixed(1) : 0}%)`
-                        : (isRestrictedCounselor ? "All assigned to you" : "All records in WAL")}
-                    </span>
-                  </div>
-                </div>
+            <div className="space-y-3.5 max-w-[1600px] mx-auto">
+              {/* Ultra-Clean Compact KPI Bar */}
+              <CompactKpiBar
+                summary={summary}
+                globalSummary={globalSummary}
+                totalCount={totalCount}
+                users={users}
+                isRestrictedCounselor={isRestrictedCounselor}
+                onFilterStatus={(st) => setSelectedFacets((prev) => ({ ...prev, status: [st] }))}
+                onFilterUnassigned={() => setSelectedFacets((prev) => ({ ...prev, assigned_to: ["unassigned"] }))}
+                onManageTeam={() => setIsTeamModalOpen(true)}
+              />
 
-                {/* Card 2: Pending Follow-ups for Counselor vs Unallocated Pool for Admin */}
-                {isRestrictedCounselor ? (
-                  <div className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card hover:border-amber-500/40 hover:shadow-sm transition-all duration-200 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        {summary.isFiltered ? "Pending Follow-ups in Filter" : "Pending Follow-ups"}
-                      </span>
-                      <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                        <Clock className="w-4 h-4" />
-                      </div>
-                    </div>
-                    <div className="text-2xl sm:text-3xl font-bold tracking-tight text-amber-600 dark:text-amber-400 font-sans tabular-nums">
-                      {(summary.statusBreakdown["Follow-up"] || 0).toLocaleString()}
-                    </div>
-                    <div className="text-xs text-muted-foreground flex items-center justify-between pt-0.5">
-                      <span>{summary.isFiltered ? "In filtered cohort" : "Requires call outreach"}</span>
-                      <button
-                        onClick={() => setSelectedFacets((prev) => ({ ...prev, status: ["Follow-up"] }))}
-                        className="text-primary hover:underline font-semibold text-xs cursor-pointer"
-                      >
-                        Filter Queue
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card hover:border-amber-500/40 hover:shadow-sm transition-all duration-200 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        {summary.isFiltered ? "Unallocated in Filter" : "Unallocated Pool"}
-                      </span>
-                      <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                        <Clock className="w-4 h-4" />
-                      </div>
-                    </div>
-                    <div className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground font-sans tabular-nums">
-                      {summary.unassignedCount.toLocaleString()}
-                    </div>
-                    <div className="text-xs text-muted-foreground flex items-center justify-between pt-0.5">
-                      <span>{summary.isFiltered ? "Awaiting counselor in filter" : "Awaiting counselor"}</span>
-                      {summary.unassignedCount > 0 && (
-                        <button
-                          onClick={() => {
-                            setSelectedFacets((prev) => ({ ...prev, assigned_to: ["unassigned"] }));
-                          }}
-                          className="text-primary hover:underline font-semibold text-xs cursor-pointer"
-                        >
-                          Filter Pool
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Card 3: High Intent Rate */}
-                <div className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card hover:border-emerald-500/40 hover:shadow-sm transition-all duration-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                      {isRestrictedCounselor ? "High Intent Students" : "Interested & Admitted"}
-                    </span>
-                    <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                      <CheckCircle2 className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <div className="text-2xl sm:text-3xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 font-sans tabular-nums">
-                    {((summary.statusBreakdown["Interested"] || 0) + (summary.statusBreakdown["Admitted"] || 0)).toLocaleString()}
-                  </div>
-                  <div className="text-xs text-muted-foreground flex items-center gap-1.5 pt-0.5">
-                    <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                      {summary.totalLeads > 0
-                        ? `${(((summary.statusBreakdown["Interested"] || 0) + (summary.statusBreakdown["Admitted"] || 0)) / summary.totalLeads * 100).toFixed(1)}%`
-                        : "0%"}
-                    </span>
-                    <span>{summary.isFiltered ? "of filtered cohort" : "conversion pipeline"}</span>
-                  </div>
-                </div>
-
-                {/* Card 4: Outreach Progress for Counselor vs Counselor Team for Admin */}
-                {isRestrictedCounselor ? (
-                  <div className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card hover:border-blue-500/40 hover:shadow-sm transition-all duration-200 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        Outreach Progress
-                      </span>
-                      <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                        <PhoneCall className="w-4 h-4" />
-                      </div>
-                    </div>
-                    <div className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground font-sans tabular-nums">
-                      {((summary.statusBreakdown["Contacted"] || 0) + (summary.statusBreakdown["Interested"] || 0) + (summary.statusBreakdown["Follow-up"] || 0) + (summary.statusBreakdown["Admitted"] || 0)).toLocaleString()}
-                    </div>
-                    <div className="text-xs text-muted-foreground flex items-center justify-between pt-0.5">
-                      <span>
-                        {summary.totalLeads > 0
-                          ? `${((((summary.statusBreakdown["Contacted"] || 0) + (summary.statusBreakdown["Interested"] || 0) + (summary.statusBreakdown["Follow-up"] || 0) + (summary.statusBreakdown["Admitted"] || 0)) / summary.totalLeads) * 100).toFixed(0)}% reached`
-                          : "0% reached"}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-4 sm:p-5 rounded-2xl border border-border/80 bg-card hover:border-blue-500/40 hover:shadow-sm transition-all duration-200 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                        {summary.isFiltered ? "Assigned in Filter" : "Counselor Roster"}
-                      </span>
-                      <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                        <Users className="w-4 h-4" />
-                      </div>
-                    </div>
-                    <div className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground font-sans tabular-nums">
-                      {summary.isFiltered
-                        ? summary.assignedCount.toLocaleString()
-                        : `${users.length} Counselors`}
-                    </div>
-                    <div className="text-xs text-muted-foreground flex items-center justify-between pt-0.5">
-                      <span>
-                        {summary.isFiltered
-                          ? `${summary.totalLeads > 0 ? ((summary.assignedCount / summary.totalLeads) * 100).toFixed(0) : 0}% assigned in filter`
-                          : `${(globalSummary.assignedCount || summary.assignedCount).toLocaleString()} assigned`}
-                      </span>
-                      {!summary.isFiltered && (
-                        <button
-                          onClick={() => setIsTeamModalOpen(true)}
-                          className="text-primary hover:underline font-semibold text-xs cursor-pointer"
-                        >
-                          Manage Team
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Work Queue Tabs */}
-              <WorkQueueTabs
+              {/* Single Consolidated Command Bar */}
+              <UnifiedCommandBar
                 activeQueue={activeQueue}
                 onSelectQueue={handleSelectQueue}
                 unassignedCount={globalSummary.unassignedCount || summary.unassignedCount}
                 callbacksCount={globalSummary.statusBreakdown["Follow-up"] || summary.statusBreakdown["Follow-up"] || 0}
                 myLeadsCount={globalSummary.totalLeads || summary.totalLeads}
                 roleMode={isRestrictedCounselor ? "counselor" : roleMode}
-                onClaimLeads={handleClaimLeads}
-                claimingLeads={claimingLeads}
-                onOpenTasks={() => setIsTasksModalOpen(true)}
-                onAutoDistribute={() => handleAutoDistribute(250)}
-                isAutoDistributing={isAutoDistributing}
-              />
-
-              <DynamicFacetToolbar
                 search={search}
                 onSearchChange={setSearch}
-                facets={facets}
+                viewMode={leadsViewMode}
+                onToggleViewMode={setLeadsViewMode}
+                filterDrawerOpen={filterDrawerOpen}
+                onToggleFilterDrawer={() => setFilterDrawerOpen((prev) => !prev)}
                 selectedFacets={selectedFacets}
                 onFacetToggle={handleFacetToggle}
                 onClearAllFilters={handleClearAllFilters}
-                schemaMeta={schemaMeta}
-                visibleColumns={visibleColumns}
-                onToggleColumnVisibility={handleToggleColumnVisibility}
-                totalFilteredCount={totalFilteredCount}
-                totalCount={totalCount}
+                facets={facets}
                 density={density}
                 onToggleDensity={() => setDensity((d) => (d === "compact" ? "comfortable" : "compact"))}
-                onOpenShortcuts={() => setIsShortcutsOpen(true)}
-                filterSidebarOpen={filterSidebarOpen}
-                onToggleFilterSidebar={toggleFilterSidebar}
+                visibleColumns={visibleColumns}
+                onToggleColumnVisibility={handleToggleColumnVisibility}
+                schemaMeta={schemaMeta}
                 savedViews={savedViews}
                 onApplySavedView={handleApplySavedView}
                 onSaveCurrentView={handleSaveCurrentView}
                 onDeleteSavedView={handleDeleteSavedView}
+                onClaimLeads={handleClaimLeads}
+                claimingLeads={claimingLeads}
+                onAutoDistribute={() => handleAutoDistribute(250)}
+                isAutoDistributing={isAutoDistributing}
+                onOpenImport={() => setCurrentView("import")}
+                onOpenDuplicates={() => setIsDuplicatesModalOpen(true)}
+                onGenerateTestData={permissions?.canManageSchema ? () => handleGenerateSampleLeads(500) : undefined}
+                onOpenShortcuts={() => setIsShortcutsOpen(true)}
+                canManageTeam={permissions?.canManageTeam}
               />
 
-              <LeadsTable
-                leads={leads}
-                schemaMeta={schemaMeta}
-                visibleColumns={visibleColumns}
-                selectedLeadIds={selectedLeadIds}
-                onToggleLeadSelection={handleToggleLeadSelection}
-                onToggleSelectAllPage={handleToggleSelectAllPage}
-                isAllPageSelected={isAllPageSelected}
-                totalFilteredCount={totalFilteredCount}
-                isAllFilteredSelected={isAllFilteredSelected}
-                onSelectAllFiltered={handleSelectAllFiltered}
-                onClearSelection={handleClearSelection}
-                onViewLeadDetails={(lead) => setSelectedLeadForDetail(lead)}
-                onQuickAssignLead={(lead) => {
-                  setSelectedLeadIds([lead.id]);
-                  setIsAssignModalOpen(true);
-                }}
-                sortBy={sortBy}
-                sortOrder={sortOrder}
-                onSortChange={(col) => {
-                  if (sortBy === col) {
-                    setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-                  } else {
-                    setSortBy(col);
-                    setSortOrder("desc");
-                  }
-                }}
-                users={users}
-                loading={loading}
-                dispositions={dispositions}
-                onQuickDispositionChange={handleQuickDispositionChange}
-                density={density}
-                activeLeadId={activeLeadIndex !== null && leads[activeLeadIndex] ? leads[activeLeadIndex].id : null}
-                onInlineUpdate={handleInlineFieldUpdate}
-              />
+              {/* Dual View Rendering: Speed Dialer Desk vs Leads Table */}
+              {leadsViewMode === "dialer" ? (
+                <SpeedDialerWorkspace
+                  leads={leads}
+                  activeLead={activeLeadIndex !== null && leads[activeLeadIndex] ? leads[activeLeadIndex] : (leads[0] || null)}
+                  onSelectLead={(lead) => {
+                    const idx = leads.findIndex((l) => l.id === lead.id);
+                    if (idx !== -1) setActiveLeadIndex(idx);
+                  }}
+                  dispositions={dispositions}
+                  users={users}
+                  schemaMeta={schemaMeta}
+                  onQuickDispositionChange={handleQuickDispositionChange}
+                  onOpenWhatsApp={(lead) => setWhatsAppTargetLead(lead)}
+                  onNextLead={() => {
+                    setActiveLeadIndex((prev) => {
+                      const curr = prev === null ? 0 : prev;
+                      return curr < leads.length - 1 ? curr + 1 : curr;
+                    });
+                  }}
+                  onPrevLead={() => {
+                    setActiveLeadIndex((prev) => {
+                      const curr = prev === null ? 0 : prev;
+                      return curr > 0 ? curr - 1 : 0;
+                    });
+                  }}
+                  hasNextLead={activeLeadIndex === null ? leads.length > 1 : activeLeadIndex < leads.length - 1}
+                  hasPrevLead={activeLeadIndex !== null && activeLeadIndex > 0}
+                  onLeadUpdated={() => {
+                    fetchLeads();
+                  }}
+                />
+              ) : (
+                <>
+                  <LeadsTable
+                    leads={leads}
+                    schemaMeta={schemaMeta}
+                    visibleColumns={visibleColumns}
+                    selectedLeadIds={selectedLeadIds}
+                    onToggleLeadSelection={handleToggleLeadSelection}
+                    onToggleSelectAllPage={handleToggleSelectAllPage}
+                    isAllPageSelected={isAllPageSelected}
+                    totalFilteredCount={totalFilteredCount}
+                    isAllFilteredSelected={isAllFilteredSelected}
+                    onSelectAllFiltered={handleSelectAllFiltered}
+                    onClearSelection={handleClearSelection}
+                    onViewLeadDetails={(lead) => setSelectedLeadForDetail(lead)}
+                    onQuickAssignLead={(lead) => {
+                      setSelectedLeadIds([lead.id]);
+                      setIsAssignModalOpen(true);
+                    }}
+                    sortBy={sortBy}
+                    sortOrder={sortOrder}
+                    onSortChange={(col) => {
+                      if (sortBy === col) {
+                        setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+                      } else {
+                        setSortBy(col);
+                        setSortOrder("desc");
+                      }
+                    }}
+                    users={users}
+                    loading={loading}
+                    dispositions={dispositions}
+                    onQuickDispositionChange={handleQuickDispositionChange}
+                    density={density}
+                    activeLeadId={activeLeadIndex !== null && leads[activeLeadIndex] ? leads[activeLeadIndex].id : null}
+                    onInlineUpdate={handleInlineFieldUpdate}
+                  />
 
-              <PaginationBar
-                currentPage={page}
-                totalPages={totalPages}
-                totalItems={totalFilteredCount}
-                pageSize={pageSize}
-                onPageChange={setPage}
-                onPageSizeChange={(newSize) => {
-                  setPageSize(newSize);
-                  setPage(1);
-                }}
-              />
+                  <PaginationBar
+                    currentPage={page}
+                    totalPages={totalPages}
+                    totalItems={totalFilteredCount}
+                    pageSize={pageSize}
+                    onPageChange={setPage}
+                    onPageSizeChange={(newSize) => {
+                      setPageSize(newSize);
+                      setPage(1);
+                    }}
+                  />
+                </>
+              )}
             </div>
           )}
 
