@@ -287,7 +287,7 @@ export default function CRMPage() {
   const [density, setDensity] = useState<"compact" | "comfortable">("comfortable");
   const [activeLeadIndex, setActiveLeadIndex] = useState<number | null>(null);
   const [claimingLeads, setClaimingLeads] = useState(false);
-  const [leadsViewMode, setLeadsViewMode] = useState<"table" | "dialer">("table");
+  const [leadsViewMode, setLeadsViewMode] = useState<"table" | "grid" | "dialer">("table");
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
 
   // Toast Notification State
@@ -707,6 +707,8 @@ export default function CRMPage() {
         handleSelectQueue("unassigned");
       } else if (e.key === "4") {
         handleSelectQueue("high_intent");
+      } else if (e.key === "5") {
+        handleSelectQueue("followups");
       } else if (e.key === "ArrowDown" || e.key === "j") {
         e.preventDefault();
         setActiveLeadIndex((prev) => (prev === null ? 0 : Math.min(leads.length - 1, prev + 1)));
@@ -1614,6 +1616,8 @@ export default function CRMPage() {
                     density={density}
                     activeLeadId={activeLeadIndex !== null && leads[activeLeadIndex] ? leads[activeLeadIndex].id : null}
                     onInlineUpdate={handleInlineFieldUpdate}
+                    viewMode={leadsViewMode === "grid" ? "grid" : "table"}
+                    onViewModeChange={(m) => setLeadsViewMode(m === "cards" || m === "grid" ? "grid" : "table")}
                   />
 
                   <PaginationBar

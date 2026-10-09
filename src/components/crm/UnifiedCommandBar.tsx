@@ -24,6 +24,7 @@ import {
   Plus,
   Trash2,
   Table as TableIcon,
+  LayoutGrid,
   Headphones,
   Sparkles,
   Zap,
@@ -54,9 +55,9 @@ interface UnifiedCommandBarProps {
   search: string;
   onSearchChange: (val: string) => void;
 
-  // View Mode: Table vs Speed Dialer
-  viewMode: "table" | "dialer";
-  onToggleViewMode: (mode: "table" | "dialer") => void;
+  // View Mode: Table vs Grid vs Speed Dialer
+  viewMode: "table" | "grid" | "dialer";
+  onToggleViewMode: (mode: "table" | "grid" | "dialer") => void;
 
   // Filter Flyout Drawer toggle
   filterDrawerOpen: boolean;
@@ -179,61 +180,112 @@ export function UnifiedCommandBar({
       label: "Follow-up",
       icon: PhoneForwarded,
       count: null,
+      shortcut: "5",
     },
   ];
 
   return (
     <div className="space-y-2">
-      {/* Main Single-Row Control Ribbon */}
-      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 p-2 rounded-xl bg-card border border-border/80 shadow-2xs">
-        {/* Left: Queue Segment Pills */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 lg:pb-0 scrollbar-none">
-          {queues.map((q) => {
-            const Icon = q.icon;
-            const isActive = activeQueue === q.id;
-            return (
+      {/* Unified Command Panel Card */}
+      <div className="p-2 sm:p-2.5 rounded-xl bg-card border border-border/80 shadow-2xs space-y-2">
+        {/* Tier 1: Work Queues Navigation & View Mode Switcher */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2 pb-1.5 border-b border-border/50">
+          {/* Left: Queue Segment Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto min-w-0 flex-1 py-0.5 scrollbar-thin scrollbar-thumb-border/60">
+            {queues.map((q) => {
+              const Icon = q.icon;
+              const isActive = activeQueue === q.id;
+              return (
+                <button
+                  key={q.id}
+                  type="button"
+                  onClick={() => onSelectQueue(q.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer shrink-0 ${
+                    isActive
+                      ? "bg-primary text-primary-foreground shadow-2xs"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                  }`}
+                  title={q.shortcut ? `Shortcut: ${q.shortcut}` : undefined}
+                >
+                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-primary-foreground" : "text-muted-foreground"}`} />
+                  <span>{q.label}</span>
+                  {q.count !== null && q.count !== undefined && (
+                    <span
+                      className={`ml-1 text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
+                        isActive
+                          ? "bg-white/20 text-white"
+                          : q.badgeColor || "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {q.count.toLocaleString()}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Right: View Mode Toggle: Table Grid vs Card Grid vs Speed Dialer */}
+          <div className="flex items-center justify-end shrink-0 pt-0.5 md:pt-0">
+            <div className="flex items-center p-0.5 rounded-lg border border-border/80 bg-muted/40 text-xs shrink-0">
               <button
-                key={q.id}
-                onClick={() => onSelectQueue(q.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer ${
-                  isActive
-                    ? "bg-primary text-primary-foreground shadow-2xs"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                type="button"
+                onClick={() => onToggleViewMode("table")}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                  viewMode === "table"
+                    ? "bg-background text-foreground shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
-                title={q.shortcut ? `Shortcut: ${q.shortcut}` : undefined}
+                title="Spreadsheet Table View"
               >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? "text-primary-foreground" : "text-muted-foreground"}`} />
-                <span>{q.label}</span>
-                {q.count !== null && q.count !== undefined && (
-                  <span
-                    className={`ml-1 text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
-                      isActive
-                        ? "bg-white/20 text-white"
-                        : q.badgeColor || "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {q.count.toLocaleString()}
-                  </span>
-                )}
+                <TableIcon className="w-3.5 h-3.5" />
+                <span>Table</span>
               </button>
-            );
-          })}
+              <button
+                type="button"
+                onClick={() => onToggleViewMode("grid")}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                  viewMode === "grid"
+                    ? "bg-background text-primary shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="Student Card Grid View"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Grid</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onToggleViewMode("dialer")}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                  viewMode === "dialer"
+                    ? "bg-background text-primary shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="Speed Dialer Mode (High-velocity calling desk)"
+              >
+                <Headphones className="w-3.5 h-3.5 text-primary" />
+                <span>Dialer</span>
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Center / Right: Search & Action Tools */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 lg:flex-initial justify-between lg:justify-end">
+        {/* Tier 2: Search, Filters & Action Tools */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
           {/* Universal Search Input + Filters Button */}
-          <div className="flex items-center gap-1.5 flex-1 min-w-0">
-            <div className="relative flex-1 sm:w-60 lg:w-64 min-w-[140px]">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <div className="relative flex-1 max-w-md min-w-[140px]">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <Input
-                placeholder="Search leads (/)..."
+                placeholder="Search leads by name, phone, school (/)..."
                 value={search}
                 onChange={(e) => onSearchChange(e.target.value)}
-                className="pl-8 pr-7 h-8 text-xs rounded-lg bg-background border-border/80 focus-visible:ring-1"
+                className="pl-8 pr-7 h-8.5 text-xs rounded-lg bg-background border-border/80 focus-visible:ring-1"
               />
               {search ? (
                 <button
+                  type="button"
                   onClick={() => onSearchChange("")}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
                 >
@@ -248,10 +300,11 @@ export function UnifiedCommandBar({
 
             {/* Filter Flyout Drawer Button with Active Badge */}
             <Button
+              type="button"
               variant={filterDrawerOpen || activeFiltersCount > 0 ? "secondary" : "outline"}
               size="sm"
               onClick={onToggleFilterDrawer}
-              className={`h-8 text-xs gap-1.5 rounded-lg font-medium cursor-pointer shrink-0 ${
+              className={`h-8.5 text-xs gap-1.5 rounded-lg font-medium cursor-pointer shrink-0 ${
                 activeFiltersCount > 0
                   ? "border-primary/40 bg-primary/10 text-primary font-semibold"
                   : ""
@@ -271,35 +324,8 @@ export function UnifiedCommandBar({
             </Button>
           </div>
 
-          {/* Action Tools & View Switcher Row */}
-          <div className="flex items-center justify-between sm:justify-end gap-1.5 shrink-0">
-            {/* View Mode Toggle: Table Grid vs Speed Dialer */}
-            <div className="flex items-center p-0.5 rounded-lg border border-border/80 bg-muted/40 text-xs shrink-0">
-              <button
-                onClick={() => onToggleViewMode("table")}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                  viewMode === "table"
-                    ? "bg-background text-foreground shadow-2xs font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-                title="Table Grid Mode (Spreadsheet view)"
-              >
-                <TableIcon className="w-3.5 h-3.5" />
-                <span>Grid</span>
-              </button>
-              <button
-                onClick={() => onToggleViewMode("dialer")}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                  viewMode === "dialer"
-                    ? "bg-background text-primary shadow-2xs font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-                title="Speed Dialer Mode (High-velocity telecalling view)"
-              >
-                <Headphones className="w-3.5 h-3.5 text-primary" />
-                <span>Dialer</span>
-              </button>
-            </div>
+          {/* Action Tools & Dropdowns Row */}
+          <div className="flex items-center justify-between sm:justify-end gap-1.5 shrink-0 flex-wrap">
 
             {/* Display Options: Density & Columns (Hidden on mobile < sm) */}
             <div className="hidden sm:inline-flex">

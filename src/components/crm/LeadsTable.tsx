@@ -127,8 +127,8 @@ interface LeadsTableProps {
   density?: "compact" | "comfortable";
   activeLeadId?: number | null;
   onInlineUpdate?: (leadId: number, field: string, value: any) => void;
-  viewMode?: "table" | "cards";
-  onViewModeChange?: (mode: "table" | "cards") => void;
+  viewMode?: "table" | "cards" | "grid";
+  onViewModeChange?: (mode: "table" | "cards" | "grid") => void;
 }
 
 export function LeadsTable({
@@ -158,11 +158,14 @@ export function LeadsTable({
   viewMode: propViewMode,
   onViewModeChange,
 }: LeadsTableProps) {
-  const [localViewMode, setLocalViewMode] = useState<"table" | "cards">(propViewMode || "table");
+  const normalizedPropMode = propViewMode === "grid" ? "cards" : propViewMode;
+  const [localViewMode, setLocalViewMode] = useState<"table" | "cards">(
+    normalizedPropMode || "table"
+  );
 
   useEffect(() => {
     if (propViewMode) {
-      setLocalViewMode(propViewMode);
+      setLocalViewMode(propViewMode === "grid" ? "cards" : (propViewMode as "table" | "cards"));
       return;
     }
     if (typeof window !== "undefined") {
@@ -174,7 +177,7 @@ export function LeadsTable({
 
   const handleSwitchViewMode = (mode: "table" | "cards") => {
     setLocalViewMode(mode);
-    onViewModeChange?.(mode);
+    onViewModeChange?.(mode === "cards" ? "grid" : "table");
   };
   const getStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
@@ -568,10 +571,10 @@ export function LeadsTable({
                 ? "bg-card text-foreground shadow-2xs font-bold"
                 : "text-muted-foreground hover:text-foreground"
             )}
-            title="Switch to Mobile Card View"
+            title="Switch to Student Cards Grid View"
           >
             <LayoutGrid className="w-3.5 h-3.5 text-primary" />
-            <span className="text-[11px]">Cards</span>
+            <span className="text-[11px]">Grid</span>
           </button>
           <button
             type="button"
