@@ -68,7 +68,14 @@ export function CompactKpiBar({
             <span className="font-semibold text-foreground">
               {totalDisplay}{" "}
               <span className="font-normal text-muted-foreground">
-                {summary.isFiltered ? `matching (${conversionPct}% of ${globalTotalDisplay})` : "leads"}
+                {summary.isFiltered ? (
+                  <>
+                    <span className="hidden sm:inline">matching ({conversionPct}% of {globalTotalDisplay})</span>
+                    <span className="sm:hidden">filtered</span>
+                  </>
+                ) : (
+                  "leads"
+                )}
               </span>
             </span>
           </div>

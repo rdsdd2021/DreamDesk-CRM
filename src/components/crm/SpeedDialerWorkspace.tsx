@@ -26,6 +26,7 @@ import {
   ArrowRight,
   PhoneCall,
   User as UserIcon,
+  Headphones,
 } from "lucide-react";
 
 interface SpeedDialerWorkspaceProps {
@@ -72,6 +73,7 @@ export function SpeedDialerWorkspace({
   const [savingRemark, setSavingRemark] = useState(false);
   const [activities, setActivities] = useState<LeadActivity[]>([]);
   const [loadingActivities, setLoadingActivities] = useState(false);
+  const [mobileTab, setMobileTab] = useState<"queue" | "desk">("queue");
 
   // Fetch recent activities whenever active lead changes
   useEffect(() => {
@@ -143,9 +145,38 @@ export function SpeedDialerWorkspace({
   );
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 min-h-[600px] h-[calc(100vh-210px)] max-h-[850px]">
-      {/* LEFT COLUMN (4 Cols / 35%): Interactive Dialing Queue */}
-      <div className="lg:col-span-5 xl:col-span-4 flex flex-col bg-card rounded-2xl border border-border/80 shadow-2xs overflow-hidden">
+    <div className="space-y-2.5">
+      {/* Mobile-Only Segmented Navigation Control */}
+      <div className="flex lg:hidden items-center p-1 rounded-xl bg-muted/60 border border-border/80 gap-1 text-xs">
+        <button
+          onClick={() => setMobileTab("queue")}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg font-semibold transition-all cursor-pointer ${
+            mobileTab === "queue"
+              ? "bg-background text-foreground shadow-2xs font-bold"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <PhoneCall className="w-3.5 h-3.5 text-primary" />
+          <span>Queue ({leads.length})</span>
+        </button>
+        <button
+          onClick={() => setMobileTab("desk")}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg font-semibold transition-all cursor-pointer truncate ${
+            mobileTab === "desk"
+              ? "bg-background text-primary shadow-2xs font-bold"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Headphones className="w-3.5 h-3.5 text-emerald-500" />
+          <span className="truncate">Desk: {currentLead.name || "Student"}</span>
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 min-h-[500px] lg:h-[calc(100vh-210px)] lg:max-h-[850px]">
+        {/* LEFT COLUMN (4 Cols / 35%): Interactive Dialing Queue */}
+        <div className={`lg:col-span-5 xl:col-span-4 flex flex-col bg-card rounded-2xl border border-border/80 shadow-2xs overflow-hidden ${
+          mobileTab === "desk" ? "hidden lg:flex" : "flex"
+        }`}>
         {/* Queue Header */}
         <div className="p-3 bg-muted/30 border-b border-border/60 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -166,7 +197,10 @@ export function SpeedDialerWorkspace({
             return (
               <div
                 key={l.id}
-                onClick={() => onSelectLead(l)}
+                onClick={() => {
+                  onSelectLead(l);
+                  setMobileTab("desk");
+                }}
                 className={`p-2.5 rounded-xl transition-all cursor-pointer text-xs relative ${
                   isSelected
                     ? "bg-primary/10 border-2 border-primary shadow-xs"
@@ -210,10 +244,10 @@ export function SpeedDialerWorkspace({
                         <a
                           href={`tel:${l.phone}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="w-6 h-6 rounded-md bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-600 flex items-center justify-center transition-colors"
+                          className="w-7 h-7 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-600 flex items-center justify-center transition-colors"
                           title="Dial softphone (C)"
                         >
-                          <Phone className="w-3 h-3" />
+                          <Phone className="w-3.5 h-3.5" />
                         </a>
                       )}
                       {l.phone && (
@@ -222,10 +256,10 @@ export function SpeedDialerWorkspace({
                             e.stopPropagation();
                             onOpenWhatsApp(l);
                           }}
-                          className="w-6 h-6 rounded-md bg-green-500/10 hover:bg-green-500/25 text-green-600 flex items-center justify-center transition-colors cursor-pointer"
+                          className="w-7 h-7 rounded-lg bg-green-500/10 hover:bg-green-500/25 text-green-600 flex items-center justify-center transition-colors cursor-pointer"
                           title="WhatsApp template (W)"
                         >
-                          <MessageSquare className="w-3 h-3" />
+                          <MessageSquare className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
@@ -246,37 +280,50 @@ export function SpeedDialerWorkspace({
       </div>
 
       {/* RIGHT COLUMN (8 Cols / 65%): Active Consultation Desk */}
-      <div className="lg:col-span-7 xl:col-span-8 flex flex-col bg-card rounded-2xl border border-border/80 shadow-2xs overflow-hidden">
+      <div className={`lg:col-span-7 xl:col-span-8 flex flex-col bg-card rounded-2xl border border-border/80 shadow-2xs overflow-hidden ${
+        mobileTab === "queue" ? "hidden lg:flex" : "flex"
+      }`}>
         {/* Desk Top Navigation Bar */}
-        <div className="p-3.5 bg-muted/20 border-b border-border/60 flex items-center justify-between gap-3">
+        <div className="p-3 bg-muted/20 border-b border-border/60 flex items-center justify-between gap-2 sm:gap-3">
+          {/* Mobile Back Button to Queue */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setMobileTab("queue")}
+            className="lg:hidden h-8 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground gap-1 rounded-lg shrink-0 cursor-pointer"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            <span>Queue</span>
+          </Button>
+
           {/* Student Identity */}
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-sm shrink-0 border border-primary/20">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-xs sm:text-sm shrink-0 border border-primary/20">
               {(currentLead.name || "S").charAt(0).toUpperCase()}
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-base text-foreground truncate">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h3 className="font-bold text-sm sm:text-base text-foreground truncate">
                   {currentLead.name || "Unnamed Student"}
                 </h3>
-                <Badge variant="outline" className="font-mono text-[10px] text-muted-foreground">
+                <Badge variant="outline" className="font-mono text-[9px] sm:text-[10px] text-muted-foreground px-1 sm:px-1.5">
                   {currentLead.lead_code}
                 </Badge>
               </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2 text-[11px] sm:text-xs text-muted-foreground">
                 <span className="font-mono font-semibold text-foreground">{currentLead.phone}</span>
-                {currentLead.email && <span>• {currentLead.email}</span>}
+                {currentLead.email && <span className="hidden sm:inline">• {currentLead.email}</span>}
               </div>
             </div>
           </div>
 
           {/* Stepper & Dial Controls */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Direct Dial Primary CTA */}
             {currentLead.phone && (
               <a
                 href={`tel:${currentLead.phone}`}
-                className="h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs transition-colors"
+                className="h-8 px-2.5 sm:px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs transition-colors"
                 title="Dial Phone (C)"
               >
                 <Phone className="w-3.5 h-3.5" />
@@ -290,7 +337,7 @@ export function SpeedDialerWorkspace({
                 size="sm"
                 variant="outline"
                 onClick={() => onOpenWhatsApp(currentLead)}
-                className="h-8 px-2.5 text-xs font-semibold gap-1.5 border-green-500/30 text-green-700 dark:text-green-400 bg-green-500/5 hover:bg-green-500/15 cursor-pointer"
+                className="h-8 px-2 sm:px-2.5 text-xs font-semibold gap-1.5 border-green-500/30 text-green-700 dark:text-green-400 bg-green-500/5 hover:bg-green-500/15 cursor-pointer"
                 title="Open WhatsApp Template Composer (W)"
               >
                 <MessageSquare className="w-3.5 h-3.5" />
@@ -482,7 +529,60 @@ export function SpeedDialerWorkspace({
             </div>
           </div>
         </div>
+
+        {/* Mobile Fixed Bottom Calling & Stepper Toolbar */}
+        <div className="lg:hidden p-2.5 bg-card/95 backdrop-blur-md border-t border-border/80 flex items-center justify-between gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!hasPrevLead}
+            onClick={onPrevLead}
+            className="h-10 px-3 text-xs font-semibold rounded-xl cursor-pointer"
+            title="Previous Student ([)"
+          >
+            <ChevronLeft className="w-4 h-4 mr-1" />
+            <span>Prev</span>
+          </Button>
+
+          <div className="flex items-center gap-1.5 flex-1 justify-center">
+            {currentLead.phone && (
+              <a
+                href={`tel:${currentLead.phone}`}
+                className="h-10 px-4 rounded-xl bg-emerald-600 active:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs flex-1 max-w-[140px]"
+                title="Dial Call (C)"
+              >
+                <Phone className="w-4 h-4" />
+                <span>Call (C)</span>
+              </a>
+            )}
+            {currentLead.phone && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onOpenWhatsApp(currentLead)}
+                className="h-10 px-3 text-xs font-bold gap-1.5 border-green-500/30 text-green-700 dark:text-green-400 bg-green-500/10 hover:bg-green-500/20 rounded-xl cursor-pointer"
+                title="WhatsApp (W)"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span className="hidden xs:inline">WA</span>
+              </Button>
+            )}
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!hasNextLead}
+            onClick={onNextLead}
+            className="h-10 px-3 text-xs font-semibold rounded-xl cursor-pointer"
+            title="Next Student (])"
+          >
+            <span>Next</span>
+            <ChevronRight className="w-4 h-4 ml-1" />
+          </Button>
+        </div>
       </div>
     </div>
-  );
+  </div>
+);
 }

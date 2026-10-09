@@ -1292,6 +1292,37 @@ export default function CRMPage() {
                     </div>
                   </div>
 
+                  {/* Mobile Perspective Toggle in User Dropdown */}
+                  {permissions?.canViewAllLeads && (
+                    <div className="md:hidden px-1 py-1.5 border-b border-border/60 mb-1">
+                      <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1 px-1">
+                        Workspace Perspective
+                      </div>
+                      <div className="flex items-center gap-1 p-0.5 rounded-lg bg-muted/60">
+                        <button
+                          onClick={() => setRoleMode("admin")}
+                          className={`flex-1 py-1 px-2 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                            roleMode === "admin"
+                              ? "bg-background text-foreground shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          All Leads
+                        </button>
+                        <button
+                          onClick={() => setRoleMode("counselor")}
+                          className={`flex-1 py-1 px-2 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                            roleMode === "counselor"
+                              ? "bg-background text-foreground shadow-2xs"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          Counselor Desk
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <DropdownMenuLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-1">
                     Quick Role Switcher (Test)
                   </DropdownMenuLabel>
@@ -1329,9 +1360,9 @@ export default function CRMPage() {
               </DropdownMenu>
             )}
 
-            {/* Perspective Selector (Admins & Team Leads Only) */}
+            {/* Perspective Selector (Admins & Team Leads Only - Desktop) */}
             {permissions?.canViewAllLeads ? (
-              <div className="flex items-center p-0.5 rounded-xl border border-border/80 bg-muted/40 text-xs">
+              <div className="hidden md:flex items-center p-0.5 rounded-xl border border-border/80 bg-muted/40 text-xs shrink-0">
                 <button
                   onClick={() => setRoleMode("admin")}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
@@ -1354,64 +1385,66 @@ export default function CRMPage() {
                 </button>
               </div>
             ) : (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border bg-primary/5 border-primary/20 text-xs">
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border bg-primary/5 border-primary/20 text-xs shrink-0">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="font-semibold text-primary">Private Desk</span>
               </div>
             )}
 
-            {/* Active Counselor Switcher (Visible in Counselor Mode for Supervisory Roles) */}
+            {/* Active Counselor Switcher (Visible in Counselor Mode for Supervisory Roles - Desktop) */}
             {roleMode === "counselor" && permissions?.canViewAllLeads && (
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  className={cn(
-                    buttonVariants({ variant: "outline", size: "sm" }),
-                    "h-9 text-xs gap-2 font-medium cursor-pointer border-primary/30 bg-primary/5 rounded-xl px-2.5 shadow-2xs"
-                  )}
-                >
-                  <div
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-2xs shrink-0"
-                    style={{
-                      backgroundColor:
-                        users.find((u) => u.id === activeCounselorId)?.avatar_color || "#3b82f6",
-                    }}
+              <div className="hidden lg:block shrink-0">
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    className={cn(
+                      buttonVariants({ variant: "outline", size: "sm" }),
+                      "h-9 text-xs gap-2 font-medium cursor-pointer border-primary/30 bg-primary/5 rounded-xl px-2.5 shadow-2xs"
+                    )}
                   >
-                    {(users.find((u) => u.id === activeCounselorId)?.name || "C").charAt(0).toUpperCase()}
-                  </div>
-                  <span className="font-semibold text-foreground truncate max-w-[110px]">
-                    {users.find((u) => u.id === activeCounselorId)?.name || "Select Counselor"}
-                  </span>
-                  <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-60 p-1.5 text-xs rounded-xl shadow-xl">
-                  <DropdownMenuLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-1">
-                    Switch Active Counselor
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator className="my-1" />
-                  <div className="max-h-48 overflow-y-auto space-y-0.5">
-                    {users.map((u) => (
-                      <DropdownMenuItem
-                        key={u.id}
-                        onClick={() => setActiveCounselorId(u.id)}
-                        className={`gap-2 cursor-pointer text-xs rounded-lg px-2 py-1.5 ${
-                          activeCounselorId === u.id ? "bg-primary/10 font-semibold text-primary" : ""
-                        }`}
-                      >
-                        <div
-                          className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-2xs"
-                          style={{ backgroundColor: u.avatar_color }}
+                    <div
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-2xs shrink-0"
+                      style={{
+                        backgroundColor:
+                          users.find((u) => u.id === activeCounselorId)?.avatar_color || "#3b82f6",
+                      }}
+                    >
+                      {(users.find((u) => u.id === activeCounselorId)?.name || "C").charAt(0).toUpperCase()}
+                    </div>
+                    <span className="font-semibold text-foreground truncate max-w-[110px]">
+                      {users.find((u) => u.id === activeCounselorId)?.name || "Select Counselor"}
+                    </span>
+                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-60 p-1.5 text-xs rounded-xl shadow-xl">
+                    <DropdownMenuLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-1">
+                      Switch Active Counselor
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator className="my-1" />
+                    <div className="max-h-48 overflow-y-auto space-y-0.5">
+                      {users.map((u) => (
+                        <DropdownMenuItem
+                          key={u.id}
+                          onClick={() => setActiveCounselorId(u.id)}
+                          className={`gap-2 cursor-pointer text-xs rounded-lg px-2 py-1.5 ${
+                            activeCounselorId === u.id ? "bg-primary/10 font-semibold text-primary" : ""
+                          }`}
                         >
-                          {u.name.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="truncate flex-1 font-medium">{u.name}</span>
-                        <span className="text-[10px] font-mono text-muted-foreground font-semibold">
-                          {u.assigned_count || 0} leads
-                        </span>
-                      </DropdownMenuItem>
-                    ))}
-                  </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                          <div
+                            className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-2xs"
+                            style={{ backgroundColor: u.avatar_color }}
+                          >
+                            {u.name.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="truncate flex-1 font-medium">{u.name}</span>
+                          <span className="text-[10px] font-mono text-muted-foreground font-semibold">
+                            {u.assigned_count || 0} leads
+                          </span>
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             )}
 
 
@@ -2007,28 +2040,6 @@ export default function CRMPage() {
         </SheetContent>
       </Sheet>
 
-      {/* Mobile Filter Drawer Sheet */}
-      <Sheet open={isMobileFilterOpen} onOpenChange={setIsMobileFilterOpen}>
-        <SheetContent side="right" className="p-0 w-80 sm:w-96 border-l border-border/80" showCloseButton={false}>
-          <SheetTitle className="sr-only">Filters & Facets</SheetTitle>
-          <SheetDescription className="sr-only">Filter and segment student leads</SheetDescription>
-          <FilterSidebar
-            collapsed={false}
-            onToggleCollapse={() => setIsMobileFilterOpen(false)}
-            facets={facets}
-            selectedFacets={selectedFacets}
-            onFacetToggle={handleFacetToggle}
-            onClearAllFilters={handleClearAllFilters}
-            schemaMeta={schemaMeta}
-            totalFilteredCount={totalFilteredCount}
-            totalCount={totalCount}
-            users={users}
-            isRestrictedCounselor={isRestrictedCounselor}
-            isMobileDrawer={true}
-            onCloseMobile={() => setIsMobileFilterOpen(false)}
-          />
-        </SheetContent>
-      </Sheet>
 
       {/* Ergonomic Mobile Bottom Navigation Bar (Visible only on mobile screens) */}
       <MobileBottomNav

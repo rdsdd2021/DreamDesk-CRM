@@ -221,84 +221,89 @@ export function UnifiedCommandBar({
         </div>
 
         {/* Center / Right: Search & Action Tools */}
-        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-between lg:justify-end">
-          {/* Universal Search Input */}
-          <div className="relative flex-1 sm:w-64 min-w-[180px]">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-            <Input
-              placeholder="Search leads (/)..."
-              value={search}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className="pl-8 pr-7 h-8 text-xs rounded-lg bg-background border-border/80 focus-visible:ring-1"
-            />
-            {search ? (
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 lg:flex-initial justify-between lg:justify-end">
+          {/* Universal Search Input + Filters Button */}
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            <div className="relative flex-1 sm:w-60 lg:w-64 min-w-[140px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search leads (/)..."
+                value={search}
+                onChange={(e) => onSearchChange(e.target.value)}
+                className="pl-8 pr-7 h-8 text-xs rounded-lg bg-background border-border/80 focus-visible:ring-1"
+              />
+              {search ? (
+                <button
+                  onClick={() => onSearchChange("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              ) : (
+                <kbd className="hidden sm:inline-block absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-muted-foreground bg-muted/60 px-1.5 py-0.2 rounded border">
+                  /
+                </kbd>
+              )}
+            </div>
+
+            {/* Filter Flyout Drawer Button with Active Badge */}
+            <Button
+              variant={filterDrawerOpen || activeFiltersCount > 0 ? "secondary" : "outline"}
+              size="sm"
+              onClick={onToggleFilterDrawer}
+              className={`h-8 text-xs gap-1.5 rounded-lg font-medium cursor-pointer shrink-0 ${
+                activeFiltersCount > 0
+                  ? "border-primary/40 bg-primary/10 text-primary font-semibold"
+                  : ""
+              }`}
+              title="Toggle Filter Panel (F)"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span className="hidden xs:inline">Filters</span>
+              {activeFiltersCount > 0 && (
+                <Badge
+                  variant="default"
+                  className="h-4 px-1 text-[10px] min-w-4 rounded-full bg-primary text-primary-foreground font-bold"
+                >
+                  {activeFiltersCount}
+                </Badge>
+              )}
+            </Button>
+          </div>
+
+          {/* Action Tools & View Switcher Row */}
+          <div className="flex items-center justify-between sm:justify-end gap-1.5 shrink-0">
+            {/* View Mode Toggle: Table Grid vs Speed Dialer */}
+            <div className="flex items-center p-0.5 rounded-lg border border-border/80 bg-muted/40 text-xs shrink-0">
               <button
-                onClick={() => onSearchChange("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                onClick={() => onToggleViewMode("table")}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                  viewMode === "table"
+                    ? "bg-background text-foreground shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="Table Grid Mode (Spreadsheet view)"
               >
-                <X className="w-3.5 h-3.5" />
+                <TableIcon className="w-3.5 h-3.5" />
+                <span>Grid</span>
               </button>
-            ) : (
-              <kbd className="hidden sm:inline-block absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-muted-foreground bg-muted/60 px-1.5 py-0.2 rounded border">
-                /
-              </kbd>
-            )}
-          </div>
-
-          {/* View Mode Toggle: Table Grid vs Speed Dialer */}
-          <div className="flex items-center p-0.5 rounded-lg border border-border/80 bg-muted/40 text-xs shrink-0">
-            <button
-              onClick={() => onToggleViewMode("table")}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                viewMode === "table"
-                  ? "bg-background text-foreground shadow-2xs font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-              title="Table Grid Mode (Spreadsheet view)"
-            >
-              <TableIcon className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Grid</span>
-            </button>
-            <button
-              onClick={() => onToggleViewMode("dialer")}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                viewMode === "dialer"
-                  ? "bg-background text-primary shadow-2xs font-semibold"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-              title="Speed Dialer Mode (High-velocity telecalling view)"
-            >
-              <Headphones className="w-3.5 h-3.5 text-primary" />
-              <span className="hidden sm:inline">Dialer</span>
-            </button>
-          </div>
-
-          {/* Filter Flyout Drawer Button with Active Badge */}
-          <Button
-            variant={filterDrawerOpen || activeFiltersCount > 0 ? "secondary" : "outline"}
-            size="sm"
-            onClick={onToggleFilterDrawer}
-            className={`h-8 text-xs gap-1.5 rounded-lg font-medium cursor-pointer ${
-              activeFiltersCount > 0
-                ? "border-primary/40 bg-primary/10 text-primary font-semibold"
-                : ""
-            }`}
-            title="Toggle Filter Panel (F)"
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>Filters</span>
-            {activeFiltersCount > 0 && (
-              <Badge
-                variant="default"
-                className="h-4 px-1 text-[10px] min-w-4 rounded-full bg-primary text-primary-foreground font-bold"
+              <button
+                onClick={() => onToggleViewMode("dialer")}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                  viewMode === "dialer"
+                    ? "bg-background text-primary shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="Speed Dialer Mode (High-velocity telecalling view)"
               >
-                {activeFiltersCount}
-              </Badge>
-            )}
-          </Button>
+                <Headphones className="w-3.5 h-3.5 text-primary" />
+                <span>Dialer</span>
+              </button>
+            </div>
 
-          {/* Display Options: Density & Columns */}
-          <DropdownMenu>
+            {/* Display Options: Density & Columns (Hidden on mobile < sm) */}
+            <div className="hidden sm:inline-flex">
+              <DropdownMenu>
             <DropdownMenuTrigger
               className="inline-flex items-center justify-center h-8 px-2.5 text-xs font-medium border border-border/80 bg-background hover:bg-muted rounded-lg cursor-pointer gap-1.5 shadow-2xs"
             >
@@ -339,9 +344,10 @@ export function UnifiedCommandBar({
               </div>
             </DropdownMenuContent>
           </DropdownMenu>
+        </div>
 
-          {/* Saved Views Dropdown */}
-          <DropdownMenu>
+        {/* Saved Views Dropdown */}
+        <DropdownMenu>
             <DropdownMenuTrigger
               className="inline-flex items-center justify-center h-8 px-2.5 text-xs font-medium border border-border/80 bg-background hover:bg-muted rounded-lg cursor-pointer gap-1.5 shadow-2xs"
             >
@@ -479,6 +485,7 @@ export function UnifiedCommandBar({
           </DropdownMenu>
         </div>
       </div>
+    </div>
 
       {/* Active Filters Pill Bar (renders only when filters or search are active) */}
       {(activeFiltersCount > 0 || search) && (
