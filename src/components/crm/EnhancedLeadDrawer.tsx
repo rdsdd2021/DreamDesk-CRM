@@ -127,7 +127,7 @@ export function EnhancedLeadDrawer({
   leadIndex,
   totalLeadsCount,
 }: EnhancedLeadDrawerProps) {
-  const [activeTab, setActiveTab] = useState<"overview" | "calls" | "fields" | "timeline">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "fields" | "timeline">("overview");
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [fieldSearchQuery, setFieldSearchQuery] = useState("");
@@ -147,6 +147,7 @@ export function EnhancedLeadDrawer({
 
   const isExemptRole =
     currentUser?.role === "admin" || currentUser?.role === "team_lead";
+  const isTelecaller = currentUser?.role === "telecaller";
 
   // Lead Tags & Campaign Attribution State
   const [leadTags, setLeadTags] = useState<string[]>([]);
@@ -910,7 +911,7 @@ export function EnhancedLeadDrawer({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setActiveTab("calls")}
+                onClick={() => setActiveTab("overview")}
                 className="h-6 px-2 text-[11px] font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-500/20"
               >
                 View
@@ -1029,26 +1030,24 @@ export function EnhancedLeadDrawer({
         {/* Multi-Tab Navigation Body */}
         <div className="p-4 sm:p-6 flex-1 space-y-4 pb-28 sm:pb-6">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-            <TabsList className="grid grid-cols-4 h-10 p-1 bg-muted/60 rounded-xl">
-              <TabsTrigger value="overview" className="text-xs font-semibold rounded-lg">
-                Overview
-              </TabsTrigger>
-              <TabsTrigger value="calls" className="text-xs font-semibold rounded-lg flex items-center gap-1">
-                <span>Call & Log</span>
-                {requiresCallback && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
-              </TabsTrigger>
-              <TabsTrigger value="fields" className="text-xs font-semibold rounded-lg">
-                Fields ({dynamicAttributes.length})
-              </TabsTrigger>
-              <TabsTrigger value="timeline" className="text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5">
-                <span>Timeline</span>
-                {activities.length > 0 && (
-                  <span className="text-[10px] bg-primary/15 text-primary font-bold px-1.5 py-0.2 rounded-full">
-                    {activities.length}
-                  </span>
-                )}
-              </TabsTrigger>
-            </TabsList>
+            {!isTelecaller && (
+              <TabsList className="grid grid-cols-3 h-10 p-1 bg-muted/60 rounded-xl">
+                <TabsTrigger value="overview" className="text-xs font-semibold rounded-lg">
+                  Overview
+                </TabsTrigger>
+                <TabsTrigger value="fields" className="text-xs font-semibold rounded-lg">
+                  Fields ({dynamicAttributes.length})
+                </TabsTrigger>
+                <TabsTrigger value="timeline" className="text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5">
+                  <span>Timeline</span>
+                  {activities.length > 0 && (
+                    <span className="text-[10px] bg-primary/15 text-primary font-bold px-1.5 py-0.2 rounded-full">
+                      {activities.length}
+                    </span>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+            )}
 
             {/* TAB 1: OVERVIEW */}
             <TabsContent value="overview" className="space-y-4 pt-3 m-0">
@@ -1448,8 +1447,12 @@ export function EnhancedLeadDrawer({
                   </div>
                 )}
               </div>
-              {/* Counselor, Stage & Campaign Assignment Card */}
-              <div className="bg-card border border-border/80 rounded-2xl p-4 sm:p-5 space-y-4 shadow-2xs">
+
+              {/* Counselor, Stage, Campaign & Tags Management (Supervisors / Admins Only) */}
+              {!isTelecaller && (
+                <>
+                  {/* Counselor, Stage & Campaign Assignment Card */}
+                  <div className="bg-card border border-border/80 rounded-2xl p-4 sm:p-5 space-y-4 shadow-2xs">
                 <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
                     <ShieldCheck className="w-3.5 h-3.5 text-primary" />
@@ -1710,6 +1713,8 @@ export function EnhancedLeadDrawer({
                   </div>
                 </div>
               </div>
+            </>
+          )}
 
               {/* Direct Contacts Card */}
               <div className="bg-card border border-border/80 rounded-2xl p-4 sm:p-5 space-y-3 shadow-2xs">
@@ -1826,360 +1831,11 @@ export function EnhancedLeadDrawer({
               )}
             </TabsContent>
 
-            {/* TAB 2: CALL & OUTCOME LOGGING */}
-            <TabsContent value="calls" className="space-y-4 pt-3 m-0">
-              {/* Telecalling Retry Cadence & Policy Tracker */}
-              <div className="flex items-center justify-between p-3.5 rounded-2xl border border-border/80 bg-muted/30 shadow-2xs">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                    <RotateCw className="w-3.5 h-3.5 text-primary" />
-                    <span>Dialing Cadence:</span>
-                  </span>
-                  <Badge
-                    variant="outline"
-                    className={`text-xs font-mono font-bold px-2 py-0.5 rounded-md ${
-                      (lead.attempt_count || 0) >= 3
-                        ? "bg-rose-500/10 text-rose-600 border-rose-500/30 dark:text-rose-400"
-                        : "bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-400"
-                    }`}
-                  >
-                    Attempt {(lead.attempt_count || 0)} / 3
-                  </Badge>
-                  {lead.cooldown_until && new Date(lead.cooldown_until) > new Date() && (
-                    <Badge
-                      variant="outline"
-                      className="text-xs font-medium px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-700 border-blue-500/30 dark:text-blue-400 animate-pulse flex items-center gap-1"
-                    >
-                      <Clock className="w-3 h-3" />
-                      Cooldown until {new Date(lead.cooldown_until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </Badge>
-                  )}
-                </div>
-                {lead.last_attempt_at && (
-                  <span className="text-[11px] text-muted-foreground font-medium">
-                    Last: {formatTimeAgo(lead.last_attempt_at)}
-                  </span>
-                )}
-              </div>
-
-              {/* ZONE 1: UNREACHABLE (1-CLICK INSTANT RETRY) */}
-              <div className="p-4 rounded-2xl border border-orange-500/25 bg-orange-500/5 space-y-3 shadow-2xs">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="text-xs font-bold text-orange-700 dark:text-orange-400 flex items-center gap-1.5 uppercase tracking-wide">
-                      <PhoneCall className="w-3.5 h-3.5 text-orange-600" />
-                      <span>Zone 1: Unreachable / Did Not Connect</span>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      1-Click registers attempt & 3h cooldown. Lead remains active in retry queue (not falsely marked as Contacted).
-                    </p>
-                  </div>
-                  <Badge variant="outline" className="text-[10px] bg-orange-500/10 text-orange-700 border-orange-500/30 shrink-0 font-semibold">
-                    1-Click Instant
-                  </Badge>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  {unreachableOptions.map((opt) => {
-                    const isLogging = loggingUnreachableId === opt.id;
-                    return (
-                      <Button
-                        key={opt.id}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={loggingUnreachableId !== null || savingDisp}
-                        onClick={() => handleInstantUnreachable(opt)}
-                        className="h-10 text-xs font-semibold rounded-xl border-orange-500/30 bg-background hover:bg-orange-500/15 text-orange-700 dark:text-orange-300 hover:text-orange-800 dark:hover:text-orange-200 justify-start gap-1.5 px-2.5 transition-all shadow-2xs hover:shadow-xs cursor-pointer"
-                      >
-                        {isLogging ? (
-                          <RotateCw className="w-3.5 h-3.5 animate-spin shrink-0 text-orange-600" />
-                        ) : (
-                          <span className="text-sm shrink-0">{opt.icon}</span>
-                        )}
-                        <span className="truncate">{opt.label}</span>
-                      </Button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* ZONE 2: CALL CONNECTED (STUDENT CONVERSATION) */}
-              <div className="bg-card border border-border/80 rounded-2xl p-4 sm:p-5 space-y-4 shadow-2xs">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="text-xs font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wide">
-                      <MessageSquare className="w-3.5 h-3.5 text-primary" />
-                      <span>Zone 2: Call Connected (Student Conversation)</span>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      Student or parent answered the call. Select conversation outcome, sub-reasons, and follow-up plan.
-                    </p>
-                  </div>
-                  {selectedDispObj && (
-                    <span
-                      className="text-xs font-semibold px-2.5 py-0.5 rounded-full text-white shadow-2xs shrink-0"
-                      style={{ backgroundColor: selectedDispObj.color || "#3b82f6" }}
-                    >
-                      Score: {selectedDispObj.score > 0 ? `+${selectedDispObj.score}` : selectedDispObj.score}
-                    </span>
-                  )}
-                </div>
-
-                {/* Categorized Visual Disposition Selector */}
-                <div className="space-y-3 pt-1">
-                  {/* Positive Outcomes */}
-                  {positiveDisps.length > 0 && (
-                    <div className="space-y-1.5">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                        Positive / High Intent
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {positiveDisps.map((d) => {
-                          const isSelected = selectedDispId === d.id;
-                          return (
-                            <button
-                              key={d.id}
-                              type="button"
-                              onClick={() => setSelectedDispId(isSelected ? "" : d.id)}
-                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
-                                isSelected
-                                  ? "bg-emerald-600 text-white border-emerald-600 shadow-xs ring-2 ring-emerald-500/20"
-                                  : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25 hover:bg-emerald-500/20"
-                              }`}
-                            >
-                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: isSelected ? "#fff" : d.color }} />
-                              <span>{d.name}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Neutral / Follow-up Outcomes */}
-                  {neutralDisps.length > 0 && (
-                    <div className="space-y-1.5">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
-                        Neutral / Scheduled Callbacks
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {neutralDisps.map((d) => {
-                          const isSelected = selectedDispId === d.id;
-                          return (
-                            <button
-                              key={d.id}
-                              type="button"
-                              onClick={() => setSelectedDispId(isSelected ? "" : d.id)}
-                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
-                                isSelected
-                                  ? "bg-amber-600 text-white border-amber-600 shadow-xs ring-2 ring-amber-500/20"
-                                  : "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25 hover:bg-amber-500/20"
-                              }`}
-                            >
-                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: isSelected ? "#fff" : d.color }} />
-                              <span>{d.name}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Negative Outcomes */}
-                  {negativeDisps.length > 0 && (
-                    <div className="space-y-1.5">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
-                        Negative / Disqualified
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {negativeDisps.map((d) => {
-                          const isSelected = selectedDispId === d.id;
-                          return (
-                            <button
-                              key={d.id}
-                              type="button"
-                              onClick={() => setSelectedDispId(isSelected ? "" : d.id)}
-                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
-                                isSelected
-                                  ? "bg-rose-600 text-white border-rose-600 shadow-xs ring-2 ring-rose-500/20"
-                                  : "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/25 hover:bg-rose-500/20"
-                              }`}
-                            >
-                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: isSelected ? "#fff" : d.color }} />
-                              <span>{d.name}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Sub-Disposition Dropdown (Conditional) */}
-                {selectedDispObj?.sub_dispositions && selectedDispObj.sub_dispositions.length > 0 && (
-                  <div className="space-y-1.5 pt-1 animate-in fade-in-50 duration-200">
-                    <label className="text-xs font-semibold text-foreground flex items-center gap-1.5 text-primary">
-                      <CornerDownRight className="w-3.5 h-3.5" />
-                      <span>Specific Reason / Sub-Outcome (Conditional)</span>
-                    </label>
-                    <Select
-                      value={selectedSubDispId || "none"}
-                      onValueChange={(val) => {
-                        if (val) setSelectedSubDispId(val === "none" ? "" : val);
-                      }}
-                    >
-                      <SelectTrigger className="h-9 text-xs rounded-xl font-medium bg-background border-primary/40">
-                        <SelectValue placeholder="Select specific reason..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none" className="text-xs text-muted-foreground">
-                          General / Not Specified
-                        </SelectItem>
-                        {selectedDispObj.sub_dispositions.map((sub) => (
-                          <SelectItem key={sub.id} value={sub.id} className="text-xs">
-                            {sub.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {/* Counseling Booking (Conditional Prompt) */}
-                {selectedDispObj?.code === "COUNS_BOOKED" && (
-                  <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 space-y-1 text-xs">
-                    <div className="font-bold flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      <span>Counseling Session Confirmed</span>
-                    </div>
-                    <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
-                      Remind candidate to keep 10th & 12th marksheets ready and note campus or online counseling slot in the remarks below.
-                    </p>
-                  </div>
-                )}
-
-                {/* Counselor Pitch & Objection Rebuttal Guide */}
-                {selectedDispId && (
-                  <div className="p-3.5 rounded-xl border border-primary/25 bg-primary/5 space-y-2 mt-2">
-                    <div className="flex items-center gap-1.5 text-primary font-bold text-xs">
-                      <Sparkles className="w-4 h-4 text-primary shrink-0" />
-                      <span>Counselor Pitch & Objection Assistant</span>
-                    </div>
-
-                    {selectedSubDispId === "sub_ni_budget" ? (
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        💡 <strong>Talking Point:</strong> Highlight our <strong>0% interest monthly installment plan</strong> and the <strong>Merit Scholarship Test (up to 40% fee waiver)</strong>. Offer to send the financial aid brochure via WhatsApp.
-                      </p>
-                    ) : selectedSubDispId === "sub_ni_distance" ? (
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        🚌 <strong>Talking Point:</strong> Emphasize our <strong>18 AC bus routes</strong>, 24/7 guarded campus security, and separate on-campus hostels with meal plans.
-                      </p>
-                    ) : selectedSubDispId === "sub_fu_comparing" ? (
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        🏆 <strong>Talking Point:</strong> Highlight our <strong>94.2% placement rate</strong>, 120+ recruitment partners, NAAC Grade-A+ accreditation, and small 1:15 mentor ratio.
-                      </p>
-                    ) : selectedSubDispId === "sub_fu_board_results" ? (
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        📋 <strong>Talking Point:</strong> Recommend placing a <strong>Provisional Seat Block</strong> today to lock in current tuition rates and scholarship brackets while awaiting final board results.
-                      </p>
-                    ) : selectedDispId === "disp_couns_booked" ? (
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        🎯 <strong>Talking Point:</strong> Confirm parent availability, explain that our Senior Dean will personally evaluate career roadmaps, and send a calendar invite immediately.
-                      </p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        ✨ <strong>Talking Point:</strong> Ask open-ended questions about their career aspirations in <strong>{String(lead.raw_attributes?.stream || "their chosen stream")}</strong> and offer to send our comprehensive curriculum overview.
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Conditional Callback Date Picker */}
-                {requiresCallback && (
-                  <div className="p-3.5 rounded-xl border bg-amber-500/5 border-amber-500/25 space-y-2.5">
-                    <label className="text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                      <span>Follow-up Callback Date & Time (Required)</span>
-                    </label>
-                    <Input
-                      type="datetime-local"
-                      value={callbackDate}
-                      onChange={(e) => setCallbackDate(e.target.value)}
-                      className="h-9 text-xs font-mono bg-background rounded-xl border-amber-500/30"
-                    />
-
-                    {/* Quick Callback Presets */}
-                    <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setCallbackInHours(2)}
-                        className="text-xs px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-800 dark:text-amber-300 hover:bg-amber-500/25 font-semibold transition-colors cursor-pointer"
-                      >
-                        +2 Hours
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCallbackTomorrow(11)}
-                        className="text-xs px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-800 dark:text-amber-300 hover:bg-amber-500/25 font-semibold transition-colors cursor-pointer"
-                      >
-                        Tomorrow 11 AM
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCallbackTomorrow(16)}
-                        className="text-xs px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-800 dark:text-amber-300 hover:bg-amber-500/25 font-semibold transition-colors cursor-pointer"
-                      >
-                        Tomorrow 4 PM
-                      </button>
-                      <button
-                        type="button"
-                        onClick={setCallbackNextMonday}
-                        className="text-xs px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-800 dark:text-amber-300 hover:bg-amber-500/25 font-semibold transition-colors cursor-pointer"
-                      >
-                        Next Monday
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Call Notes input */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-foreground">
-                    Counselor Call Note & Discussion Summary
-                  </label>
-                  <Textarea
-                    placeholder="Enter notes regarding student interest, parent concerns, financial discussions, or key takeaways..."
-                    value={callNotes}
-                    onChange={(e) => setCallNotes(e.target.value)}
-                    className="text-xs min-h-[85px] rounded-xl leading-relaxed"
-                  />
-                </div>
-
-                {/* Save Connected Disposition Button */}
-                <div className="pt-2">
-                  <Button
-                    size="sm"
-                    onClick={handleSaveConnectedDisposition}
-                    disabled={savingDisp || !selectedDispId || (requiresCallback && !callbackDate)}
-                    className="w-full h-10 text-xs sm:text-sm font-bold gap-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm cursor-pointer"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>{savingDisp ? "Saving Conversation..." : "Save Connected Call Outcome"}</span>
-                  </Button>
-
-                  {successToast && (
-                    <div className="mt-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1.5 animate-in fade-in">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>{toastMessage}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </TabsContent>
-
-            {/* TAB 3: DYNAMIC FIELDS */}
-            <TabsContent value="fields" className="space-y-3 pt-3 m-0">
+            {/* SUPERVISOR SECONDARY TABS (FIELDS & TIMELINE) */}
+            {!isTelecaller && (
+              <>
+                {/* TAB 2: DYNAMIC FIELDS */}
+                <TabsContent value="fields" className="space-y-3 pt-3 m-0">
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-3 top-3 text-muted-foreground" />
                 <Input
@@ -2253,7 +1909,9 @@ export function EnhancedLeadDrawer({
                 currentUser={currentUser}
               />
             </TabsContent>
-          </Tabs>
+          </>
+        )}
+      </Tabs>
         </div>
 
         {/* Sticky Mobile Quick Actions Bar (Finger-friendly for telecallers & counselors) */}
@@ -2281,21 +1939,17 @@ export function EnhancedLeadDrawer({
             </Button>
           ) : null}
 
-          <Button
-            size="sm"
-            onClick={() => {
-              if (selectedDispId) {
-                handleSaveConnectedDisposition();
-              } else {
-                setActiveTab("calls");
-              }
-            }}
-            disabled={savingDisp}
-            className="flex-1 h-11 text-xs font-bold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-xs cursor-pointer"
-          >
-            <Save className="w-4 h-4" />
-            <span>{savingDisp ? "Saving..." : selectedDispId ? "Log Outcome" : "Log Call"}</span>
-          </Button>
+          {selectedMasterCategory ? (
+            <Button
+              size="sm"
+              onClick={handleSaveSimplifiedOutcome}
+              disabled={savingDisp}
+              className="flex-1 h-11 text-xs font-bold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-xs cursor-pointer"
+            >
+              <Save className="w-4 h-4" />
+              <span>{savingDisp ? "Saving..." : "Save Outcome"}</span>
+            </Button>
+          ) : null}
         </div>
 
         {/* WhatsApp Quick Template Messenger Modal */}

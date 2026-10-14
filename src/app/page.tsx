@@ -212,6 +212,8 @@ export default function CRMPage() {
     ? (currentUser.role === "counselor" || currentUser.role === "senior_counselor" || currentUser.role === "telecaller")
     : (roleMode === "counselor");
 
+  const isTelecaller = currentUser?.role === "telecaller";
+
   // Data State
   const [leads, setLeads] = useState<Lead[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
@@ -1540,15 +1542,15 @@ export default function CRMPage() {
                 onApplySavedView={handleApplySavedView}
                 onSaveCurrentView={handleSaveCurrentView}
                 onDeleteSavedView={handleDeleteSavedView}
-                onClaimLeads={handleClaimLeads}
+                onClaimLeads={!isTelecaller ? handleClaimLeads : undefined}
                 claimingLeads={claimingLeads}
-                onAutoDistribute={() => handleAutoDistribute(250)}
+                onAutoDistribute={!isTelecaller ? () => handleAutoDistribute(250) : undefined}
                 isAutoDistributing={isAutoDistributing}
-                onOpenImport={() => setCurrentView("import")}
-                onOpenDuplicates={() => setIsDuplicatesModalOpen(true)}
-                onGenerateTestData={permissions?.canManageSchema ? () => handleGenerateSampleLeads(500) : undefined}
+                onOpenImport={!isTelecaller ? () => setCurrentView("import") : undefined}
+                onOpenDuplicates={!isTelecaller ? () => setIsDuplicatesModalOpen(true) : undefined}
+                onGenerateTestData={!isTelecaller && permissions?.canManageSchema ? () => handleGenerateSampleLeads(500) : undefined}
                 onOpenShortcuts={() => setIsShortcutsOpen(true)}
-                canManageTeam={permissions?.canManageTeam}
+                canManageTeam={!isTelecaller && permissions?.canManageTeam}
               />
 
               {/* Dual View Rendering: Speed Dialer Desk vs Leads Table */}
@@ -1621,6 +1623,7 @@ export default function CRMPage() {
                     onInlineUpdate={handleInlineFieldUpdate}
                     viewMode={leadsViewMode === "grid" ? "grid" : "table"}
                     onViewModeChange={(m) => setLeadsViewMode(m === "cards" || m === "grid" ? "grid" : "table")}
+                    isTelecaller={isTelecaller}
                   />
 
                   <PaginationBar
@@ -1837,21 +1840,23 @@ export default function CRMPage() {
     </div>
 
       {/* Floating Sticky Bulk Actions Bar */}
-      <BulkActionBar
-        selectedCount={selectedLeadIds.length}
-        totalFilteredCount={totalFilteredCount}
-        isAllFilteredSelected={isAllFilteredSelected}
-        onSelectAllFiltered={handleSelectAllFiltered}
-        onClearSelection={handleClearSelection}
-        onOpenAssignModal={permissions?.canAssignLeads ? () => setIsAssignModalOpen(true) : undefined}
-        onBulkStatusChange={handleBulkStatusChange}
-        onBulkDelete={permissions?.canDeleteLeads ? handleBulkDelete : undefined}
-        onExportCsv={permissions?.canExportLeads ? handleExportCsv : undefined}
-        campaigns={campaigns}
-        onBulkCampaignChange={handleBulkCampaignChange}
-        onOpenBulkCampaignModal={() => setIsBulkCampaignModalOpen(true)}
-        onOpenBulkTagsModal={() => setIsBulkTagsModalOpen(true)}
-      />
+      {!isTelecaller && (
+        <BulkActionBar
+          selectedCount={selectedLeadIds.length}
+          totalFilteredCount={totalFilteredCount}
+          isAllFilteredSelected={isAllFilteredSelected}
+          onSelectAllFiltered={handleSelectAllFiltered}
+          onClearSelection={handleClearSelection}
+          onOpenAssignModal={permissions?.canAssignLeads ? () => setIsAssignModalOpen(true) : undefined}
+          onBulkStatusChange={handleBulkStatusChange}
+          onBulkDelete={permissions?.canDeleteLeads ? handleBulkDelete : undefined}
+          onExportCsv={permissions?.canExportLeads ? handleExportCsv : undefined}
+          campaigns={campaigns}
+          onBulkCampaignChange={handleBulkCampaignChange}
+          onOpenBulkCampaignModal={() => setIsBulkCampaignModalOpen(true)}
+          onOpenBulkTagsModal={() => setIsBulkTagsModalOpen(true)}
+        />
+      )}
 
       {/* Bulk Assignment Modal */}
       <BulkAssignModal
@@ -2057,6 +2062,7 @@ export default function CRMPage() {
         onOpenMobileMenu={() => setIsMobileNavOpen(true)}
         pendingTasksCount={summary.statusBreakdown["Follow-up"] || 0}
         myLeadsCount={summary.totalLeads}
+        allowedViews={permissions?.allowedViews}
       />
     </div>
   );

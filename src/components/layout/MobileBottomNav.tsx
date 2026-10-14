@@ -17,6 +17,7 @@ interface MobileBottomNavProps {
   onOpenMobileMenu: () => void;
   pendingTasksCount?: number;
   myLeadsCount?: number;
+  allowedViews?: string[];
 }
 
 export function MobileBottomNav({
@@ -26,8 +27,9 @@ export function MobileBottomNav({
   onOpenMobileMenu,
   pendingTasksCount = 0,
   myLeadsCount,
+  allowedViews,
 }: MobileBottomNavProps) {
-  const tabs = [
+  const allTabs = [
     {
       id: "leads",
       label: "Leads",
@@ -48,6 +50,10 @@ export function MobileBottomNav({
       icon: Kanban,
     },
   ];
+
+  const tabs = allowedViews && allowedViews.length > 0
+    ? allTabs.filter((tab) => allowedViews.includes(tab.id))
+    : allTabs;
 
   return (
     <nav

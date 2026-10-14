@@ -138,6 +138,7 @@ interface LeadsTableProps {
   onInlineUpdate?: (leadId: number, field: string, value: any) => void;
   viewMode?: "table" | "cards" | "grid";
   onViewModeChange?: (mode: "table" | "cards" | "grid") => void;
+  isTelecaller?: boolean;
 }
 
 export function LeadsTable({
@@ -166,6 +167,7 @@ export function LeadsTable({
   onInlineUpdate,
   viewMode: propViewMode,
   onViewModeChange,
+  isTelecaller = false,
 }: LeadsTableProps) {
   const normalizedPropMode = propViewMode === "grid" ? "cards" : propViewMode;
   const [localViewMode, setLocalViewMode] = useState<"table" | "cards">(
@@ -347,12 +349,14 @@ export function LeadsTable({
               <div className="space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-2.5 min-w-0">
-                    <Checkbox
-                      checked={isSelected}
-                      onCheckedChange={() => onToggleLeadSelection(lead.id)}
-                      className="mt-1"
-                      aria-label={`Select ${lead.lead_code}`}
-                    />
+                    {!isTelecaller && (
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => onToggleLeadSelection(lead.id)}
+                        className="mt-1"
+                        aria-label={`Select ${lead.lead_code}`}
+                      />
+                    )}
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span
@@ -379,28 +383,32 @@ export function LeadsTable({
                   </div>
 
                   {/* Inline Stage Dropdown */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger className="focus:outline-none cursor-pointer shrink-0">
-                      <span className="inline-flex items-center gap-1 hover:ring-2 hover:ring-primary/20 rounded-md transition-all">
-                        {getStatusBadge(lead.status)}
-                        <ChevronDown className="w-3 h-3 text-muted-foreground" />
-                      </span>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-44 text-xs p-1.5 rounded-xl shadow-xl">
-                      <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                        Change Stage
-                      </div>
-                      {["New", "Contacted", "Interested", "Follow-up", "Admitted", "Not Interested", "Unreachable"].map((st) => (
-                        <DropdownMenuItem
-                          key={st}
-                          onClick={() => onInlineUpdate?.(lead.id, "status", st)}
-                          className={`gap-2 cursor-pointer text-xs rounded-lg py-1.5 px-2 ${lead.status === st ? "font-bold bg-primary/10 text-primary" : ""}`}
-                        >
-                          {getStatusBadge(st)}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  {!isTelecaller ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger className="focus:outline-none cursor-pointer shrink-0">
+                        <span className="inline-flex items-center gap-1 hover:ring-2 hover:ring-primary/20 rounded-md transition-all">
+                          {getStatusBadge(lead.status)}
+                          <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                        </span>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-44 text-xs p-1.5 rounded-xl shadow-xl">
+                        <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                          Change Stage
+                        </div>
+                        {["New", "Contacted", "Interested", "Follow-up", "Admitted", "Not Interested", "Unreachable"].map((st) => (
+                          <DropdownMenuItem
+                            key={st}
+                            onClick={() => onInlineUpdate?.(lead.id, "status", st)}
+                            className={`gap-2 cursor-pointer text-xs rounded-lg py-1.5 px-2 ${lead.status === st ? "font-bold bg-primary/10 text-primary" : ""}`}
+                          >
+                            {getStatusBadge(st)}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <div className="shrink-0">{getStatusBadge(lead.status)}</div>
+                  )}
                 </div>
 
                 {/* Academic & Score Box */}
@@ -455,7 +463,7 @@ export function LeadsTable({
                 {/* Fast Call Outcome (Disposition) Selector */}
                 <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/60">
                   <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                    {dispositions.length > 0 && onQuickDispositionChange ? (
+                    {!isTelecaller && dispositions.length > 0 && onQuickDispositionChange ? (
                       <DropdownMenu>
                         <DropdownMenuTrigger className="focus:outline-none max-w-full">
                           {lead.disposition_name ? (
@@ -502,8 +510,20 @@ export function LeadsTable({
                           })}
                         </DropdownMenuContent>
                       </DropdownMenu>
+                    ) : lead.disposition_name ? (
+                      <span
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border shadow-2xs truncate max-w-full"
+                        style={{
+                          backgroundColor: `${lead.disposition_color || "#3b82f6"}15`,
+                          borderColor: `${lead.disposition_color || "#3b82f6"}40`,
+                          color: lead.disposition_color || "#3b82f6",
+                        }}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: lead.disposition_color || "#3b82f6" }} />
+                        <span className="truncate">{lead.disposition_name}</span>
+                      </span>
                     ) : (
-                      <span className="text-[11px] text-muted-foreground italic">{lead.disposition_name || "Uncontacted"}</span>
+                      <span className="text-[11px] text-muted-foreground/60 italic">Uncontacted</span>
                     )}
                   </div>
 
@@ -565,7 +585,7 @@ export function LeadsTable({
   return (
     <div className="border border-border/80 rounded-xl bg-card shadow-xs overflow-hidden flex flex-col">
       {/* High-Volume Filtered Selection Banner */}
-      {isAllPageSelected && totalFilteredCount > leads.length && (
+      {!isTelecaller && isAllPageSelected && totalFilteredCount > leads.length && (
         <div className="bg-primary/5 border-b border-primary/20 px-4 py-2 text-xs flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles className="w-3.5 h-3.5 text-primary" />
@@ -664,13 +684,15 @@ export function LeadsTable({
           <Table>
           <TableHeader className="bg-muted/40 backdrop-blur-md sticky top-0 z-10 border-b border-border/80">
             <TableRow className="hover:bg-transparent border-none">
-              <TableHead className="w-10 px-3 text-center">
-                <Checkbox
-                  checked={isAllPageSelected || isAllFilteredSelected}
-                  onCheckedChange={onToggleSelectAllPage}
-                  aria-label="Select all on page"
-                />
-              </TableHead>
+              {!isTelecaller && (
+                <TableHead className="w-10 px-3 text-center">
+                  <Checkbox
+                    checked={isAllPageSelected || isAllFilteredSelected}
+                    onCheckedChange={onToggleSelectAllPage}
+                    aria-label="Select all on page"
+                  />
+                </TableHead>
+              )}
 
               {visibleColumns.includes("lead_code") && (
                 <TableHead className="w-28 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
@@ -752,9 +774,11 @@ export function LeadsTable({
                   key={`skeleton-${i}`}
                   className={cn("border-b border-border/40", density === "compact" ? "h-8.5" : "h-11")}
                 >
-                  <TableCell className="px-3 text-center">
-                    <div className="w-3.5 h-3.5 rounded bg-muted/60 animate-pulse mx-auto" />
-                  </TableCell>
+                  {!isTelecaller && (
+                    <TableCell className="px-3 text-center">
+                      <div className="w-3.5 h-3.5 rounded bg-muted/60 animate-pulse mx-auto" />
+                    </TableCell>
+                  )}
                   {visibleColumns.includes("lead_code") && (
                     <TableCell>
                       <div className="w-16 h-3 rounded bg-muted/60 animate-pulse" />
@@ -805,7 +829,7 @@ export function LeadsTable({
               ))
             ) : leads.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8 + dynamicColumns.length} className="h-64 text-center">
+                <TableCell colSpan={(isTelecaller ? 7 : 8) + dynamicColumns.length} className="h-64 text-center">
                   <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
                     <School className="w-8 h-8 stroke-[1.25] text-muted-foreground/50" />
                     <div className="text-sm font-semibold text-foreground">No student leads found</div>
@@ -832,13 +856,15 @@ export function LeadsTable({
                     onClick={() => onViewLeadDetails(lead)}
                   >
                     {/* Selection Checkbox */}
-                    <TableCell className="px-3 text-center" onClick={(e) => e.stopPropagation()}>
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={() => onToggleLeadSelection(lead.id)}
-                        aria-label={`Select lead ${lead.lead_code}`}
-                      />
-                    </TableCell>
+                    {!isTelecaller && (
+                      <TableCell className="px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => onToggleLeadSelection(lead.id)}
+                          aria-label={`Select lead ${lead.lead_code}`}
+                        />
+                      </TableCell>
+                    )}
 
                     {/* Lead Code */}
                     {visibleColumns.includes("lead_code") && (
@@ -924,28 +950,32 @@ export function LeadsTable({
                     {visibleColumns.includes("status") && (
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <div className="space-y-1">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger className="focus:outline-none cursor-pointer group">
-                              <span className="inline-flex items-center gap-1 hover:ring-2 hover:ring-primary/20 rounded-md transition-all">
-                                {getStatusBadge(lead.status)}
-                                <ChevronDown className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-muted-foreground transition-opacity" />
-                              </span>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="w-40 text-xs">
-                              <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                                Change Stage
-                              </div>
-                              {["New", "Contacted", "Interested", "Follow-up", "Admitted", "Not Interested", "Unreachable"].map((st) => (
-                                <DropdownMenuItem
-                                  key={st}
-                                  onClick={() => onInlineUpdate?.(lead.id, "status", st)}
-                                  className={`gap-2 cursor-pointer text-xs ${lead.status === st ? "font-bold bg-primary/10 text-primary" : ""}`}
-                                >
-                                  {getStatusBadge(st)}
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          {!isTelecaller ? (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger className="focus:outline-none cursor-pointer group">
+                                <span className="inline-flex items-center gap-1 hover:ring-2 hover:ring-primary/20 rounded-md transition-all">
+                                  {getStatusBadge(lead.status)}
+                                  <ChevronDown className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-muted-foreground transition-opacity" />
+                                </span>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start" className="w-40 text-xs">
+                                <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                  Change Stage
+                                </div>
+                                {["New", "Contacted", "Interested", "Follow-up", "Admitted", "Not Interested", "Unreachable"].map((st) => (
+                                  <DropdownMenuItem
+                                    key={st}
+                                    onClick={() => onInlineUpdate?.(lead.id, "status", st)}
+                                    className={`gap-2 cursor-pointer text-xs ${lead.status === st ? "font-bold bg-primary/10 text-primary" : ""}`}
+                                  >
+                                    {getStatusBadge(st)}
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          ) : (
+                            <div>{getStatusBadge(lead.status)}</div>
+                          )}
                           {renderAttemptPill(lead)}
                         </div>
                       </TableCell>
@@ -954,7 +984,7 @@ export function LeadsTable({
                     {/* Call Disposition */}
                     {visibleColumns.includes("disposition") && (
                       <TableCell onClick={(e) => e.stopPropagation()}>
-                        {dispositions.length > 0 && onQuickDispositionChange ? (
+                        {!isTelecaller && dispositions.length > 0 && onQuickDispositionChange ? (
                           <DropdownMenu>
                             <DropdownMenuTrigger className="focus:outline-none">
                               {lead.disposition_name ? (
@@ -1055,55 +1085,73 @@ export function LeadsTable({
                     {/* Assigned Counselor (Inline Editable) */}
                     {visibleColumns.includes("assigned_to") && (
                       <TableCell onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger className="focus:outline-none cursor-pointer group">
-                            {lead.assigned_user_name ? (
-                              <div className="flex items-center gap-1.5 p-1 rounded-md hover:bg-muted/60 transition-colors">
-                                <div
-                                  className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white shrink-0 shadow-2xs"
-                                  style={{ backgroundColor: lead.assigned_user_color || "#3b82f6" }}
-                                >
-                                  {lead.assigned_user_name.charAt(0)}
+                        {!isTelecaller ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger className="focus:outline-none cursor-pointer group">
+                              {lead.assigned_user_name ? (
+                                <div className="flex items-center gap-1.5 p-1 rounded-md hover:bg-muted/60 transition-colors">
+                                  <div
+                                    className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white shrink-0 shadow-2xs"
+                                    style={{ backgroundColor: lead.assigned_user_color || "#3b82f6" }}
+                                  >
+                                    {lead.assigned_user_name.charAt(0)}
+                                  </div>
+                                  <span className="text-[11px] font-medium text-foreground truncate max-w-[100px]">
+                                    {lead.assigned_user_name}
+                                  </span>
+                                  <ChevronDown className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-muted-foreground" />
                                 </div>
-                                <span className="text-[11px] font-medium text-foreground truncate max-w-[100px]">
-                                  {lead.assigned_user_name}
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/60 italic font-mono p-1 rounded hover:bg-muted/60">
+                                  <span>Unallocated</span>
+                                  <ChevronDown className="w-2.5 h-2.5 opacity-60" />
                                 </span>
-                                <ChevronDown className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-muted-foreground" />
+                              )}
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-48 text-xs max-h-56 overflow-y-auto">
+                              <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                Reassign Counselor
                               </div>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/60 italic font-mono p-1 rounded hover:bg-muted/60">
-                                <span>Unallocated</span>
-                                <ChevronDown className="w-2.5 h-2.5 opacity-60" />
-                              </span>
-                            )}
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start" className="w-48 text-xs max-h-56 overflow-y-auto">
-                            <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                              Reassign Counselor
-                            </div>
-                            <DropdownMenuItem
-                              onClick={() => onInlineUpdate?.(lead.id, "assigned_to", null)}
-                              className="cursor-pointer text-xs text-muted-foreground italic"
-                            >
-                              Unallocated
-                            </DropdownMenuItem>
-                            {users.map((u) => (
                               <DropdownMenuItem
-                                key={u.id}
-                                onClick={() => onInlineUpdate?.(lead.id, "assigned_to", u.id)}
-                                className={`gap-2 cursor-pointer text-xs ${lead.assigned_to === u.id ? "font-bold bg-primary/10 text-primary" : ""}`}
+                                onClick={() => onInlineUpdate?.(lead.id, "assigned_to", null)}
+                                className="cursor-pointer text-xs text-muted-foreground italic"
                               >
-                                <div
-                                  className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-bold text-white shrink-0"
-                                  style={{ backgroundColor: u.avatar_color }}
-                                >
-                                  {u.name.charAt(0)}
-                                </div>
-                                <span className="truncate">{u.name}</span>
+                                Unallocated
                               </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              {users.map((u) => (
+                                <DropdownMenuItem
+                                  key={u.id}
+                                  onClick={() => onInlineUpdate?.(lead.id, "assigned_to", u.id)}
+                                  className={`gap-2 cursor-pointer text-xs ${lead.assigned_to === u.id ? "font-bold bg-primary/10 text-primary" : ""}`}
+                                >
+                                  <div
+                                    className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[7px] font-bold text-white shrink-0"
+                                    style={{ backgroundColor: u.avatar_color }}
+                                  >
+                                    {u.name.charAt(0)}
+                                  </div>
+                                  <span className="truncate">{u.name}</span>
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : lead.assigned_user_name ? (
+                          <div className="flex items-center gap-1.5 p-1">
+                            <div
+                              className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white shrink-0 shadow-2xs"
+                              style={{ backgroundColor: lead.assigned_user_color || "#3b82f6" }}
+                            >
+                              {lead.assigned_user_name.charAt(0)}
+                            </div>
+                            <span className="text-[11px] font-medium text-foreground truncate max-w-[100px]">
+                              {lead.assigned_user_name}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground/60 italic font-mono p-1">
+                            Unallocated
+                          </span>
+                        )}
                       </TableCell>
                     )}
 
@@ -1111,6 +1159,24 @@ export function LeadsTable({
                     {dynamicColumns.map((col) => {
                       const val = lead.raw_attributes[col.key_name];
                       if (col.key_name === "score") {
+                        if (isTelecaller) {
+                          const scoreNum = Number(val || 0);
+                          const colorClass =
+                            scoreNum >= 75
+                              ? "text-emerald-600 bg-emerald-500/10 border-emerald-500/20"
+                              : scoreNum >= 50
+                              ? "text-blue-600 bg-blue-500/10 border-blue-500/20"
+                              : scoreNum >= 25
+                              ? "text-amber-600 bg-amber-500/10 border-amber-500/20"
+                              : "text-muted-foreground bg-muted/60 border-border/80";
+                          return (
+                            <TableCell key={col.key_name}>
+                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${colorClass}`}>
+                                {scoreNum}
+                              </span>
+                            </TableCell>
+                          );
+                        }
                         return (
                           <TableCell key={col.key_name} onClick={(e) => e.stopPropagation()}>
                             <InlineScoreCell
@@ -1149,10 +1215,12 @@ export function LeadsTable({
                             <Eye className="w-3.5 h-3.5 mr-2 text-muted-foreground" />
                             <span>View Profile</span>
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onQuickAssignLead(lead)}>
-                            <UserCheck className="w-3.5 h-3.5 mr-2 text-muted-foreground" />
-                            <span>Assign</span>
-                          </DropdownMenuItem>
+                          {!isTelecaller && (
+                            <DropdownMenuItem onClick={() => onQuickAssignLead(lead)}>
+                              <UserCheck className="w-3.5 h-3.5 mr-2 text-muted-foreground" />
+                              <span>Assign</span>
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

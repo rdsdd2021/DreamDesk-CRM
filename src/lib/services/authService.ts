@@ -109,7 +109,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewAuditLogs: false,
     canAssignLeads: false,
     canManagePolicies: false,
-    allowedViews: ["leads", "tasks", "pipeline"],
+    allowedViews: ["leads"],
   },
 };
 
