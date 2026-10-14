@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Disposition, Campaign } from "@/types/crm";
+import { Disposition, Campaign, LeadScoringPolicyConfig } from "@/types/crm";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,10 @@ import {
   ArrowRight,
   TrendingUp,
   Sparkles,
+  Sliders,
+  Save,
+  Flame,
+  Check,
 } from "lucide-react";
 
 interface DispositionsWorkspaceProps {
@@ -37,25 +41,83 @@ export function DispositionsWorkspace({
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
+  // Lead Ranking & Scoring Policy State
+  const [scoringConfig, setScoringConfig] = useState<LeadScoringPolicyConfig>({
+    academic_weight: 40,
+    disposition_weight: 60,
+    attempt_penalty: 5,
+    high_intent_threshold: 70,
+    auto_recalculate_on_call: true,
+  });
+  const [savingScoring, setSavingScoring] = useState(false);
+  const [recalculatingBatch, setRecalculatingBatch] = useState(false);
+  const [scoringMessage, setScoringMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [isScoringPanelExpanded, setIsScoringPanelExpanded] = useState(true);
+
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [dispRes, campRes] = await Promise.all([
+      const [dispRes, campRes, scoreRes] = await Promise.all([
         fetch("/api/dispositions").then((r) => r.json()),
         fetch("/api/campaigns").then((r) => r.json()),
+        fetch("/api/dispositions/scoring-config").then((r) => r.json()).catch(() => null),
       ]);
 
       if (Array.isArray(dispRes)) setDispositions(dispRes);
       if (Array.isArray(campRes)) setCampaigns(campRes);
+      if (scoreRes && scoreRes.config) setScoringConfig(scoreRes.config);
     } catch (err) {
-      console.error("Failed to load dispositions:", err);
+      console.error("Failed to load dispositions data:", err);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const handleSaveScoringConfig = async (recalculateAll = false) => {
+    try {
+      if (recalculateAll) setRecalculatingBatch(true);
+      else setSavingScoring(true);
+      setScoringMessage(null);
+
+      const res = await fetch("/api/dispositions/scoring-config", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          config: scoringConfig,
+          recalculateAll,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update scoring settings");
+
+      if (data.config) setScoringConfig(data.config);
+
+      if (recalculateAll && data.batchResult) {
+        setScoringMessage({
+          type: "success",
+          text: `Success! Re-ranked ${data.batchResult.affectedCount.toLocaleString()} leads across database (Mean Score: ${data.batchResult.avgScore} pts).`,
+        });
+      } else {
+        setScoringMessage({
+          type: "success",
+          text: "Scoring algorithm weights saved successfully!",
+        });
+      }
+      setTimeout(() => setScoringMessage(null), 5000);
+    } catch (err: any) {
+      setScoringMessage({
+        type: "error",
+        text: err.message || "Failed to save scoring settings.",
+      });
+    } finally {
+      setSavingScoring(false);
+      setRecalculatingBatch(false);
+    }
+  };
 
   useEffect(() => {
     loadData();
@@ -216,6 +278,176 @@ export function DispositionsWorkspace({
           <p className="text-[11px] text-muted-foreground">
             Mean conversion weight
           </p>
+        </div>
+      </div>
+
+      {/* Lead Ranking & Composite Scoring Engine Control Card */}
+      <div className="bg-card border border-border/80 rounded-2xl p-4 sm:p-5 shadow-2xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/60">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center border border-primary/20 shrink-0">
+              <Sliders className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <span>Lead Ranking & Composite Scoring Algorithm</span>
+                <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-emerald-600 bg-emerald-500/5">
+                  0–100 Normalized Scale
+                </Badge>
+              </h3>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Automatically calculates student priority scores in real time based on academic records, call engagement outcomes, and dial attempt penalties.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={recalculatingBatch || savingScoring}
+              onClick={() => handleSaveScoringConfig(true)}
+              className="h-8 text-xs font-semibold gap-1.5 border-border hover:bg-muted text-foreground cursor-pointer"
+              title="Recalculate 0-100 priority score for all database leads"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${recalculatingBatch ? "animate-spin text-primary" : "text-muted-foreground"}`} />
+              <span>{recalculatingBatch ? "Re-ranking Leads..." : "Recalculate Entire Database"}</span>
+            </Button>
+
+            <Button
+              size="sm"
+              disabled={savingScoring || recalculatingBatch}
+              onClick={() => handleSaveScoringConfig(false)}
+              className="h-8 text-xs font-semibold gap-1.5 shadow-2xs bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>{savingScoring ? "Saving..." : "Save Algorithm Weights"}</span>
+            </Button>
+          </div>
+        </div>
+
+        {scoringMessage && (
+          <div
+            className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+              scoringMessage.type === "success"
+                ? "bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 dark:text-emerald-300"
+                : "bg-rose-500/10 text-rose-700 border border-rose-500/20 dark:text-rose-300"
+            }`}
+          >
+            {scoringMessage.type === "success" ? (
+              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            )}
+            <span>{scoringMessage.text}</span>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-1">
+          {/* Weight 1: Academic Baseline */}
+          <div className="p-3.5 rounded-xl border border-border/70 bg-muted/20 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-foreground">Academic Baseline</span>
+              <span className="font-mono text-xs font-bold text-primary">{scoringConfig.academic_weight}%</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground leading-tight">
+              Weight given to school percentage or exam percentiles (JEE/NEET).
+            </p>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={scoringConfig.academic_weight}
+              onChange={(e) => {
+                const acad = Number(e.target.value);
+                setScoringConfig((prev) => ({
+                  ...prev,
+                  academic_weight: acad,
+                  disposition_weight: 100 - acad,
+                }));
+              }}
+              className="w-full accent-primary h-1.5 bg-muted rounded-lg cursor-pointer"
+            />
+          </div>
+
+          {/* Weight 2: Disposition Engagement */}
+          <div className="p-3.5 rounded-xl border border-border/70 bg-muted/20 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-foreground">Disposition Points</span>
+              <span className="font-mono text-xs font-bold text-emerald-600">{scoringConfig.disposition_weight}%</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground leading-tight">
+              Weight derived from caller disposition point values below.
+            </p>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={scoringConfig.disposition_weight}
+              onChange={(e) => {
+                const disp = Number(e.target.value);
+                setScoringConfig((prev) => ({
+                  ...prev,
+                  disposition_weight: disp,
+                  academic_weight: 100 - disp,
+                }));
+              }}
+              className="w-full accent-emerald-500 h-1.5 bg-muted rounded-lg cursor-pointer"
+            />
+          </div>
+
+          {/* Penalty: Dial Attempt Penalty */}
+          <div className="p-3.5 rounded-xl border border-border/70 bg-muted/20 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-foreground">Attempt Penalty</span>
+              <span className="font-mono text-xs font-bold text-rose-600">-{scoringConfig.attempt_penalty} pts</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground leading-tight">
+              Points subtracted for each failed / unreachable call attempt.
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={0}
+                max={25}
+                value={scoringConfig.attempt_penalty}
+                onChange={(e) =>
+                  setScoringConfig((prev) => ({ ...prev, attempt_penalty: Number(e.target.value) || 0 }))
+                }
+                className="h-7 text-xs font-mono font-bold bg-background"
+              />
+              <span className="text-[11px] text-muted-foreground whitespace-nowrap">pts / attempt</span>
+            </div>
+          </div>
+
+          {/* High Intent Threshold */}
+          <div className="p-3.5 rounded-xl border border-border/70 bg-muted/20 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-foreground flex items-center gap-1">
+                <Flame className="w-3.5 h-3.5 text-amber-500" />
+                <span>High Intent Cutoff</span>
+              </span>
+              <span className="font-mono text-xs font-bold text-amber-600">&ge; {scoringConfig.high_intent_threshold}</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground leading-tight">
+              Minimum score required to qualify for the High Intent Work Queue.
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={40}
+                max={95}
+                value={scoringConfig.high_intent_threshold}
+                onChange={(e) =>
+                  setScoringConfig((prev) => ({ ...prev, high_intent_threshold: Number(e.target.value) || 70 }))
+                }
+                className="h-7 text-xs font-mono font-bold bg-background"
+              />
+              <span className="text-[11px] text-muted-foreground whitespace-nowrap">min score</span>
+            </div>
+          </div>
         </div>
       </div>
 

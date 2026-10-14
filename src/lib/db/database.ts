@@ -899,6 +899,29 @@ function initPolicies(db: Database.Database) {
         })
       );
     }
+
+    const existingScoring = db.prepare("SELECT id FROM crm_policies WHERE id = 'lead_scoring_policy'").get();
+    if (!existingScoring) {
+      db.prepare(`
+        INSERT INTO crm_policies (id, name, description, policy_type, is_enabled, config)
+        VALUES (
+          'lead_scoring_policy',
+          'Lead Ranking & Composite Scoring Engine',
+          'Calculates real-time 0–100 priority score from academic baseline, disposition engagement points, and unreachable attempt penalties.',
+          'lead_scoring',
+          1,
+          ?
+        )
+      `).run(
+        JSON.stringify({
+          academic_weight: 40,
+          disposition_weight: 60,
+          attempt_penalty: 5,
+          high_intent_threshold: 70,
+          auto_recalculate_on_call: true,
+        })
+      );
+    }
   } catch (err) {
     console.error("Failed to initialize policies:", err);
   }

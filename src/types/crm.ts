@@ -429,13 +429,26 @@ export interface AnalyticsReportData {
   }[];
 }
 
+export interface LeadScoringPolicyConfig {
+  academic_weight: number;
+  disposition_weight: number;
+  attempt_penalty: number;
+  high_intent_threshold: number;
+  auto_recalculate_on_call: boolean;
+}
+
 export interface CrmPolicyConfig {
-  lock_days: number;
-  exempt_roles: UserRole[];
+  lock_days?: number;
+  exempt_roles?: UserRole[];
   activity_types?: string[];
   allow_unassign?: boolean;
   require_reason_for_override?: boolean;
   notification_message?: string;
+  academic_weight?: number;
+  disposition_weight?: number;
+  attempt_penalty?: number;
+  high_intent_threshold?: number;
+  auto_recalculate_on_call?: boolean;
   [key: string]: any;
 }
 

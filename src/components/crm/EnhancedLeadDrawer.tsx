@@ -166,10 +166,8 @@ export function EnhancedLeadDrawer({
   const [loggingUnreachableId, setLoggingUnreachableId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState("Call disposition and note saved successfully!");
 
-  // Streamlined 2-Step Outcome & Gatekeeper Navigation Lock State
-  const [selectedMasterCategory, setSelectedMasterCategory] = useState<"interested" | "callback" | "not_interested" | "unreachable" | null>(null);
+  // Dynamic Call Outcome & Gatekeeper Navigation Lock State
   const [callOutcomePending, setCallOutcomePending] = useState(false);
-  const [selectedRejectionReason, setSelectedRejectionReason] = useState<string>("");
   const [autoAdvanceOnSave, setAutoAdvanceOnSave] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("dreamdesk_auto_advance_leads") !== "0";
@@ -271,9 +269,9 @@ export function EnhancedLeadDrawer({
   };
 
   // Navigation Gatekeeper Lock:
-  // Blocks stepper navigation if a call is active, call outcome is pending, a category tile is selected, or call notes have been typed.
+  // Blocks stepper navigation if a call is active, call outcome is pending, a disposition is selected, or call notes have been typed.
   const isNavigationLocked = Boolean(
-    isCalling || callOutcomePending || selectedMasterCategory || (callNotes.trim().length > 0)
+    isCalling || callOutcomePending || selectedDispId || (callNotes.trim().length > 0)
   );
 
   const handleAttemptClose = () => {
@@ -283,7 +281,8 @@ export function EnhancedLeadDrawer({
       );
       if (!confirmDiscard) return;
       setCallOutcomePending(false);
-      setSelectedMasterCategory(null);
+      setSelectedDispId("");
+      setSelectedSubDispId("");
       setCallNotes("");
     }
     onClose();
@@ -525,7 +524,8 @@ export function EnhancedLeadDrawer({
       }
 
       setCallNotes("");
-      setSelectedMasterCategory(null);
+      setSelectedDispId("");
+      setSelectedSubDispId("");
       setCallOutcomePending(false);
       setToastMessage(`Logged "${opt.label}" (Attempt #${updatedLead.attempt_count || 1}). Lead remains active for retry.`);
       setSuccessToast(true);
@@ -544,47 +544,37 @@ export function EnhancedLeadDrawer({
     }
   };
 
-  const handleSaveSimplifiedOutcome = async () => {
-    if (!lead || !selectedMasterCategory) return;
+  const handleSaveDynamicOutcome = async (specificDisp?: Disposition) => {
+    if (!lead) return;
+    const targetDisp = specificDisp || campaignDispositions.find((d) => d.id === selectedDispId);
+    if (!targetDisp) {
+      alert("Please select a call disposition outcome.");
+      return;
+    }
 
-    let targetDispId = "";
+    if (targetDisp.requires_callback && !callbackDate) {
+      alert("Please specify a callback date and time for follow-up.");
+      return;
+    }
+
+    const isUnreach =
+      targetDisp.category === "unreachable" ||
+      ["RNR", "BUSY", "SWITCH_OFF", "INVALID_NUM"].includes(targetDisp.code);
+
     let targetStatus: string | undefined = undefined;
-    let computedNotes = callNotes.trim();
+    if (targetDisp.code === "ADM_SUBMITTED") targetStatus = "Admitted";
+    else if (targetDisp.category === "positive" || targetDisp.code === "INT_HIGH") targetStatus = "Interested";
+    else if (targetDisp.requires_callback) targetStatus = "Follow-up";
+    else if (targetDisp.category === "negative") targetStatus = "Not Interested";
+    else if (isUnreach) targetStatus = undefined; // backend handles retry count / max attempts
+    else targetStatus = "Contacted";
 
-    if (selectedMasterCategory === "interested") {
-      const disp = campaignDispositions.find(
-        (d) => d.category === "positive" || d.code === "INT_HIGH" || d.code === "COUNS_BOOKED" || d.name.toLowerCase().includes("interested")
-      ) || campaignDispositions.find((d) => d.category === "positive");
-      targetDispId = disp?.id || "disp_interested";
-      targetStatus = "Interested";
-      if (!computedNotes) {
-        computedNotes = "Student expressed interest in admission / program.";
+    let notesToSave = callNotes.trim();
+    if (selectedSubDispId) {
+      const sub = targetDisp.sub_dispositions?.find((s) => s.id === selectedSubDispId);
+      if (sub) {
+        notesToSave = notesToSave ? `[${sub.name}] ${notesToSave}` : `Reason: ${sub.name}`;
       }
-    } else if (selectedMasterCategory === "callback") {
-      if (!callbackDate) {
-        alert("Please specify a follow-up callback date and time.");
-        return;
-      }
-      const disp = campaignDispositions.find(
-        (d) => d.requires_callback || d.code === "CALLBACK" || d.name.toLowerCase().includes("call back")
-      ) || campaignDispositions[0];
-      targetDispId = disp?.id || "disp_callback";
-      targetStatus = "Follow-up";
-    } else if (selectedMasterCategory === "not_interested") {
-      if (!selectedRejectionReason) {
-        alert("Please select a reason for Not Interested.");
-        return;
-      }
-      const matchedDisp = negativeDisps.find((d) => d.id === selectedRejectionReason || d.name === selectedRejectionReason);
-      if (matchedDisp) {
-        targetDispId = matchedDisp.id;
-        computedNotes = computedNotes ? `[${matchedDisp.name}] ${computedNotes}` : `Reason: ${matchedDisp.name}`;
-      } else {
-        const fallbackNeg = negativeDisps[0];
-        targetDispId = fallbackNeg?.id || "disp_not_interested";
-        computedNotes = computedNotes ? `[${selectedRejectionReason}] ${computedNotes}` : `Reason: ${selectedRejectionReason}`;
-      }
-      targetStatus = "Not Interested";
     }
 
     setSavingDisp(true);
@@ -593,11 +583,12 @@ export function EnhancedLeadDrawer({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          disposition_id: targetDispId,
-          call_outcome: "connected",
-          notes: computedNotes || undefined,
+          disposition_id: targetDisp.id,
+          sub_disposition_id: selectedSubDispId || undefined,
+          call_outcome: isUnreach ? "unreachable" : "connected",
+          notes: notesToSave || undefined,
           status: targetStatus,
-          callback_at: selectedMasterCategory === "callback" ? callbackDate : undefined,
+          callback_at: targetDisp.requires_callback && callbackDate ? callbackDate : undefined,
         }),
       });
 
@@ -610,17 +601,18 @@ export function EnhancedLeadDrawer({
       if (onLeadUpdated) {
         onLeadUpdated(updatedLead);
       }
-      if (lead?.id) {
+      if (lead.id) {
         fetchActivities(lead.id);
+        fetchLockStatus(lead.id);
       }
 
-      setSelectedMasterCategory(null);
-      setSelectedRejectionReason("");
+      setSelectedDispId("");
+      setSelectedSubDispId("");
       setCallbackDate("");
       setCallNotes("");
       setCallOutcomePending(false);
 
-      setToastMessage("Call outcome recorded successfully! Lifecycle updated.");
+      setToastMessage(`Call outcome "${targetDisp.name}" and rank score saved successfully!`);
       setSuccessToast(true);
       setTimeout(() => setSuccessToast(false), 3500);
 
@@ -636,101 +628,35 @@ export function EnhancedLeadDrawer({
     }
   };
 
-  const handleSaveConnectedDisposition = async () => {
-    if (!lead) return;
-    if (!selectedDispId) {
-      alert("Please select a call outcome before saving.");
-      return;
-    }
-    if (requiresCallback && !callbackDate) {
-      alert("Please specify a follow-up callback date and time.");
-      return;
-    }
-    setSavingDisp(true);
-    try {
-      const res = await fetch(`/api/leads/${lead.id}/disposition`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          disposition_id: selectedDispId,
-          sub_disposition_id: selectedSubDispId || null,
-          call_outcome: "connected",
-          notes: callNotes.trim() || undefined,
-          callback_at: requiresCallback && callbackDate ? callbackDate : null,
-        }),
-      });
+  // Active dispositions for dynamic rendering
+  const activeReachableDisps = campaignDispositions.filter(
+    (d) => d.is_active !== 0 && d.category !== "unreachable"
+  );
+  const dynamicUnreachableDisps = campaignDispositions.filter(
+    (d) => d.category === "unreachable" && d.is_active !== 0
+  );
 
-      if (!res.ok) throw new Error("Failed to save call disposition");
-      const updatedLead = await res.json();
-
-      if (onLeadUpdated) {
-        onLeadUpdated(updatedLead);
-      }
-      if (lead?.id) {
-        fetchActivities(lead.id);
-      }
-
-      setCallNotes("");
-      setToastMessage("Connected call outcome and conversation saved successfully!");
-      setSuccessToast(true);
-      setTimeout(() => setSuccessToast(false), 3500);
-    } catch (err: any) {
-      alert("Error: " + err.message);
-    } finally {
-      setSavingDisp(false);
-    }
-  };
-
-  // Group dispositions by category
-  const positiveDisps = campaignDispositions.filter((d) => d.category === "positive");
-  const neutralDisps = campaignDispositions.filter((d) => d.category === "neutral");
-  const unreachableDisps = campaignDispositions.filter((d) => d.category === "unreachable");
-  const negativeDisps = campaignDispositions.filter((d) => d.category === "negative" && d.code !== "INVALID_NUM");
-
-  const unreachableOptions = [
-    {
-      id: campaignDispositions.find((d) => d.code === "RNR")?.id || "disp_rnr",
-      label: "Ringing - No Response",
-      icon: "📞",
-      code: "RNR",
-    },
-    {
-      id: campaignDispositions.find((d) => d.code === "BUSY")?.id || "disp_busy",
-      label: "Line Busy / Cut",
-      icon: "📵",
-      code: "BUSY",
-    },
-    {
-      id: campaignDispositions.find((d) => d.code === "SWITCH_OFF")?.id || "disp_switched_off",
-      label: "Switched Off",
-      icon: "📴",
-      code: "SWITCH_OFF",
-    },
-    {
-      id: campaignDispositions.find((d) => d.code === "INVALID_NUM")?.id || "disp_invalid_num",
-      label: "Invalid / Wrong Number",
-      icon: "🚫",
-      code: "INVALID_NUM",
-    },
-  ];
-
-  const standardRejectionReasons = [
-    "Fees too high / Budget constraint",
-    "Enrolled in another college / institute",
-    "Looking for distance / online course only",
-    "Location / Distance too far",
-    "Not eligible / Stream mismatch",
-    "Parent / Family refused permission",
-    "Dropping a year / Preparing for entrance exams",
-    "Wrong inquiry / Not looking for admission",
-  ];
-
-  const availableRejectionOptions = [
-    ...negativeDisps.map((d) => ({ id: d.id, label: d.name })),
-    ...standardRejectionReasons
-      .filter((r) => !negativeDisps.some((d) => d.name.toLowerCase() === r.toLowerCase()))
-      .map((r) => ({ id: r, label: r })),
-  ];
+  const unreachableOptions =
+    dynamicUnreachableDisps.length > 0
+      ? dynamicUnreachableDisps.map((d) => {
+          let icon = "📵";
+          if (d.code === "RNR") icon = "📞";
+          else if (d.code === "BUSY") icon = "📵";
+          else if (d.code === "SWITCH_OFF") icon = "📴";
+          else if (d.code === "INVALID_NUM") icon = "🚫";
+          return {
+            id: d.id,
+            label: d.name,
+            icon,
+            code: d.code,
+          };
+        })
+      : [
+          { id: "disp_rnr", label: "Ringing - No Response", icon: "📞", code: "RNR" },
+          { id: "disp_busy", label: "Line Busy / Cut", icon: "📵", code: "BUSY" },
+          { id: "disp_switched_off", label: "Switched Off", icon: "📴", code: "SWITCH_OFF" },
+          { id: "disp_invalid_num", label: "Invalid / Wrong Number", icon: "🚫", code: "INVALID_NUM" },
+        ];
 
   // Initials for avatar
   const initials = (lead.name || "S")
@@ -1078,13 +1004,15 @@ export function EnhancedLeadDrawer({
                   </div>
 
                   <div className="flex items-center gap-3">
-                    {selectedMasterCategory && (
+                    {(selectedDispId || callNotes.trim().length > 0) && (
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          setSelectedMasterCategory(null);
-                          setSelectedRejectionReason("");
+                          setSelectedDispId("");
+                          setSelectedSubDispId("");
+                          setCallbackDate("");
+                          setCallNotes("");
                         }}
                         className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
                       >
@@ -1108,344 +1036,351 @@ export function EnhancedLeadDrawer({
                   </div>
                 </div>
 
-                {/* 4 Master Outcome Tiles */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  {/* Tile 1: Interested */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedMasterCategory(selectedMasterCategory === "interested" ? null : "interested");
-                    }}
-                    className={cn(
-                      "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 relative overflow-hidden",
-                      selectedMasterCategory === "interested"
-                        ? "bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-300 ring-2 ring-emerald-500/30 shadow-xs"
-                        : "bg-background border-border/80 hover:bg-emerald-500/5 hover:border-emerald-500/40 text-foreground"
-                    )}
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                        <CheckCircle2 className="w-4 h-4" />
-                      </div>
-                      {selectedMasterCategory === "interested" && (
-                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                      )}
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold leading-tight">Interested</div>
-                      <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
-                        Wants admission / info
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* Tile 2: Callback / Follow-up */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedMasterCategory(selectedMasterCategory === "callback" ? null : "callback");
-                      if (!callbackDate) {
-                        setCallbackInHours(2);
-                      }
-                    }}
-                    className={cn(
-                      "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 relative overflow-hidden",
-                      selectedMasterCategory === "callback"
-                        ? "bg-amber-500/15 border-amber-500 text-amber-800 dark:text-amber-300 ring-2 ring-amber-500/30 shadow-xs"
-                        : "bg-background border-border/80 hover:bg-amber-500/5 hover:border-amber-500/40 text-foreground"
-                    )}
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-                        <Clock className="w-4 h-4" />
-                      </div>
-                      {selectedMasterCategory === "callback" && (
-                        <span className="w-2 h-2 rounded-full bg-amber-500" />
-                      )}
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold leading-tight">Follow-up</div>
-                      <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
-                        Schedule next callback
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* Tile 3: Not Interested */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedMasterCategory(selectedMasterCategory === "not_interested" ? null : "not_interested");
-                    }}
-                    className={cn(
-                      "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 relative overflow-hidden",
-                      selectedMasterCategory === "not_interested"
-                        ? "bg-rose-500/15 border-rose-500 text-rose-800 dark:text-rose-300 ring-2 ring-rose-500/30 shadow-xs"
-                        : "bg-background border-border/80 hover:bg-rose-500/5 hover:border-rose-500/40 text-foreground"
-                    )}
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <div className="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center">
-                        <UserX className="w-4 h-4" />
-                      </div>
-                      {selectedMasterCategory === "not_interested" && (
-                        <span className="w-2 h-2 rounded-full bg-rose-500" />
-                      )}
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold leading-tight">Not Interested</div>
-                      <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
-                        Drop / enrolled elsewhere
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* Tile 4: Unreachable */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedMasterCategory(selectedMasterCategory === "unreachable" ? null : "unreachable");
-                    }}
-                    className={cn(
-                      "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 relative overflow-hidden",
-                      selectedMasterCategory === "unreachable"
-                        ? "bg-orange-500/15 border-orange-500 text-orange-800 dark:text-orange-300 ring-2 ring-orange-500/30 shadow-xs"
-                        : "bg-background border-border/80 hover:bg-orange-500/5 hover:border-orange-500/40 text-foreground"
-                    )}
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <div className="w-7 h-7 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center">
-                        <PhoneOff className="w-4 h-4" />
-                      </div>
-                      {selectedMasterCategory === "unreachable" && (
-                        <span className="w-2 h-2 rounded-full bg-orange-500" />
-                      )}
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold leading-tight">Unreachable</div>
-                      <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
-                        RNR / busy / switched off
-                      </div>
-                    </div>
-                  </button>
-                </div>
-
-                {/* Secondary Contextual Input Panels */}
-                {/* 1. Contextual Panel: Interested */}
-                {selectedMasterCategory === "interested" && (
-                  <div className="p-3.5 rounded-xl bg-emerald-500/5 border border-emerald-500/30 space-y-3 animate-in fade-in-50 duration-200">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-emerald-800 dark:text-emerald-300 flex items-center justify-between">
-                        <span>Call Notes / Student Inquiry Summary</span>
-                        <span className="text-[10px] font-normal text-muted-foreground">Optional</span>
-                      </label>
-                      <Textarea
-                        value={callNotes}
-                        onChange={(e) => setCallNotes(e.target.value)}
-                        placeholder="e.g. Inquired about B.Tech CSE fee structure, planning on-campus counseling visit with father on Saturday..."
-                        className="text-xs min-h-[64px] bg-background border-border/80 focus-visible:ring-emerald-500 resize-none"
-                      />
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] text-muted-foreground">
-                        Will set stage to <strong className="text-emerald-600 dark:text-emerald-400">Interested</strong>
-                      </span>
-                      <Button
-                        size="sm"
-                        disabled={savingDisp}
-                        onClick={handleSaveSimplifiedOutcome}
-                        className="h-8 px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-xs cursor-pointer gap-1.5"
-                      >
-                        {savingDisp ? <RotateCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                        <span>{autoAdvanceOnSave ? "Save & Next Student" : "Save Outcome"}</span>
-                      </Button>
-                    </div>
+                {/* Dynamic Disposition Outcome Cards */}
+                {activeReachableDisps.length === 0 ? (
+                  <div className="p-4 rounded-xl border border-dashed border-border/80 text-center text-xs text-muted-foreground">
+                    No active call dispositions configured for this campaign.
                   </div>
-                )}
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                    {activeReachableDisps.map((disp) => {
+                      const isSelected = selectedDispId === disp.id;
+                      const isPositive = disp.category === "positive";
+                      const isNeutral = disp.category === "neutral" || Boolean(disp.requires_callback);
+                      const isNegative = disp.category === "negative";
 
-                {/* 2. Contextual Panel: Follow-up / Callback */}
-                {selectedMasterCategory === "callback" && (
-                  <div className="p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/30 space-y-3 animate-in fade-in-50 duration-200">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-                          <Clock className="w-3.5 h-3.5 text-amber-600" />
-                          <span>Callback Date & Time <span className="text-rose-500">*</span></span>
-                        </label>
-                        <span className="text-[10px] text-muted-foreground">Required</span>
-                      </div>
-                      <Input
-                        type="datetime-local"
-                        value={callbackDate}
-                        onChange={(e) => setCallbackDate(e.target.value)}
-                        className="h-9 text-xs bg-background border-border/80 font-mono font-medium focus-visible:ring-amber-500"
-                      />
-                      {/* Fast Callback Time Presets */}
-                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      return (
                         <button
+                          key={disp.id}
                           type="button"
-                          onClick={() => setCallbackInHours(2)}
-                          className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                        >
-                          +2 Hours
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setCallbackInHours(4)}
-                          className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                        >
-                          +4 Hours
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setCallbackTomorrow(11)}
-                          className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                        >
-                          Tomorrow 11 AM
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setCallbackTomorrow(16)}
-                          className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                        >
-                          Tomorrow 4 PM
-                        </button>
-                        <button
-                          type="button"
-                          onClick={setCallbackNextMonday}
-                          className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                        >
-                          Next Monday 11 AM
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-amber-800 dark:text-amber-300 flex items-center justify-between">
-                        <span>Follow-up Note</span>
-                        <span className="text-[10px] font-normal text-muted-foreground">Optional</span>
-                      </label>
-                      <Textarea
-                        value={callNotes}
-                        onChange={(e) => setCallNotes(e.target.value)}
-                        placeholder="e.g. Currently in class / traveling, requested a call back in the evening..."
-                        className="text-xs min-h-[58px] bg-background border-border/80 focus-visible:ring-amber-500 resize-none"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] text-muted-foreground">
-                        Will set stage to <strong className="text-amber-600 dark:text-amber-400">Follow-up</strong>
-                      </span>
-                      <Button
-                        size="sm"
-                        disabled={savingDisp || !callbackDate}
-                        onClick={handleSaveSimplifiedOutcome}
-                        className="h-8 px-4 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-xs cursor-pointer gap-1.5 disabled:opacity-50"
-                      >
-                        {savingDisp ? <RotateCw className="w-3.5 h-3.5 animate-spin" /> : <CalendarClock className="w-3.5 h-3.5" />}
-                        <span>{autoAdvanceOnSave ? "Schedule & Next Student" : "Schedule Callback"}</span>
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {/* 3. Contextual Panel: Not Interested */}
-                {selectedMasterCategory === "not_interested" && (
-                  <div className="p-3.5 rounded-xl bg-rose-500/5 border border-rose-500/30 space-y-3 animate-in fade-in-50 duration-200">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
-                          <UserX className="w-3.5 h-3.5 text-rose-600" />
-                          <span>Rejection Reason <span className="text-rose-500">*</span></span>
-                        </label>
-                        <span className="text-[10px] text-muted-foreground">Required</span>
-                      </div>
-                      <Select
-                        value={selectedRejectionReason}
-                        onValueChange={(val) => setSelectedRejectionReason(val || "")}
-                      >
-                        <SelectTrigger className="h-9 text-xs rounded-xl border-border/80 bg-background font-medium focus:ring-rose-500">
-                          <SelectValue placeholder="Select primary rejection reason..." />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-56">
-                          {availableRejectionOptions.map((opt) => (
-                            <SelectItem key={opt.id} value={opt.id} className="text-xs">
-                              {opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-rose-800 dark:text-rose-300 flex items-center justify-between">
-                        <span>Additional Remarks</span>
-                        <span className="text-[10px] font-normal text-muted-foreground">Optional</span>
-                      </label>
-                      <Textarea
-                        value={callNotes}
-                        onChange={(e) => setCallNotes(e.target.value)}
-                        placeholder="e.g. Joined another college in hometown, not interested in relocating..."
-                        className="text-xs min-h-[58px] bg-background border-border/80 focus-visible:ring-rose-500 resize-none"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] text-muted-foreground">
-                        Will set stage to <strong className="text-rose-600 dark:text-rose-400">Not Interested</strong>
-                      </span>
-                      <Button
-                        size="sm"
-                        disabled={savingDisp || !selectedRejectionReason}
-                        onClick={handleSaveSimplifiedOutcome}
-                        className="h-8 px-4 text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white rounded-lg shadow-xs cursor-pointer gap-1.5 disabled:opacity-50"
-                      >
-                        {savingDisp ? <RotateCw className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
-                        <span>{autoAdvanceOnSave ? "Confirm & Next Student" : "Mark Not Interested"}</span>
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {/* 4. Contextual Panel: Unreachable (or Quick Shortcut Row when no category is active) */}
-                {(selectedMasterCategory === "unreachable" || !selectedMasterCategory) && (
-                  <div className="space-y-2 pt-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                        <PhoneOff className="w-3 h-3 text-orange-600" />
-                        <span>Instant 1-Click Unreachable Loggers</span>
-                      </span>
-                      <span className="text-[10px] text-muted-foreground font-mono">
-                        Attempt {(lead.attempt_count || 0)}/3 • 3h Cooldown
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {unreachableOptions.map((opt) => (
-                        <Button
-                          key={opt.code}
-                          variant="outline"
-                          size="sm"
-                          disabled={loggingUnreachableId !== null || savingDisp}
-                          onClick={() => handleInstantUnreachable(opt)}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedDispId("");
+                              setSelectedSubDispId("");
+                            } else {
+                              setSelectedDispId(disp.id);
+                              setSelectedSubDispId("");
+                              if (disp.requires_callback && !callbackDate) {
+                                setCallbackInHours(2);
+                              }
+                            }
+                          }}
                           className={cn(
-                            "h-9 px-2 text-xs font-semibold justify-start border-border/80 hover:bg-orange-500/10 hover:border-orange-500/40 hover:text-orange-700 dark:hover:text-orange-400 rounded-xl transition-all gap-1.5 cursor-pointer truncate",
-                            loggingUnreachableId === opt.id && "bg-orange-500/15 border-orange-500"
+                            "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 relative overflow-hidden",
+                            isSelected
+                              ? isPositive
+                                ? "bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-300 ring-2 ring-emerald-500/30 shadow-xs"
+                                : isNeutral
+                                ? "bg-amber-500/15 border-amber-500 text-amber-800 dark:text-amber-300 ring-2 ring-amber-500/30 shadow-xs"
+                                : isNegative
+                                ? "bg-rose-500/15 border-rose-500 text-rose-800 dark:text-rose-300 ring-2 ring-rose-500/30 shadow-xs"
+                                : "bg-primary/15 border-primary text-primary ring-2 ring-primary/30 shadow-xs"
+                              : "bg-background border-border/80 hover:bg-muted/50 text-foreground"
                           )}
-                          title={`Log ${opt.label} and apply 3h retry cooldown`}
                         >
-                          {loggingUnreachableId === opt.id ? (
-                            <RotateCw className="w-3.5 h-3.5 animate-spin text-orange-600 shrink-0" />
-                          ) : (
-                            <span className="shrink-0">{opt.icon}</span>
+                          <div className="flex items-center justify-between w-full">
+                            <div
+                              className={cn(
+                                "w-7 h-7 rounded-lg flex items-center justify-center shrink-0",
+                                isPositive
+                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                  : isNeutral
+                                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                  : isNegative
+                                  ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                                  : "bg-primary/10 text-primary"
+                              )}
+                            >
+                              {isPositive ? (
+                                <CheckCircle2 className="w-4 h-4" />
+                              ) : isNeutral ? (
+                                <Clock className="w-4 h-4" />
+                              ) : isNegative ? (
+                                <UserX className="w-4 h-4" />
+                              ) : (
+                                <PhoneCall className="w-4 h-4" />
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "text-[10px] px-1.5 py-0 font-mono font-semibold border-0",
+                                  disp.score > 0
+                                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                                    : disp.score < 0
+                                    ? "bg-rose-500/15 text-rose-700 dark:text-rose-400"
+                                    : "bg-muted text-muted-foreground"
+                                )}
+                              >
+                                {disp.score > 0 ? `+${disp.score}` : disp.score}
+                              </Badge>
+                              {isSelected && (
+                                <span
+                                  className={cn(
+                                    "w-2 h-2 rounded-full",
+                                    isPositive
+                                      ? "bg-emerald-500"
+                                      : isNeutral
+                                      ? "bg-amber-500"
+                                      : isNegative
+                                      ? "bg-rose-500"
+                                      : "bg-primary"
+                                  )}
+                                />
+                              )}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-xs font-bold leading-tight line-clamp-1" title={disp.name}>
+                              {disp.name}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground leading-tight mt-0.5 line-clamp-1">
+                              {disp.requires_callback
+                                ? "Schedule callback"
+                                : disp.sub_dispositions && disp.sub_dispositions.length > 0
+                                ? `${disp.sub_dispositions.length} sub-options`
+                                : disp.category.charAt(0).toUpperCase() + disp.category.slice(1)}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Contextual Input Panel for Selected Disposition */}
+                {selectedDispObj && (
+                  <div
+                    className={cn(
+                      "p-3.5 rounded-xl border space-y-3.5 animate-in fade-in-50 duration-200",
+                      selectedDispObj.category === "positive"
+                        ? "bg-emerald-500/5 border-emerald-500/30"
+                        : selectedDispObj.category === "neutral" || selectedDispObj.requires_callback
+                        ? "bg-amber-500/5 border-amber-500/30"
+                        : selectedDispObj.category === "negative"
+                        ? "bg-rose-500/5 border-rose-500/30"
+                        : "bg-primary/5 border-primary/30"
+                    )}
+                  >
+                    {/* Header showing outcome and score effect */}
+                    <div className="flex items-center justify-between pb-1 border-b border-border/40">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-foreground">
+                          {selectedDispObj.name}
+                        </span>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[10px] px-1.5 py-0 font-medium",
+                            selectedDispObj.score > 0
+                              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
+                              : selectedDispObj.score < 0
+                              ? "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30"
+                              : "bg-muted text-muted-foreground border-border/80"
                           )}
-                          <span className="truncate">{opt.label}</span>
-                        </Button>
-                      ))}
+                        >
+                          {selectedDispObj.score > 0 ? `+${selectedDispObj.score} pts` : `${selectedDispObj.score} pts`} Lead Score
+                        </Badge>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedDispId("");
+                          setSelectedSubDispId("");
+                        }}
+                        className="text-[11px] text-muted-foreground hover:text-foreground cursor-pointer underline"
+                      >
+                        Cancel selection
+                      </button>
+                    </div>
+
+                    {/* Dynamic Sub-dispositions / Reasons */}
+                    {selectedDispObj.sub_dispositions && selectedDispObj.sub_dispositions.length > 0 && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-primary" />
+                            <span>Specific Reason / Sub-Outcome</span>
+                          </label>
+                          <span className="text-[10px] text-muted-foreground">Optional</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedDispObj.sub_dispositions.map((sub) => {
+                            const isSubActive = selectedSubDispId === sub.id;
+                            return (
+                              <button
+                                key={sub.id}
+                                type="button"
+                                onClick={() => setSelectedSubDispId(isSubActive ? "" : sub.id)}
+                                className={cn(
+                                  "px-2.5 py-1 text-xs font-medium rounded-lg border transition-all cursor-pointer flex items-center gap-1.5",
+                                  isSubActive
+                                    ? "bg-primary text-primary-foreground border-primary shadow-xs ring-1 ring-primary/40 font-semibold"
+                                    : "bg-background border-border/80 hover:bg-muted text-foreground"
+                                )}
+                              >
+                                <span>{sub.name}</span>
+                                {sub.score !== undefined && sub.score !== 0 && (
+                                  <span
+                                    className={cn(
+                                      "text-[10px] px-1 py-0.2 rounded font-mono",
+                                      isSubActive ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+                                    )}
+                                  >
+                                    {sub.score > 0 ? `+${sub.score}` : sub.score}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Conditional Callback Date & Time (if requires_callback) */}
+                    {selectedDispObj.requires_callback === 1 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Callback Date & Time <span className="text-rose-500">*</span></span>
+                          </label>
+                          <span className="text-[10px] text-muted-foreground">Required</span>
+                        </div>
+                        <Input
+                          type="datetime-local"
+                          value={callbackDate}
+                          onChange={(e) => setCallbackDate(e.target.value)}
+                          className="h-9 text-xs bg-background border-border/80 font-mono font-medium focus-visible:ring-amber-500"
+                        />
+                        {/* Fast Callback Time Presets */}
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => setCallbackInHours(2)}
+                            className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                          >
+                            +2 Hours
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCallbackInHours(4)}
+                            className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                          >
+                            +4 Hours
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCallbackTomorrow(11)}
+                            className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                          >
+                            Tomorrow 11 AM
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCallbackTomorrow(16)}
+                            className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                          >
+                            Tomorrow 4 PM
+                          </button>
+                          <button
+                            type="button"
+                            onClick={setCallbackNextMonday}
+                            className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                          >
+                            Next Monday 11 AM
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Notes / Remarks Field */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                        <span>Call Notes / Inquiries / Objections</span>
+                        <span className="text-[10px] font-normal text-muted-foreground">Optional</span>
+                      </label>
+                      <Textarea
+                        value={callNotes}
+                        onChange={(e) => setCallNotes(e.target.value)}
+                        placeholder="e.g. Student inquiring about fees, entrance test scores, campus visit, or parent discussion..."
+                        className="text-xs min-h-[58px] bg-background border-border/80 resize-none focus-visible:ring-primary"
+                      />
+                    </div>
+
+                    {/* Save Action Row */}
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <span className="text-[11px] text-muted-foreground truncate">
+                        Stage will update to{" "}
+                        <strong className="text-foreground">
+                          {selectedDispObj.code === "ADM_SUBMITTED"
+                            ? "Admitted"
+                            : selectedDispObj.category === "positive" || selectedDispObj.code === "INT_HIGH"
+                            ? "Interested"
+                            : selectedDispObj.requires_callback
+                            ? "Follow-up"
+                            : selectedDispObj.category === "negative"
+                            ? "Not Interested"
+                            : "Contacted"}
+                        </strong>
+                      </span>
+                      <Button
+                        size="sm"
+                        disabled={savingDisp || Boolean(selectedDispObj.requires_callback && !callbackDate)}
+                        onClick={() => handleSaveDynamicOutcome()}
+                        className="h-8 px-4 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg shadow-xs cursor-pointer gap-1.5 shrink-0 disabled:opacity-50"
+                      >
+                        {savingDisp ? (
+                          <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        )}
+                        <span>{autoAdvanceOnSave && hasNextLead ? "Save & Next Student" : "Save Outcome"}</span>
+                      </Button>
                     </div>
                   </div>
                 )}
+
+                {/* Instant 1-Click Unreachable Attempts Section */}
+                <div className="space-y-2 pt-1 border-t border-border/60">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                      <PhoneOff className="w-3 h-3 text-orange-600" />
+                      <span>Instant 1-Click Unreachable Loggers</span>
+                    </span>
+                    <span className="text-[10px] text-muted-foreground font-mono">
+                      Attempt {lead.attempt_count || 0}/3 • 3h Cooldown
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {unreachableOptions.map((opt) => (
+                      <Button
+                        key={opt.code}
+                        variant="outline"
+                        size="sm"
+                        disabled={loggingUnreachableId !== null || savingDisp}
+                        onClick={() => handleInstantUnreachable(opt)}
+                        className={cn(
+                          "h-9 px-2 text-xs font-semibold justify-start border-border/80 hover:bg-orange-500/10 hover:border-orange-500/40 hover:text-orange-700 dark:hover:text-orange-400 rounded-xl transition-all gap-1.5 cursor-pointer truncate",
+                          loggingUnreachableId === opt.id && "bg-orange-500/15 border-orange-500"
+                        )}
+                        title={`Log ${opt.label} and apply 3h retry cooldown`}
+                      >
+                        {loggingUnreachableId === opt.id ? (
+                          <RotateCw className="w-3.5 h-3.5 animate-spin text-orange-600 shrink-0" />
+                        ) : (
+                          <span className="shrink-0">{opt.icon}</span>
+                        )}
+                        <span className="truncate">{opt.label}</span>
+                      </Button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Counselor, Stage, Campaign & Tags Management (Supervisors / Admins Only) */}
@@ -1939,15 +1874,15 @@ export function EnhancedLeadDrawer({
             </Button>
           ) : null}
 
-          {selectedMasterCategory ? (
+          {selectedDispId ? (
             <Button
               size="sm"
-              onClick={handleSaveSimplifiedOutcome}
-              disabled={savingDisp}
+              onClick={() => handleSaveDynamicOutcome()}
+              disabled={savingDisp || Boolean(selectedDispObj?.requires_callback && !callbackDate)}
               className="flex-1 h-11 text-xs font-bold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-xs cursor-pointer"
             >
               <Save className="w-4 h-4" />
-              <span>{savingDisp ? "Saving..." : "Save Outcome"}</span>
+              <span>{savingDisp ? "Saving..." : autoAdvanceOnSave && hasNextLead ? "Save & Next" : "Save Outcome"}</span>
             </Button>
           ) : null}
         </div>

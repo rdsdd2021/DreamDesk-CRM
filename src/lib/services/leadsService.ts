@@ -28,6 +28,7 @@ import {
 import { PolicyService } from "@/lib/services/policyService";
 import { TasksService } from "@/lib/services/tasksService";
 import { AuthService } from "@/lib/services/authService";
+import { ScoringService } from "@/lib/services/scoringService";
 
 /**
  * Normalizes phone numbers to standard 10-digit format (or clean digits)
@@ -1692,8 +1693,9 @@ export class LeadsService {
    */
   static getDispositions(campaignId?: string): Disposition[] {
     const db = getDatabase();
+    let rows: any[] = [];
     if (campaignId) {
-      const rows = db
+      rows = db
         .prepare(
           `SELECT d.* 
            FROM dispositions d
@@ -1705,16 +1707,15 @@ export class LeadsService {
 
       // If no campaign-specific dispositions found, fallback to all active
       if (rows.length === 0) {
-        return db
+        rows = db
           .prepare(`SELECT * FROM dispositions WHERE is_active = 1 ORDER BY display_order ASC, score DESC`)
-          .all() as Disposition[];
+          .all() as any[];
       }
-      return rows;
+    } else {
+      rows = db
+        .prepare(`SELECT * FROM dispositions ORDER BY display_order ASC, score DESC`)
+        .all() as any[];
     }
-
-    const rows = db
-      .prepare(`SELECT * FROM dispositions ORDER BY display_order ASC, score DESC`)
-      .all() as any[];
 
     // Fetch linked campaign IDs
     const links = db
@@ -2244,6 +2245,14 @@ export class LeadsService {
       cooldownUntil: cooldownUntil,
       callOutcome: finalCallOutcome,
     });
+
+    // Automatically recalculate composite Lead Ranking Score (0-100)
+    let newScore = currentLead.raw_attributes?.score || 50;
+    try {
+      newScore = ScoringService.recalculateLead(leadId);
+    } catch (sErr) {
+      console.error("Failed to recalculate lead score:", sErr);
+    }
 
     const counselorName = currentUser?.name || currentLead.assigned_user_name || "Counselor";
     const counselorId = currentUser?.id || currentLead.assigned_to || null;
