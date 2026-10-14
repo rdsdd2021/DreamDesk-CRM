@@ -1042,7 +1042,7 @@ export function EnhancedLeadDrawer({
                     No active call dispositions configured for this campaign.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                     {activeReachableDisps.map((disp) => {
                       const isSelected = selectedDispId === disp.id;
                       const isPositive = disp.category === "positive";
@@ -1066,7 +1066,7 @@ export function EnhancedLeadDrawer({
                             }
                           }}
                           className={cn(
-                            "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 relative overflow-hidden",
+                            "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2.5 min-h-[96px] relative overflow-hidden",
                             isSelected
                               ? isPositive
                                 ? "bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-300 ring-2 ring-emerald-500/30 shadow-xs"
@@ -1133,11 +1133,11 @@ export function EnhancedLeadDrawer({
                             </div>
                           </div>
 
-                          <div>
-                            <div className="text-xs font-bold leading-tight line-clamp-1" title={disp.name}>
+                          <div className="flex-1 flex flex-col justify-end">
+                            <div className="text-xs font-bold leading-snug break-words hyphens-auto" title={disp.name}>
                               {disp.name}
                             </div>
-                            <div className="text-[10px] text-muted-foreground leading-tight mt-0.5 line-clamp-1">
+                            <div className="text-[10px] text-muted-foreground leading-tight mt-1 truncate">
                               {disp.requires_callback
                                 ? "Schedule callback"
                                 : disp.sub_dispositions && disp.sub_dispositions.length > 0
@@ -1357,7 +1357,7 @@ export function EnhancedLeadDrawer({
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2">
                     {unreachableOptions.map((opt) => (
                       <Button
                         key={opt.code}
@@ -1366,7 +1366,7 @@ export function EnhancedLeadDrawer({
                         disabled={loggingUnreachableId !== null || savingDisp}
                         onClick={() => handleInstantUnreachable(opt)}
                         className={cn(
-                          "h-9 px-2 text-xs font-semibold justify-start border-border/80 hover:bg-orange-500/10 hover:border-orange-500/40 hover:text-orange-700 dark:hover:text-orange-400 rounded-xl transition-all gap-1.5 cursor-pointer truncate",
+                          "h-auto min-h-[38px] py-1.5 px-2.5 text-xs font-semibold justify-start border-border/80 hover:bg-orange-500/10 hover:border-orange-500/40 hover:text-orange-700 dark:hover:text-orange-400 rounded-xl transition-all gap-2 cursor-pointer",
                           loggingUnreachableId === opt.id && "bg-orange-500/15 border-orange-500"
                         )}
                         title={`Log ${opt.label} and apply 3h retry cooldown`}
@@ -1374,9 +1374,9 @@ export function EnhancedLeadDrawer({
                         {loggingUnreachableId === opt.id ? (
                           <RotateCw className="w-3.5 h-3.5 animate-spin text-orange-600 shrink-0" />
                         ) : (
-                          <span className="shrink-0">{opt.icon}</span>
+                          <span className="shrink-0 text-sm">{opt.icon}</span>
                         )}
-                        <span className="truncate">{opt.label}</span>
+                        <span className="leading-tight text-left line-clamp-2">{opt.label}</span>
                       </Button>
                     ))}
                   </div>
