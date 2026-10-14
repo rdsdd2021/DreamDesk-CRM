@@ -12,7 +12,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -70,6 +72,9 @@ import {
   Lock,
   ShieldAlert,
   ShieldCheck,
+  PhoneOff,
+  UserX,
+  XCircle,
 } from "lucide-react";
 
 interface EnhancedLeadDrawerProps {
@@ -160,6 +165,17 @@ export function EnhancedLeadDrawer({
   const [loggingUnreachableId, setLoggingUnreachableId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState("Call disposition and note saved successfully!");
 
+  // Streamlined 2-Step Outcome & Gatekeeper Navigation Lock State
+  const [selectedMasterCategory, setSelectedMasterCategory] = useState<"interested" | "callback" | "not_interested" | "unreachable" | null>(null);
+  const [callOutcomePending, setCallOutcomePending] = useState(false);
+  const [selectedRejectionReason, setSelectedRejectionReason] = useState<string>("");
+  const [autoAdvanceOnSave, setAutoAdvanceOnSave] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("dreamdesk_auto_advance_leads") !== "0";
+    }
+    return true;
+  });
+
   // Immutable Audit Trail Timeline State
   const [activities, setActivities] = useState<LeadActivity[]>([]);
   const [loadingActivities, setLoadingActivities] = useState(false);
@@ -233,6 +249,7 @@ export function EnhancedLeadDrawer({
 
   const handleStartCall = () => {
     setIsCalling(true);
+    setCallOutcomePending(true);
     setCallDuration(0);
     if (lead?.phone) {
       window.location.href = `tel:${lead.phone}`;
@@ -244,11 +261,31 @@ export function EnhancedLeadDrawer({
     const secs = callDuration % 60;
     const durStr = `${mins}m ${secs.toString().padStart(2, "0")}s`;
     setIsCalling(false);
+    setCallOutcomePending(true);
     setCallNotes((prev) =>
       prev ? `[Call Duration: ${durStr}]\n${prev}` : `[Call Duration: ${durStr}] `
     );
-    // Auto switch to calls tab so the telecaller can immediately log the disposition
-    setActiveTab("calls");
+    // Switch to overview tab so telecaller has the 4 outcome tiles immediately available
+    setActiveTab("overview");
+  };
+
+  // Navigation Gatekeeper Lock:
+  // Blocks stepper navigation if a call is active, call outcome is pending, a category tile is selected, or call notes have been typed.
+  const isNavigationLocked = Boolean(
+    isCalling || callOutcomePending || selectedMasterCategory || (callNotes.trim().length > 0)
+  );
+
+  const handleAttemptClose = () => {
+    if (isNavigationLocked) {
+      const confirmDiscard = window.confirm(
+        "You have an active call or unsaved call outcome. Discard changes and close without saving?"
+      );
+      if (!confirmDiscard) return;
+      setCallOutcomePending(false);
+      setSelectedMasterCategory(null);
+      setCallNotes("");
+    }
+    onClose();
   };
 
   const handleSendWhatsAppTemplate = (templateText: string) => {
@@ -400,15 +437,27 @@ export function EnhancedLeadDrawer({
       }
       if (e.key === "[" || (e.key === "ArrowLeft" && e.altKey)) {
         e.preventDefault();
+        if (isNavigationLocked) {
+          setToastMessage("Please save the call outcome before navigating to another student.");
+          setSuccessToast(true);
+          setTimeout(() => setSuccessToast(false), 3000);
+          return;
+        }
         if (hasPrevLead && onPrevLead) onPrevLead();
       } else if (e.key === "]" || (e.key === "ArrowRight" && e.altKey)) {
         e.preventDefault();
+        if (isNavigationLocked) {
+          setToastMessage("Please save the call outcome before navigating to another student.");
+          setSuccessToast(true);
+          setTimeout(() => setSuccessToast(false), 3000);
+          return;
+        }
         if (hasNextLead && onNextLead) onNextLead();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, hasPrevLead, hasNextLead, onPrevLead, onNextLead]);
+  }, [isOpen, hasPrevLead, hasNextLead, onPrevLead, onNextLead, isNavigationLocked]);
 
   if (!lead) return null;
 
@@ -475,13 +524,114 @@ export function EnhancedLeadDrawer({
       }
 
       setCallNotes("");
+      setSelectedMasterCategory(null);
+      setCallOutcomePending(false);
       setToastMessage(`Logged "${opt.label}" (Attempt #${updatedLead.attempt_count || 1}). Lead remains active for retry.`);
       setSuccessToast(true);
       setTimeout(() => setSuccessToast(false), 3500);
+
+      // Auto-advance if enabled and next lead exists
+      if (autoAdvanceOnSave && hasNextLead && onNextLead) {
+        setTimeout(() => {
+          onNextLead();
+        }, 400);
+      }
     } catch (err: any) {
       alert("Error: " + err.message);
     } finally {
       setLoggingUnreachableId(null);
+    }
+  };
+
+  const handleSaveSimplifiedOutcome = async () => {
+    if (!lead || !selectedMasterCategory) return;
+
+    let targetDispId = "";
+    let targetStatus: string | undefined = undefined;
+    let computedNotes = callNotes.trim();
+
+    if (selectedMasterCategory === "interested") {
+      const disp = campaignDispositions.find(
+        (d) => d.category === "positive" || d.code === "INT_HIGH" || d.code === "COUNS_BOOKED" || d.name.toLowerCase().includes("interested")
+      ) || campaignDispositions.find((d) => d.category === "positive");
+      targetDispId = disp?.id || "disp_interested";
+      targetStatus = "Interested";
+      if (!computedNotes) {
+        computedNotes = "Student expressed interest in admission / program.";
+      }
+    } else if (selectedMasterCategory === "callback") {
+      if (!callbackDate) {
+        alert("Please specify a follow-up callback date and time.");
+        return;
+      }
+      const disp = campaignDispositions.find(
+        (d) => d.requires_callback || d.code === "CALLBACK" || d.name.toLowerCase().includes("call back")
+      ) || campaignDispositions[0];
+      targetDispId = disp?.id || "disp_callback";
+      targetStatus = "Follow-up";
+    } else if (selectedMasterCategory === "not_interested") {
+      if (!selectedRejectionReason) {
+        alert("Please select a reason for Not Interested.");
+        return;
+      }
+      const matchedDisp = negativeDisps.find((d) => d.id === selectedRejectionReason || d.name === selectedRejectionReason);
+      if (matchedDisp) {
+        targetDispId = matchedDisp.id;
+        computedNotes = computedNotes ? `[${matchedDisp.name}] ${computedNotes}` : `Reason: ${matchedDisp.name}`;
+      } else {
+        const fallbackNeg = negativeDisps[0];
+        targetDispId = fallbackNeg?.id || "disp_not_interested";
+        computedNotes = computedNotes ? `[${selectedRejectionReason}] ${computedNotes}` : `Reason: ${selectedRejectionReason}`;
+      }
+      targetStatus = "Not Interested";
+    }
+
+    setSavingDisp(true);
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/disposition`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          disposition_id: targetDispId,
+          call_outcome: "connected",
+          notes: computedNotes || undefined,
+          status: targetStatus,
+          callback_at: selectedMasterCategory === "callback" ? callbackDate : undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to save call outcome");
+      }
+
+      const updatedLead = await res.json();
+      if (onLeadUpdated) {
+        onLeadUpdated(updatedLead);
+      }
+      if (lead?.id) {
+        fetchActivities(lead.id);
+      }
+
+      setSelectedMasterCategory(null);
+      setSelectedRejectionReason("");
+      setCallbackDate("");
+      setCallNotes("");
+      setCallOutcomePending(false);
+
+      setToastMessage("Call outcome recorded successfully! Lifecycle updated.");
+      setSuccessToast(true);
+      setTimeout(() => setSuccessToast(false), 3500);
+
+      if (autoAdvanceOnSave && hasNextLead && onNextLead) {
+        setTimeout(() => {
+          onNextLead();
+        }, 400);
+      }
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setSavingDisp(false);
     }
   };
 
@@ -563,6 +713,24 @@ export function EnhancedLeadDrawer({
     },
   ];
 
+  const standardRejectionReasons = [
+    "Fees too high / Budget constraint",
+    "Enrolled in another college / institute",
+    "Looking for distance / online course only",
+    "Location / Distance too far",
+    "Not eligible / Stream mismatch",
+    "Parent / Family refused permission",
+    "Dropping a year / Preparing for entrance exams",
+    "Wrong inquiry / Not looking for admission",
+  ];
+
+  const availableRejectionOptions = [
+    ...negativeDisps.map((d) => ({ id: d.id, label: d.name })),
+    ...standardRejectionReasons
+      .filter((r) => !negativeDisps.some((d) => d.name.toLowerCase() === r.toLowerCase()))
+      .map((r) => ({ id: r, label: r })),
+  ];
+
   // Initials for avatar
   const initials = (lead.name || "S")
     .split(" ")
@@ -575,42 +743,69 @@ export function EnhancedLeadDrawer({
   const displayTotal = (totalLeadsCount ?? 0).toLocaleString();
 
   return (
-    <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Sheet open={isOpen} onOpenChange={(open) => !open && handleAttemptClose()}>
       <SheetContent className="w-full sm:max-w-xl md:max-w-2xl overflow-y-auto p-0 flex flex-col bg-background shadow-2xl">
         {/* Drawer Header */}
         <div className="p-4 sm:p-6 pb-4 bg-muted/40 border-b border-border/80">
           {/* Top metadata & Lead Stepper Navigation Row (pr-10 sm:pr-12 gives clear breathing room from Sheet close button) */}
           <div className="flex items-center justify-between gap-2 mb-3 pr-10 sm:pr-12">
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2 min-w-0 flex-wrap">
               <span className="font-mono text-xs font-bold text-foreground bg-background border border-border/80 px-2.5 py-1 rounded-md shadow-2xs shrink-0 select-all">
                 {lead.lead_code}
               </span>
 
               {onPrevLead && onNextLead && (
-                <div className="flex items-center gap-0.5 rounded-lg border border-border/80 bg-background/90 px-1 py-0.5 shadow-2xs shrink-0 whitespace-nowrap">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 rounded-md hover:bg-muted shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
-                    disabled={!hasPrevLead}
-                    onClick={onPrevLead}
-                    title="Previous Lead (Shortcut: [ or Alt+Left)"
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                  </Button>
-                  <span className="text-xs font-mono text-muted-foreground px-1.5 tabular-nums font-semibold select-none whitespace-nowrap">
-                    {displayIndex} / {displayTotal}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 rounded-md hover:bg-muted shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
-                    disabled={!hasNextLead}
-                    onClick={onNextLead}
-                    title="Next Lead (Shortcut: ] or Alt+Right)"
-                  >
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </Button>
+                <div className="flex items-center gap-1.5">
+                  <div className={cn(
+                    "flex items-center gap-0.5 rounded-lg border bg-background/90 px-1 py-0.5 shadow-2xs shrink-0 whitespace-nowrap transition-colors",
+                    isNavigationLocked ? "border-amber-500/50 ring-1 ring-amber-500/20" : "border-border/80"
+                  )}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 rounded-md hover:bg-muted shrink-0 text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      disabled={!hasPrevLead || isNavigationLocked}
+                      onClick={() => {
+                        if (isNavigationLocked) {
+                          alert("Please save or log the call outcome before navigating.");
+                          return;
+                        }
+                        onPrevLead();
+                      }}
+                      title={isNavigationLocked ? "Save outcome to unlock navigation" : "Previous Lead (Shortcut: [ or Alt+Left)"}
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </Button>
+                    <span className="text-xs font-mono text-muted-foreground px-1.5 tabular-nums font-semibold select-none whitespace-nowrap">
+                      {displayIndex} / {displayTotal}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 rounded-md hover:bg-muted shrink-0 text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      disabled={!hasNextLead || isNavigationLocked}
+                      onClick={() => {
+                        if (isNavigationLocked) {
+                          alert("Please save or log the call outcome before navigating.");
+                          return;
+                        }
+                        onNextLead();
+                      }}
+                      title={isNavigationLocked ? "Save outcome to unlock navigation" : "Next Lead (Shortcut: ] or Alt+Right)"}
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+
+                  {isNavigationLocked && (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-400 font-semibold px-2 py-0.5 animate-pulse gap-1 shrink-0"
+                    >
+                      <Lock className="w-2.5 h-2.5" />
+                      Outcome Required
+                    </Badge>
+                  )}
                 </div>
               )}
             </div>
@@ -857,6 +1052,402 @@ export function EnhancedLeadDrawer({
 
             {/* TAB 1: OVERVIEW */}
             <TabsContent value="overview" className="space-y-4 pt-3 m-0">
+              {/* STREAMLINED 2-STEP CALL OUTCOME & RAPID LOGGER */}
+              <div
+                className={cn(
+                  "bg-card border rounded-2xl p-4 sm:p-5 space-y-4 shadow-sm transition-all",
+                  isNavigationLocked
+                    ? "border-amber-500/50 bg-amber-500/[0.02] ring-1 ring-amber-500/20"
+                    : "border-border/80"
+                )}
+              >
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-primary" />
+                      <span>Call Outcome & Rapid Logger</span>
+                    </span>
+                    {isNavigationLocked && (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-400 font-semibold px-2 py-0.5 animate-pulse gap-1"
+                      >
+                        <Lock className="w-2.5 h-2.5" />
+                        Outcome Required
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    {selectedMasterCategory && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedMasterCategory(null);
+                          setSelectedRejectionReason("");
+                        }}
+                        className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+                      >
+                        Reset
+                      </Button>
+                    )}
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer select-none">
+                      <Checkbox
+                        checked={autoAdvanceOnSave}
+                        onCheckedChange={(checked) => {
+                          const val = Boolean(checked);
+                          setAutoAdvanceOnSave(val);
+                          if (typeof window !== "undefined") {
+                            localStorage.setItem("dreamdesk_auto_advance_leads", val ? "1" : "0");
+                          }
+                        }}
+                        className="h-3.5 w-3.5 rounded"
+                      />
+                      <span className="text-[11px] font-medium">Auto-advance to next student</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* 4 Master Outcome Tiles */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {/* Tile 1: Interested */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedMasterCategory(selectedMasterCategory === "interested" ? null : "interested");
+                    }}
+                    className={cn(
+                      "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 relative overflow-hidden",
+                      selectedMasterCategory === "interested"
+                        ? "bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-300 ring-2 ring-emerald-500/30 shadow-xs"
+                        : "bg-background border-border/80 hover:bg-emerald-500/5 hover:border-emerald-500/40 text-foreground"
+                    )}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                      {selectedMasterCategory === "interested" && (
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold leading-tight">Interested</div>
+                      <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                        Wants admission / info
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Tile 2: Callback / Follow-up */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedMasterCategory(selectedMasterCategory === "callback" ? null : "callback");
+                      if (!callbackDate) {
+                        setCallbackInHours(2);
+                      }
+                    }}
+                    className={cn(
+                      "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 relative overflow-hidden",
+                      selectedMasterCategory === "callback"
+                        ? "bg-amber-500/15 border-amber-500 text-amber-800 dark:text-amber-300 ring-2 ring-amber-500/30 shadow-xs"
+                        : "bg-background border-border/80 hover:bg-amber-500/5 hover:border-amber-500/40 text-foreground"
+                    )}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                        <Clock className="w-4 h-4" />
+                      </div>
+                      {selectedMasterCategory === "callback" && (
+                        <span className="w-2 h-2 rounded-full bg-amber-500" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold leading-tight">Follow-up</div>
+                      <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                        Schedule next callback
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Tile 3: Not Interested */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedMasterCategory(selectedMasterCategory === "not_interested" ? null : "not_interested");
+                    }}
+                    className={cn(
+                      "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 relative overflow-hidden",
+                      selectedMasterCategory === "not_interested"
+                        ? "bg-rose-500/15 border-rose-500 text-rose-800 dark:text-rose-300 ring-2 ring-rose-500/30 shadow-xs"
+                        : "bg-background border-border/80 hover:bg-rose-500/5 hover:border-rose-500/40 text-foreground"
+                    )}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+                        <UserX className="w-4 h-4" />
+                      </div>
+                      {selectedMasterCategory === "not_interested" && (
+                        <span className="w-2 h-2 rounded-full bg-rose-500" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold leading-tight">Not Interested</div>
+                      <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                        Drop / enrolled elsewhere
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Tile 4: Unreachable */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedMasterCategory(selectedMasterCategory === "unreachable" ? null : "unreachable");
+                    }}
+                    className={cn(
+                      "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 relative overflow-hidden",
+                      selectedMasterCategory === "unreachable"
+                        ? "bg-orange-500/15 border-orange-500 text-orange-800 dark:text-orange-300 ring-2 ring-orange-500/30 shadow-xs"
+                        : "bg-background border-border/80 hover:bg-orange-500/5 hover:border-orange-500/40 text-foreground"
+                    )}
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="w-7 h-7 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center">
+                        <PhoneOff className="w-4 h-4" />
+                      </div>
+                      {selectedMasterCategory === "unreachable" && (
+                        <span className="w-2 h-2 rounded-full bg-orange-500" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold leading-tight">Unreachable</div>
+                      <div className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                        RNR / busy / switched off
+                      </div>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Secondary Contextual Input Panels */}
+                {/* 1. Contextual Panel: Interested */}
+                {selectedMasterCategory === "interested" && (
+                  <div className="p-3.5 rounded-xl bg-emerald-500/5 border border-emerald-500/30 space-y-3 animate-in fade-in-50 duration-200">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-emerald-800 dark:text-emerald-300 flex items-center justify-between">
+                        <span>Call Notes / Student Inquiry Summary</span>
+                        <span className="text-[10px] font-normal text-muted-foreground">Optional</span>
+                      </label>
+                      <Textarea
+                        value={callNotes}
+                        onChange={(e) => setCallNotes(e.target.value)}
+                        placeholder="e.g. Inquired about B.Tech CSE fee structure, planning on-campus counseling visit with father on Saturday..."
+                        className="text-xs min-h-[64px] bg-background border-border/80 focus-visible:ring-emerald-500 resize-none"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-muted-foreground">
+                        Will set stage to <strong className="text-emerald-600 dark:text-emerald-400">Interested</strong>
+                      </span>
+                      <Button
+                        size="sm"
+                        disabled={savingDisp}
+                        onClick={handleSaveSimplifiedOutcome}
+                        className="h-8 px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-xs cursor-pointer gap-1.5"
+                      >
+                        {savingDisp ? <RotateCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                        <span>{autoAdvanceOnSave ? "Save & Next Student" : "Save Outcome"}</span>
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Contextual Panel: Follow-up / Callback */}
+                {selectedMasterCategory === "callback" && (
+                  <div className="p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/30 space-y-3 animate-in fade-in-50 duration-200">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Callback Date & Time <span className="text-rose-500">*</span></span>
+                        </label>
+                        <span className="text-[10px] text-muted-foreground">Required</span>
+                      </div>
+                      <Input
+                        type="datetime-local"
+                        value={callbackDate}
+                        onChange={(e) => setCallbackDate(e.target.value)}
+                        className="h-9 text-xs bg-background border-border/80 font-mono font-medium focus-visible:ring-amber-500"
+                      />
+                      {/* Fast Callback Time Presets */}
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setCallbackInHours(2)}
+                          className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                        >
+                          +2 Hours
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCallbackInHours(4)}
+                          className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                        >
+                          +4 Hours
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCallbackTomorrow(11)}
+                          className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                        >
+                          Tomorrow 11 AM
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCallbackTomorrow(16)}
+                          className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                        >
+                          Tomorrow 4 PM
+                        </button>
+                        <button
+                          type="button"
+                          onClick={setCallbackNextMonday}
+                          className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                        >
+                          Next Monday 11 AM
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-amber-800 dark:text-amber-300 flex items-center justify-between">
+                        <span>Follow-up Note</span>
+                        <span className="text-[10px] font-normal text-muted-foreground">Optional</span>
+                      </label>
+                      <Textarea
+                        value={callNotes}
+                        onChange={(e) => setCallNotes(e.target.value)}
+                        placeholder="e.g. Currently in class / traveling, requested a call back in the evening..."
+                        className="text-xs min-h-[58px] bg-background border-border/80 focus-visible:ring-amber-500 resize-none"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-muted-foreground">
+                        Will set stage to <strong className="text-amber-600 dark:text-amber-400">Follow-up</strong>
+                      </span>
+                      <Button
+                        size="sm"
+                        disabled={savingDisp || !callbackDate}
+                        onClick={handleSaveSimplifiedOutcome}
+                        className="h-8 px-4 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-xs cursor-pointer gap-1.5 disabled:opacity-50"
+                      >
+                        {savingDisp ? <RotateCw className="w-3.5 h-3.5 animate-spin" /> : <CalendarClock className="w-3.5 h-3.5" />}
+                        <span>{autoAdvanceOnSave ? "Schedule & Next Student" : "Schedule Callback"}</span>
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Contextual Panel: Not Interested */}
+                {selectedMasterCategory === "not_interested" && (
+                  <div className="p-3.5 rounded-xl bg-rose-500/5 border border-rose-500/30 space-y-3 animate-in fade-in-50 duration-200">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
+                          <UserX className="w-3.5 h-3.5 text-rose-600" />
+                          <span>Rejection Reason <span className="text-rose-500">*</span></span>
+                        </label>
+                        <span className="text-[10px] text-muted-foreground">Required</span>
+                      </div>
+                      <Select
+                        value={selectedRejectionReason}
+                        onValueChange={(val) => setSelectedRejectionReason(val || "")}
+                      >
+                        <SelectTrigger className="h-9 text-xs rounded-xl border-border/80 bg-background font-medium focus:ring-rose-500">
+                          <SelectValue placeholder="Select primary rejection reason..." />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-56">
+                          {availableRejectionOptions.map((opt) => (
+                            <SelectItem key={opt.id} value={opt.id} className="text-xs">
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-rose-800 dark:text-rose-300 flex items-center justify-between">
+                        <span>Additional Remarks</span>
+                        <span className="text-[10px] font-normal text-muted-foreground">Optional</span>
+                      </label>
+                      <Textarea
+                        value={callNotes}
+                        onChange={(e) => setCallNotes(e.target.value)}
+                        placeholder="e.g. Joined another college in hometown, not interested in relocating..."
+                        className="text-xs min-h-[58px] bg-background border-border/80 focus-visible:ring-rose-500 resize-none"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-muted-foreground">
+                        Will set stage to <strong className="text-rose-600 dark:text-rose-400">Not Interested</strong>
+                      </span>
+                      <Button
+                        size="sm"
+                        disabled={savingDisp || !selectedRejectionReason}
+                        onClick={handleSaveSimplifiedOutcome}
+                        className="h-8 px-4 text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white rounded-lg shadow-xs cursor-pointer gap-1.5 disabled:opacity-50"
+                      >
+                        {savingDisp ? <RotateCw className="w-3.5 h-3.5 animate-spin" /> : <XCircle className="w-3.5 h-3.5" />}
+                        <span>{autoAdvanceOnSave ? "Confirm & Next Student" : "Mark Not Interested"}</span>
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. Contextual Panel: Unreachable (or Quick Shortcut Row when no category is active) */}
+                {(selectedMasterCategory === "unreachable" || !selectedMasterCategory) && (
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                        <PhoneOff className="w-3 h-3 text-orange-600" />
+                        <span>Instant 1-Click Unreachable Loggers</span>
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        Attempt {(lead.attempt_count || 0)}/3 • 3h Cooldown
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {unreachableOptions.map((opt) => (
+                        <Button
+                          key={opt.code}
+                          variant="outline"
+                          size="sm"
+                          disabled={loggingUnreachableId !== null || savingDisp}
+                          onClick={() => handleInstantUnreachable(opt)}
+                          className={cn(
+                            "h-9 px-2 text-xs font-semibold justify-start border-border/80 hover:bg-orange-500/10 hover:border-orange-500/40 hover:text-orange-700 dark:hover:text-orange-400 rounded-xl transition-all gap-1.5 cursor-pointer truncate",
+                            loggingUnreachableId === opt.id && "bg-orange-500/15 border-orange-500"
+                          )}
+                          title={`Log ${opt.label} and apply 3h retry cooldown`}
+                        >
+                          {loggingUnreachableId === opt.id ? (
+                            <RotateCw className="w-3.5 h-3.5 animate-spin text-orange-600 shrink-0" />
+                          ) : (
+                            <span className="shrink-0">{opt.icon}</span>
+                          )}
+                          <span className="truncate">{opt.label}</span>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
               {/* Counselor, Stage & Campaign Assignment Card */}
               <div className="bg-card border border-border/80 rounded-2xl p-4 sm:p-5 space-y-4 shadow-2xs">
                 <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
