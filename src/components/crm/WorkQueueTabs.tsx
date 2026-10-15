@@ -14,7 +14,8 @@ import {
   Zap,
 } from "lucide-react";
 
-export type WorkQueueId = "all" | "callbacks" | "unassigned" | "high_intent" | "followups" | "unreached";
+import { WorkQueueId } from "@/types/crm";
+export type { WorkQueueId };
 
 interface WorkQueueTabsProps {
   activeQueue: WorkQueueId;

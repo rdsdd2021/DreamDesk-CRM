@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Lead,
@@ -292,6 +292,12 @@ export default function CRMPage() {
   const [leadsViewMode, setLeadsViewMode] = useState<"table" | "grid" | "dialer">("table");
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
 
+  // Live Uncalled Today Count for Dialing Queue
+  const uncalledTodayCount = useMemo(() => {
+    const recencyFacet = facets.find((f) => f.key_name === "calling_recency");
+    return recencyFacet?.options.find((o) => o.value === "uncalled_today")?.count || 0;
+  }, [facets]);
+
   // Toast Notification State
   const [toastMessage, setToastMessage] = useState<{
     text: string;
@@ -401,6 +407,8 @@ export default function CRMPage() {
             params.set("campaign_id", values.join(","));
           } else if (key === "disposition_id") {
             params.set("disposition_id", values.join(","));
+          } else if (key === "calling_recency") {
+            params.set("calling_recency", values.join(","));
           } else {
             params.set(`facet_${key}`, values.join(","));
           }
@@ -489,6 +497,8 @@ export default function CRMPage() {
 
     if (queueId === "all") {
       setSelectedFacets({});
+    } else if (queueId === "uncalled_today") {
+      setSelectedFacets({ calling_recency: ["uncalled_today"] });
     } else if (queueId === "callbacks") {
       const cbDispIds = dispositions.filter((d) => d.requires_callback === 1).map((d) => d.id);
       setSelectedFacets({ disposition_id: cbDispIds.length > 0 ? cbDispIds : ["disp_cb_requested", "disp_couns_booked", "disp_followup_needed"] });
@@ -800,12 +810,14 @@ export default function CRMPage() {
       } else if (e.key === "1") {
         handleSelectQueue("all");
       } else if (e.key === "2") {
-        handleSelectQueue("callbacks");
+        handleSelectQueue("uncalled_today");
       } else if (e.key === "3") {
-        handleSelectQueue("unassigned");
+        handleSelectQueue("callbacks");
       } else if (e.key === "4") {
-        handleSelectQueue("high_intent");
+        handleSelectQueue("unassigned");
       } else if (e.key === "5") {
+        handleSelectQueue("high_intent");
+      } else if (e.key === "6") {
         handleSelectQueue("followups");
       } else if (e.key === "ArrowDown" || e.key === "j") {
         e.preventDefault();
@@ -1614,6 +1626,7 @@ export default function CRMPage() {
                 onSelectQueue={handleSelectQueue}
                 unassignedCount={globalSummary.unassignedCount || summary.unassignedCount}
                 callbacksCount={globalSummary.statusBreakdown["Follow-up"] || summary.statusBreakdown["Follow-up"] || 0}
+                uncalledTodayCount={uncalledTodayCount}
                 myLeadsCount={globalSummary.totalLeads || summary.totalLeads}
                 roleMode={isRestrictedCounselor ? "counselor" : roleMode}
                 search={search}
@@ -2014,9 +2027,16 @@ export default function CRMPage() {
           if (!isAdvancing) {
             setSelectedLeadForDetail(updatedLead);
           }
-          setLeads((prev) =>
-            prev.map((l) => (String(l.id) === String(updatedLead.id) ? updatedLead : l))
-          );
+
+          if (activeQueue === "uncalled_today" || selectedFacets.calling_recency?.[0] === "uncalled_today") {
+            setLeads((prev) => prev.filter((l) => String(l.id) !== String(updatedLead.id)));
+            setTotalFilteredCount((prev) => Math.max(0, prev - 1));
+          } else {
+            setLeads((prev) =>
+              prev.map((l) => (String(l.id) === String(updatedLead.id) ? updatedLead : l))
+            );
+          }
+          fetchLeads();
         }}
         onNextLead={handleNextLead}
         onPrevLead={handlePrevLead}

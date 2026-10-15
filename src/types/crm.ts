@@ -218,6 +218,7 @@ export interface FilterParams {
   campaign_id?: string[];
   disposition_id?: string[];
   tags?: string[];
+  calling_recency?: 'uncalled_today' | 'never_called' | 'called_today' | 'all';
   facets?: Record<string, string[]>;
   date_from?: string;
   date_to?: string;
@@ -247,7 +248,7 @@ export interface LeadsResponse {
   globalSummary?: LeadSummaryStats;
 }
 
-export type WorkQueueId = "all" | "callbacks" | "unassigned" | "high_intent" | "followups" | "unreached";
+export type WorkQueueId = "all" | "uncalled_today" | "callbacks" | "unassigned" | "high_intent" | "followups" | "unreached";
 
 
 export interface BulkAssignRequest {
@@ -332,6 +333,8 @@ export interface CounselorMetric {
   avatar_color: string;
   total_assigned: number;
   calls_today: number;
+  connected_calls_today?: number;
+  unreachable_calls_today?: number;
   contact_rate: number;
   admissions_count: number;
   avg_score: number;
@@ -376,6 +379,8 @@ export interface AnalyticsReportData {
     positiveCount: number;
     conversionRate: string;
     callsLogged: number;
+    connectedCalls?: number;
+    unreachableCalls?: number;
     avgScore: number;
   };
   funnel: FunnelStage[];
@@ -402,6 +407,8 @@ export interface AnalyticsReportData {
     avatar_color: string;
     total_assigned: number;
     calls_in_period: number;
+    connected_calls?: number;
+    unreachable_calls?: number;
     contact_rate: number;
     admissions_count: number;
     conversion_rate: number;

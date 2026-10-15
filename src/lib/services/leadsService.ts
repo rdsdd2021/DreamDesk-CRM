@@ -297,6 +297,17 @@ export class LeadsService {
       }
     }
 
+    // Calling Recency Filter (Uncalled Today, Never Called, Called Today)
+    if (excludeKey !== "calling_recency" && params.calling_recency && params.calling_recency !== "all") {
+      if (params.calling_recency === "uncalled_today") {
+        conditions.push(`(leads.last_attempt_at IS NULL OR date(leads.last_attempt_at, 'localtime') != date('now', 'localtime'))`);
+      } else if (params.calling_recency === "never_called") {
+        conditions.push(`(leads.attempt_count = 0 OR leads.attempt_count IS NULL OR leads.last_attempt_at IS NULL)`);
+      } else if (params.calling_recency === "called_today") {
+        conditions.push(`(leads.last_attempt_at IS NOT NULL AND date(leads.last_attempt_at, 'localtime') = date('now', 'localtime'))`);
+      }
+    }
+
     // Dynamic Faceted Filters from JSON attributes
     if (params.facets) {
       let facetIndex = 0;
@@ -347,6 +358,7 @@ export class LeadsService {
       a: params.assigned_to || [],
       c: params.campaign_id || [],
       d: params.disposition_id || [],
+      cr: params.calling_recency || "",
       f: params.facets || {},
     });
 
@@ -516,6 +528,33 @@ export class LeadsService {
         count: r.count,
       })),
     });
+
+    // 4b. Calling Recency Facet (Calculated dynamically across active filters)
+    try {
+      const { whereClause: recencyWhere, queryParams: recencyParams } = this.buildWhereClause(params, "calling_recency", userScope);
+      const recencyJoins = getJoinClause(recencyWhere);
+      const recencyStats = db.prepare(`
+        SELECT 
+          SUM(CASE WHEN leads.last_attempt_at IS NULL OR date(leads.last_attempt_at, 'localtime') != date('now', 'localtime') THEN 1 ELSE 0 END) as uncalled_today,
+          SUM(CASE WHEN leads.attempt_count = 0 OR leads.attempt_count IS NULL OR leads.last_attempt_at IS NULL THEN 1 ELSE 0 END) as never_called,
+          SUM(CASE WHEN leads.last_attempt_at IS NOT NULL AND date(leads.last_attempt_at, 'localtime') = date('now', 'localtime') THEN 1 ELSE 0 END) as called_today
+        FROM leads
+        ${recencyJoins}
+        ${recencyWhere}
+      `).get(recencyParams) as any;
+
+      facetGroups.push({
+        key_name: "calling_recency",
+        display_label: "Calling Recency",
+        options: [
+          { label: "Uncalled Today", value: "uncalled_today", count: recencyStats?.uncalled_today || 0 },
+          { label: "Never Called", value: "never_called", count: recencyStats?.never_called || 0 },
+          { label: "Called Today", value: "called_today", count: recencyStats?.called_today || 0 },
+        ],
+      });
+    } catch (recErr) {
+      console.error("Failed to compute calling_recency facet:", recErr);
+    }
 
     // 5. Dynamic Schema Attribute Facets (scoped by all filters except the current attribute, strictly constrained by userScope)
     for (const meta of filterableMeta) {
@@ -2350,10 +2389,20 @@ export class LeadsService {
     // High level activity log
     db.prepare(`
       INSERT INTO activity_logs (action_type, description, affected_count, metadata, performed_by)
-      VALUES ('disposition_update', @desc, 1, @meta, 'Counselor')
+      VALUES ('DISPOSITION_LOGGED', @desc, 1, @meta, @performedBy)
     `).run({
-      desc: `Logged disposition for Lead ${currentLead.lead_code}`,
-      meta: JSON.stringify({ leadId, dispositionId, subDispositionId, callbackAt, status: targetStatus }),
+      desc: `Logged disposition for Lead ${currentLead.lead_code}: ${disp?.name || 'Call Outcome'}`,
+      meta: JSON.stringify({
+        leadId,
+        dispositionId,
+        subDispositionId,
+        callbackAt,
+        status: targetStatus,
+        assigned_to: counselorId,
+        counselor_name: counselorName,
+        call_outcome: finalCallOutcome,
+      }),
+      performedBy: counselorName,
     });
 
     // Return the updated lead
@@ -2973,14 +3022,21 @@ export class LeadsService {
       // 1. Total assigned leads
       const assignedCount = (db.prepare("SELECT COUNT(*) as count FROM leads WHERE assigned_to = ?").get(c.id) as any)?.count || 0;
 
-      // 2. Calls logged today
-      const callsToday = (db.prepare(`
-        SELECT COUNT(*) as count 
-        FROM activity_logs 
-        WHERE (performed_by = ? OR metadata LIKE ?) 
-        AND action_type IN ('DISPOSITION_LOGGED', 'CALL_LOGGED', 'WHATSAPP_SENT') 
-        AND created_at >= ?
-      `).get(c.name, `%"assigned_to":"${c.id}"%`, startOfTodayIso) as any)?.count || 0;
+      // 2. Calls logged today (from authoritative lead_activities table)
+      const callStatsToday = db.prepare(`
+        SELECT 
+          COUNT(*) as total_calls,
+          SUM(CASE WHEN activity_type = 'disposition' THEN 1 ELSE 0 END) as connected_calls,
+          SUM(CASE WHEN activity_type = 'call_attempt' THEN 1 ELSE 0 END) as unreachable_calls
+        FROM lead_activities 
+        WHERE (performed_by_id = ? OR performed_by_name = ?) 
+        AND activity_type IN ('disposition', 'call_attempt') 
+        AND date(created_at, 'localtime') = date('now', 'localtime')
+      `).get(c.id, c.name) as any;
+
+      const callsToday = callStatsToday?.total_calls || 0;
+      const connectedCallsToday = callStatsToday?.connected_calls || 0;
+      const unreachableCallsToday = callStatsToday?.unreachable_calls || 0;
 
       // 3. Contacted leads count
       const contactedCount = (db.prepare(`
@@ -3012,6 +3068,8 @@ export class LeadsService {
         avatar_color: c.avatar_color || "#3b82f6",
         total_assigned: assignedCount,
         calls_today: callsToday,
+        connected_calls_today: connectedCallsToday,
+        unreachable_calls_today: unreachableCallsToday,
         contact_rate: contactRate,
         admissions_count: admissionsCount,
         avg_score: avgScore,
@@ -3549,13 +3607,26 @@ export class LeadsService {
     const conversionRate = totalLeads > 0 ? ((positiveCount / totalLeads) * 100).toFixed(1) : "0.0";
     const avgScore = summaryRow?.avg_score ? Math.round(summaryRow.avg_score) : 0;
 
-    // Calls logged query in the same date range
+    // Calls logged query in the same date range and counselor scope (from authoritative lead_activities table)
     let callActivitySql = `
-      SELECT COUNT(*) as count 
-      FROM activity_logs 
-      WHERE action_type IN ('DISPOSITION_LOGGED', 'CALL_LOGGED', 'WHATSAPP_SENT', 'disposition_update')
+      SELECT 
+        COUNT(*) as total_calls,
+        SUM(CASE WHEN activity_type = 'disposition' THEN 1 ELSE 0 END) as connected_calls,
+        SUM(CASE WHEN activity_type = 'call_attempt' THEN 1 ELSE 0 END) as unreachable_calls
+      FROM lead_activities 
+      WHERE activity_type IN ('disposition', 'call_attempt')
     `;
     const callParams: any = {};
+    if (userScope && !userScope.canViewAllLeads) {
+      callActivitySql += " AND (performed_by_id = @c_uid OR performed_by_name = @c_uname)";
+      callParams.c_uid = userScope.userId;
+      callParams.c_uname = userScope.name;
+    } else if (params.assigned_to && params.assigned_to !== "all") {
+      callActivitySql += " AND (performed_by_id = @c_uid OR performed_by_name = @c_uname)";
+      callParams.c_uid = params.assigned_to;
+      const targetUser = db.prepare("SELECT name FROM users WHERE id = ?").get(params.assigned_to) as any;
+      callParams.c_uname = targetUser?.name || params.assigned_to;
+    }
     if (dateFrom) {
       callActivitySql += " AND created_at >= @c_from";
       callParams.c_from = dateFrom;
@@ -3564,7 +3635,10 @@ export class LeadsService {
       callActivitySql += " AND created_at <= @c_to";
       callParams.c_to = dateTo;
     }
-    const callsLogged = (db.prepare(callActivitySql).get(callParams) as any)?.count || 0;
+    const callAggRow = db.prepare(callActivitySql).get(callParams) as any;
+    const callsLogged = callAggRow?.total_calls || 0;
+    const connectedCalls = callAggRow?.connected_calls || 0;
+    const unreachableCalls = callAggRow?.unreachable_calls || 0;
 
     // 4. Conversion Funnel calculation (strictly constrained by filters)
     const engagedCount = (db.prepare(`
@@ -3700,12 +3774,15 @@ export class LeadsService {
       `).get(counselorParams) as any;
 
       let cCallsSql = `
-        SELECT COUNT(*) as count 
-        FROM activity_logs 
-        WHERE (performed_by = ? OR metadata LIKE ?) 
-        AND action_type IN ('DISPOSITION_LOGGED', 'CALL_LOGGED', 'WHATSAPP_SENT', 'disposition_update')
+        SELECT 
+          COUNT(*) as total,
+          SUM(CASE WHEN activity_type = 'disposition' THEN 1 ELSE 0 END) as connected,
+          SUM(CASE WHEN activity_type = 'call_attempt' THEN 1 ELSE 0 END) as unreachable
+        FROM lead_activities 
+        WHERE (performed_by_id = ? OR performed_by_name = ?) 
+        AND activity_type IN ('disposition', 'call_attempt')
       `;
-      const cCallParams: any[] = [c.name, `%"assigned_to":"${c.id}"%`];
+      const cCallParams: any[] = [c.id, c.name];
       if (dateFrom) {
         cCallsSql += " AND created_at >= ?";
         cCallParams.push(dateFrom);
@@ -3714,7 +3791,10 @@ export class LeadsService {
         cCallsSql += " AND created_at <= ?";
         cCallParams.push(dateTo);
       }
-      const cCalls = (db.prepare(cCallsSql).get(...cCallParams) as any)?.count || 0;
+      const cCallRow = db.prepare(cCallsSql).get(...cCallParams) as any;
+      const cCalls = cCallRow?.total || 0;
+      const cConnected = cCallRow?.connected || 0;
+      const cUnreachable = cCallRow?.unreachable || 0;
 
       const cTotal = cLeadRow?.total || 0;
       const cContacted = cLeadRow?.contacted || 0;
@@ -3729,6 +3809,8 @@ export class LeadsService {
         avatar_color: c.avatar_color || "#3b82f6",
         total_assigned: cTotal,
         calls_in_period: cCalls,
+        connected_calls: cConnected,
+        unreachable_calls: cUnreachable,
         contact_rate: cContactRate,
         admissions_count: cAdmitted,
         conversion_rate: cConvRate,
@@ -3751,10 +3833,42 @@ export class LeadsService {
       LIMIT 30
     `).all(queryParams) as any[];
 
+    // Query real daily calls from lead_activities
+    const dailyCallsMap: Record<string, number> = {};
+    try {
+      let callTrendSql = `
+        SELECT SUBSTR(created_at, 1, 10) as date, COUNT(*) as count
+        FROM lead_activities
+        WHERE activity_type IN ('disposition', 'call_attempt')
+      `;
+      const callTrendParams: any[] = [];
+      if (userScope && !userScope.canViewAllLeads) {
+        callTrendSql += " AND (performed_by_id = ? OR performed_by_name = ?)";
+        callTrendParams.push(userScope.userId, userScope.name);
+      } else if (params.assigned_to && params.assigned_to !== "all") {
+        const counselorObj = counselors.find((u) => u.id === params.assigned_to);
+        callTrendSql += " AND (performed_by_id = ? OR performed_by_name = ?)";
+        callTrendParams.push(params.assigned_to, counselorObj?.name || params.assigned_to);
+      }
+      if (dateFrom) {
+        callTrendSql += " AND created_at >= ?";
+        callTrendParams.push(dateFrom);
+      }
+      if (dateTo) {
+        callTrendSql += " AND created_at <= ?";
+        callTrendParams.push(dateTo);
+      }
+      callTrendSql += " GROUP BY date";
+      const callRows = db.prepare(callTrendSql).all(...callTrendParams) as { date: string; count: number }[];
+      callRows.forEach((cr) => { dailyCallsMap[cr.date] = cr.count; });
+    } catch (e) {
+      console.error("Failed to aggregate daily call trend:", e);
+    }
+
     const dailyIntakeTrend = trendRows.map((r) => ({
       date: r.date,
       leads: r.leads || 0,
-      calls: Math.round(r.leads * 0.4),
+      calls: dailyCallsMap[r.date] || 0,
       admitted: r.admitted || 0,
     }));
 
@@ -3817,6 +3931,8 @@ export class LeadsService {
         positiveCount,
         conversionRate,
         callsLogged,
+        connectedCalls,
+        unreachableCalls,
         avgScore,
       },
       funnel,

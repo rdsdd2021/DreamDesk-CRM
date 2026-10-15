@@ -75,6 +75,7 @@ export async function GET(request: NextRequest) {
 
     const date_from = searchParams.get("date_from") || undefined;
     const date_to = searchParams.get("date_to") || undefined;
+    const calling_recency = (searchParams.get("calling_recency") || searchParams.get("facet_calling_recency")) as any;
 
     const filterParams: FilterParams = {
       page,
@@ -84,6 +85,7 @@ export async function GET(request: NextRequest) {
       assigned_to: finalAssignedTo,
       campaign_id: campaign_id || filterParamsCampaigns,
       disposition_id: disposition_id || filterParamsDisps,
+      calling_recency: calling_recency && calling_recency !== "all" ? calling_recency : undefined,
       facets: Object.keys(facets).length > 0 ? facets : undefined,
       date_from,
       date_to,

@@ -126,6 +126,7 @@ export function AnalyticsDashboard({
   const [reportData, setReportData] = useState<AnalyticsReportData | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date());
 
   // Fetch report data whenever filters change
   const fetchReport = useCallback(async () => {
@@ -160,6 +161,7 @@ export function AnalyticsDashboard({
       if (!res.ok) throw new Error("Failed to load filtered analytics report");
       const data: AnalyticsReportData = await res.json();
       setReportData(data);
+      setLastRefreshedAt(new Date());
     } catch (err: any) {
       console.error("Report fetch error:", err);
       setError(err?.message || "Error generating report");
@@ -181,6 +183,14 @@ export function AnalyticsDashboard({
 
   useEffect(() => {
     fetchReport();
+  }, [fetchReport]);
+
+  // 30-Second Auto-Refresh while Dashboard is active
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchReport();
+    }, 30000);
+    return () => clearInterval(interval);
   }, [fetchReport]);
 
   // Extract unique academic streams from facets
@@ -359,6 +369,18 @@ export function AnalyticsDashboard({
                 <span>Reset Filters ({activeFiltersCount})</span>
               </Button>
             )}
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => fetchReport()}
+              disabled={loading}
+              className="h-8 text-xs font-semibold gap-1.5 border-border/80 hover:bg-accent cursor-pointer"
+              title={`Last updated at ${lastRefreshedAt.toLocaleTimeString()}`}
+            >
+              <RotateCcw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-primary" : ""}`} />
+              <span>{loading ? "Refreshing..." : "Refresh Metrics"}</span>
+            </Button>
 
             <Button
               size="sm"
@@ -738,8 +760,14 @@ export function AnalyticsDashboard({
             <div className="text-2xl font-black text-violet-600 dark:text-violet-400">
               {summary.callsLogged.toLocaleString()}
             </div>
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              In selected time window
+            <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
+              {reportData?.summary.connectedCalls !== undefined && (
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{reportData.summary.connectedCalls} connected</span>
+              )}
+              {reportData?.summary.unreachableCalls !== undefined && (
+                <span className="text-orange-600 dark:text-orange-400 font-semibold">• {reportData.summary.unreachableCalls} unreachable</span>
+              )}
+              {reportData?.summary.connectedCalls === undefined && "In selected time window"}
             </p>
           </CardContent>
         </Card>
@@ -1128,8 +1156,10 @@ export function AnalyticsDashboard({
                   <tr>
                     <th className="py-2.5 px-4 w-12 text-center">Rank</th>
                     <th className="py-2.5 px-4">Counselor</th>
-                    <th className="py-2.5 px-4 text-center">Active Leads in Scope</th>
-                    <th className="py-2.5 px-4 text-center">Calls in Period</th>
+                    <th className="py-2.5 px-4 text-center">Active Leads</th>
+                    <th className="py-2.5 px-4 text-center">Total Calls</th>
+                    <th className="py-2.5 px-4 text-center">Connected</th>
+                    <th className="py-2.5 px-4 text-center">Unreachable</th>
                     <th className="py-2.5 px-4">Contact Rate</th>
                     <th className="py-2.5 px-4 text-center">Admitted Students</th>
                     <th className="py-2.5 px-4 text-center">Conversion %</th>
@@ -1164,12 +1194,22 @@ export function AnalyticsDashboard({
                           variant={c.calls_in_period > 0 ? "default" : "outline"}
                           className={`text-[10px] font-bold ${
                             c.calls_in_period > 0
-                              ? "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30"
+                              ? "bg-primary/15 text-primary border-primary/30"
                               : "text-muted-foreground"
                           }`}
                         >
                           {c.calls_in_period} calls
                         </Badge>
+                      </td>
+                      <td className="py-3 px-4 text-center font-mono">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                          {c.connected_calls || 0}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center font-mono">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-500/20">
+                          {c.unreachable_calls || 0}
+                        </span>
                       </td>
                       <td className="py-3 px-4 w-40">
                         <div className="space-y-1">

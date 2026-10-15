@@ -68,6 +68,7 @@ export function FilterSidebar({
 }: FilterSidebarProps) {
   // Local state for expanded accordion sections
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    calling_recency: true,
     status: true,
     assigned_to: true,
     campaign_id: true,
@@ -301,12 +302,13 @@ export function FilterSidebar({
   };
 
   // Group facets into Core & Dynamic
+  const callingRecencyFacet = facets.find((f) => f.key_name === "calling_recency");
   const statusFacet = facets.find((f) => f.key_name === "status");
   const counselorFacet = facets.find((f) => f.key_name === "assigned_to");
   const campaignFacet = facets.find((f) => f.key_name === "campaign_id");
   const dispositionFacet = facets.find((f) => f.key_name === "disposition_id");
 
-  const coreFacetKeys = new Set(["status", "assigned_to", "campaign_id", "disposition_id"]);
+  const coreFacetKeys = new Set(["calling_recency", "status", "assigned_to", "campaign_id", "disposition_id"]);
   const dynamicFacets = facets.filter((f) => !coreFacetKeys.has(f.key_name));
 
   // If mobile drawer, render dedicated full-width container
@@ -394,7 +396,9 @@ export function FilterSidebar({
                 {activeFilterEntries.map(([key, vals]) => {
                   const meta = schemaMeta.find((m) => m.key_name === key);
                   const label =
-                    key === "status"
+                    key === "calling_recency"
+                      ? "Recency"
+                      : key === "status"
                       ? "Status"
                       : key === "assigned_to"
                       ? "Counselor"
@@ -431,6 +435,7 @@ export function FilterSidebar({
 
           {/* Core Facets Accordions */}
           <div className="space-y-2">
+            {callingRecencyFacet && renderFacetGroup(callingRecencyFacet, <PhoneCall className="w-3.5 h-3.5 text-blue-500" />)}
             {statusFacet && renderFacetGroup(statusFacet, <Layers className="w-3.5 h-3.5 text-blue-500" />)}
             {counselorFacet && renderFacetGroup(counselorFacet, <Users className="w-3.5 h-3.5 text-emerald-500" />)}
             {campaignFacet && renderFacetGroup(campaignFacet, <Target className="w-3.5 h-3.5 text-amber-500" />)}
@@ -652,6 +657,10 @@ export function FilterSidebar({
             </div>
           </div>
         )}
+
+        {/* Section 0: Calling Recency */}
+        {callingRecencyFacet &&
+          renderFacetGroup(callingRecencyFacet, <PhoneCall className="w-3.5 h-3.5 text-blue-500" />)}
 
         {/* Section 1: Core Lead Status */}
         {statusFacet &&

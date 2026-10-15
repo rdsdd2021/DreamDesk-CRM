@@ -36,6 +36,7 @@ import {
   Inbox,
   PhoneForwarded,
   PhoneOff,
+  PhoneCall,
   ChevronDown,
   Rows3,
   LayoutList,
@@ -48,6 +49,7 @@ interface UnifiedCommandBarProps {
   onSelectQueue: (queue: WorkQueueId) => void;
   unassignedCount: number;
   callbacksCount: number;
+  uncalledTodayCount?: number;
   myLeadsCount?: number;
   roleMode: "admin" | "counselor";
 
@@ -97,6 +99,7 @@ export function UnifiedCommandBar({
   onSelectQueue,
   unassignedCount,
   callbacksCount,
+  uncalledTodayCount,
   myLeadsCount,
   roleMode,
   search,
@@ -148,12 +151,20 @@ export function UnifiedCommandBar({
       shortcut: "1",
     },
     {
+      id: "uncalled_today" as WorkQueueId,
+      label: "Uncalled Today",
+      icon: PhoneCall,
+      count: uncalledTodayCount !== undefined && uncalledTodayCount > 0 ? uncalledTodayCount : null,
+      badgeColor: "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30",
+      shortcut: "2",
+    },
+    {
       id: "callbacks" as WorkQueueId,
       label: "Urgent Callbacks",
       icon: Clock,
       count: callbacksCount > 0 ? callbacksCount : null,
       badgeColor: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30",
-      shortcut: "2",
+      shortcut: "3",
     },
     ...(roleMode !== "counselor"
       ? [
@@ -163,7 +174,7 @@ export function UnifiedCommandBar({
             icon: Inbox,
             count: unassignedCount > 0 ? unassignedCount : null,
             badgeColor: "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30",
-            shortcut: "3",
+            shortcut: "4",
           },
         ]
       : []),
@@ -173,14 +184,14 @@ export function UnifiedCommandBar({
       icon: Flame,
       count: null,
       badgeColor: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
-      shortcut: "4",
+      shortcut: "5",
     },
     {
       id: "followups" as WorkQueueId,
       label: "Follow-up",
       icon: PhoneForwarded,
       count: null,
-      shortcut: "5",
+      shortcut: "6",
     },
   ];
 
