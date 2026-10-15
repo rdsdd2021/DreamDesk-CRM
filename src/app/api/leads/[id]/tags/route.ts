@@ -32,7 +32,7 @@ export async function PATCH(
     }
 
     const updatedLead = LeadsService.updateLeadTags(leadId, tags);
-    return NextResponse.json({ success: true, lead: updatedLead });
+    return NextResponse.json({ ...updatedLead, success: true, lead: updatedLead });
   } catch (error: any) {
     console.error("Failed to update lead tags:", error);
     return NextResponse.json(

@@ -45,7 +45,7 @@ export async function POST(
       call_outcome !== undefined ? call_outcome : null
     );
 
-    return NextResponse.json(updatedLead);
+    return NextResponse.json({ ...updatedLead, success: true, lead: updatedLead });
   } catch (error: any) {
     console.error("Failed to update lead disposition:", error);
     return NextResponse.json(

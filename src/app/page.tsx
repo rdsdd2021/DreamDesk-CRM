@@ -2006,7 +2006,11 @@ export default function CRMPage() {
         currentUser={currentUser}
         onUpdateLeadStatus={handleUpdateLeadStatus}
         onAssignLead={handleAssignSingleLead}
-        onLeadUpdated={(updatedLead, isAdvancing) => {
+        onLeadUpdated={(rawUpdatedLead, isAdvancing) => {
+          if (!rawUpdatedLead) return;
+          const updatedLead: Lead = (rawUpdatedLead as any).lead || rawUpdatedLead;
+          if (!updatedLead || !updatedLead.id) return;
+
           if (!isAdvancing) {
             setSelectedLeadForDetail(updatedLead);
           }

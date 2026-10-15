@@ -372,8 +372,9 @@ export function EnhancedLeadDrawer({
         body: JSON.stringify({ field: "campaign_id", value: targetVal }),
       });
       if (!res.ok) throw new Error("Failed to update campaign");
-      const updatedLead = await res.json();
-      if (onLeadUpdated) onLeadUpdated(updatedLead);
+      const data = await res.json();
+      const actualLead = data?.lead || data;
+      if (onLeadUpdated && actualLead) onLeadUpdated(actualLead);
       fetchActivities(lead.id);
     } catch (err: any) {
       alert("Error: " + err.message);
@@ -393,9 +394,10 @@ export function EnhancedLeadDrawer({
         body: JSON.stringify({ tags: nextTags }),
       });
       if (!res.ok) throw new Error("Failed to update tags");
-      const updatedLead = await res.json();
-      setLeadTags(updatedLead.tags || nextTags);
-      if (onLeadUpdated) onLeadUpdated(updatedLead);
+      const data = await res.json();
+      const actualLead = data?.lead || data;
+      setLeadTags(actualLead.tags || nextTags);
+      if (onLeadUpdated && actualLead) onLeadUpdated(actualLead);
       fetchActivities(lead.id);
     } catch (err: any) {
       alert("Error: " + err.message);
@@ -530,7 +532,8 @@ export function EnhancedLeadDrawer({
       });
 
       if (!res.ok) throw new Error("Failed to log unreachable call attempt");
-      const updatedLead = await res.json();
+      const data = await res.json();
+      const updatedLead = data?.lead || data;
 
       setCallNotes("");
       setSelectedDispId("");
@@ -624,7 +627,8 @@ export function EnhancedLeadDrawer({
         throw new Error(errorData.error || "Failed to save call outcome");
       }
 
-      const updatedLead = await res.json();
+      const data = await res.json();
+      const updatedLead = data?.lead || data;
 
       setSelectedDispId("");
       setSelectedSubDispId("");

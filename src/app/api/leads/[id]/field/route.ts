@@ -25,7 +25,7 @@ export async function PATCH(
       currentUser,
       overridePolicy: override_policy,
     });
-    return NextResponse.json(result);
+    return NextResponse.json({ ...result.lead, success: result.success, lead: result.lead });
   } catch (error: any) {
     console.error("Failed to update lead field:", error);
     const isPolicyError =
