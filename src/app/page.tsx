@@ -622,26 +622,38 @@ export default function CRMPage() {
 
   // Sequential Lead Navigation (Drawer Stepper)
   const currentLeadIndex = selectedLeadForDetail
-    ? leads.findIndex((l) => l.id === selectedLeadForDetail.id)
+    ? leads.findIndex((l) => String(l.id) === String(selectedLeadForDetail.id))
     : -1;
   const hasPrevLead = currentLeadIndex > 0;
-  const hasNextLead = currentLeadIndex >= 0 && currentLeadIndex < leads.length - 1;
+  const hasNextLead = currentLeadIndex >= 0 ? currentLeadIndex < leads.length - 1 : leads.length > 0;
 
   const handleNextLead = useCallback(() => {
-    if (hasNextLead && currentLeadIndex >= 0) {
-      const nextIndex = currentLeadIndex + 1;
-      setSelectedLeadForDetail(leads[nextIndex]);
-      setActiveLeadIndex(nextIndex);
+    if (!selectedLeadForDetail || leads.length === 0) return;
+    const idx = leads.findIndex((l) => String(l.id) === String(selectedLeadForDetail.id));
+    if (idx !== -1 && idx < leads.length - 1) {
+      const nextLead = leads[idx + 1];
+      setSelectedLeadForDetail(nextLead);
+      setActiveLeadIndex(idx + 1);
+    } else if (idx === -1 && leads.length > 0) {
+      // If current lead was removed or not in the list (e.g. filtered out after status change), advance to first eligible
+      const nextLead = leads[0];
+      setSelectedLeadForDetail(nextLead);
+      setActiveLeadIndex(0);
+    } else if (idx === leads.length - 1 && page < totalPages) {
+      // If reached the end of current page, advance page
+      setPage((p) => p + 1);
     }
-  }, [hasNextLead, currentLeadIndex, leads]);
+  }, [leads, selectedLeadForDetail, page, totalPages]);
 
   const handlePrevLead = useCallback(() => {
-    if (hasPrevLead && currentLeadIndex > 0) {
-      const prevIndex = currentLeadIndex - 1;
-      setSelectedLeadForDetail(leads[prevIndex]);
-      setActiveLeadIndex(prevIndex);
+    if (!selectedLeadForDetail || leads.length === 0) return;
+    const idx = leads.findIndex((l) => String(l.id) === String(selectedLeadForDetail.id));
+    if (idx > 0) {
+      const prevLead = leads[idx - 1];
+      setSelectedLeadForDetail(prevLead);
+      setActiveLeadIndex(idx - 1);
     }
-  }, [hasPrevLead, currentLeadIndex, leads]);
+  }, [leads, selectedLeadForDetail]);
 
   // Saved Views Handlers
   const handleApplySavedView = (view: SavedView) => {
@@ -1911,10 +1923,12 @@ export default function CRMPage() {
         currentUser={currentUser}
         onUpdateLeadStatus={handleUpdateLeadStatus}
         onAssignLead={handleAssignSingleLead}
-        onLeadUpdated={(updatedLead) => {
-          setSelectedLeadForDetail(updatedLead);
+        onLeadUpdated={(updatedLead, isAdvancing) => {
+          if (!isAdvancing) {
+            setSelectedLeadForDetail(updatedLead);
+          }
           setLeads((prev) =>
-            prev.map((l) => (l.id === updatedLead.id ? updatedLead : l))
+            prev.map((l) => (String(l.id) === String(updatedLead.id) ? updatedLead : l))
           );
           fetchLeads();
         }}

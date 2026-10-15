@@ -87,7 +87,7 @@ interface EnhancedLeadDrawerProps {
   currentUser?: User | null;
   onUpdateLeadStatus: (leadId: number, status: string) => void;
   onAssignLead: (leadId: number, userId: string) => void;
-  onLeadUpdated?: (updatedLead: Lead) => void;
+  onLeadUpdated?: (updatedLead: Lead, isAdvancing?: boolean) => void;
   onNextLead?: () => void;
   onPrevLead?: () => void;
   hasPrevLead?: boolean;
@@ -322,10 +322,11 @@ export function EnhancedLeadDrawer({
   useEffect(() => {
     if (!lead) return;
 
-    setSelectedDispId(lead.disposition_id || "");
-    setSelectedSubDispId(lead.sub_disposition_id || "");
-    setCallbackDate(lead.callback_at ? lead.callback_at.slice(0, 16) : "");
+    setSelectedDispId("");
+    setSelectedSubDispId("");
+    setCallbackDate("");
     setCallNotes("");
+    setCallOutcomePending(false);
     setLeadTags(lead.tags || []);
 
     const fetchDispositions = async () => {
@@ -516,26 +517,32 @@ export function EnhancedLeadDrawer({
       if (!res.ok) throw new Error("Failed to log unreachable call attempt");
       const updatedLead = await res.json();
 
-      if (onLeadUpdated) {
-        onLeadUpdated(updatedLead);
-      }
-      if (lead?.id) {
-        fetchActivities(lead.id);
-      }
-
       setCallNotes("");
       setSelectedDispId("");
       setSelectedSubDispId("");
       setCallOutcomePending(false);
-      setToastMessage(`Logged "${opt.label}" (Attempt #${updatedLead.attempt_count || 1}). Lead remains active for retry.`);
-      setSuccessToast(true);
-      setTimeout(() => setSuccessToast(false), 3500);
 
-      // Auto-advance if enabled and next lead exists
-      if (autoAdvanceOnSave && hasNextLead && onNextLead) {
-        setTimeout(() => {
-          onNextLead();
-        }, 400);
+      if (lead?.id) {
+        fetchActivities(lead.id);
+      }
+
+      const willAdvance = Boolean(autoAdvanceOnSave && hasNextLead && onNextLead);
+
+      if (willAdvance) {
+        setToastMessage(`Logged "${opt.label}". Advancing to next student...`);
+        setSuccessToast(true);
+        setTimeout(() => setSuccessToast(false), 3000);
+        onNextLead!();
+        if (onLeadUpdated) {
+          onLeadUpdated(updatedLead, true);
+        }
+      } else {
+        setToastMessage(`Logged "${opt.label}" (Attempt #${updatedLead.attempt_count || 1}). Lead remains active for retry.`);
+        setSuccessToast(true);
+        setTimeout(() => setSuccessToast(false), 3500);
+        if (onLeadUpdated) {
+          onLeadUpdated(updatedLead, false);
+        }
       }
     } catch (err: any) {
       alert("Error: " + err.message);
@@ -598,13 +605,6 @@ export function EnhancedLeadDrawer({
       }
 
       const updatedLead = await res.json();
-      if (onLeadUpdated) {
-        onLeadUpdated(updatedLead);
-      }
-      if (lead.id) {
-        fetchActivities(lead.id);
-        fetchLockStatus(lead.id);
-      }
 
       setSelectedDispId("");
       setSelectedSubDispId("");
@@ -612,14 +612,28 @@ export function EnhancedLeadDrawer({
       setCallNotes("");
       setCallOutcomePending(false);
 
-      setToastMessage(`Call outcome "${targetDisp.name}" and rank score saved successfully!`);
-      setSuccessToast(true);
-      setTimeout(() => setSuccessToast(false), 3500);
+      if (lead.id) {
+        fetchActivities(lead.id);
+        fetchLockStatus(lead.id);
+      }
 
-      if (autoAdvanceOnSave && hasNextLead && onNextLead) {
-        setTimeout(() => {
-          onNextLead();
-        }, 400);
+      const willAdvance = Boolean(autoAdvanceOnSave && hasNextLead && onNextLead);
+
+      if (willAdvance) {
+        setToastMessage(`Saved "${targetDisp.name}". Advancing to next student...`);
+        setSuccessToast(true);
+        setTimeout(() => setSuccessToast(false), 3000);
+        onNextLead!();
+        if (onLeadUpdated) {
+          onLeadUpdated(updatedLead, true);
+        }
+      } else {
+        setToastMessage(`Call outcome "${targetDisp.name}" and rank score saved successfully!`);
+        setSuccessToast(true);
+        setTimeout(() => setSuccessToast(false), 3500);
+        if (onLeadUpdated) {
+          onLeadUpdated(updatedLead, false);
+        }
       }
     } catch (err: any) {
       alert("Error: " + err.message);
