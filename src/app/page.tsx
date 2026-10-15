@@ -371,12 +371,11 @@ export default function CRMPage() {
     loadMetaAndUsers();
   }, [loadMetaAndUsers]);
 
-  // Load Leads with Filters
-  const fetchLeads = useCallback(async () => {
-    setLoading(true);
-    try {
+  // Helper to construct lead filter & search query parameters
+  const getFilterQueryParams = useCallback(
+    (targetPage: number) => {
       const params = new URLSearchParams();
-      params.set("page", String(page));
+      params.set("page", String(targetPage));
       params.set("limit", String(pageSize));
       params.set("sortBy", sortBy);
       params.set("sortOrder", sortOrder);
@@ -408,6 +407,16 @@ export default function CRMPage() {
         }
       });
 
+      return params;
+    },
+    [pageSize, sortBy, sortOrder, debouncedSearch, selectedFacets, roleMode, activeCounselorId]
+  );
+
+  // Load Leads with Filters
+  const fetchLeads = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = getFilterQueryParams(page);
       const res = await fetch(`/api/leads?${params.toString()}`);
       if (res.status === 401) {
         router.push("/login?reason=deactivated");
@@ -435,7 +444,7 @@ export default function CRMPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, sortBy, sortOrder, debouncedSearch, selectedFacets, roleMode, activeCounselorId]);
+  }, [page, getFilterQueryParams, router]);
 
   useEffect(() => {
     fetchLeads();
@@ -620,40 +629,108 @@ export default function CRMPage() {
     }
   };
 
-  // Sequential Lead Navigation (Drawer Stepper)
+  // Sequential Lead Navigation & Multi-Page Filtered Stepper
   const currentLeadIndex = selectedLeadForDetail
     ? leads.findIndex((l) => String(l.id) === String(selectedLeadForDetail.id))
     : -1;
-  const hasPrevLead = currentLeadIndex > 0;
-  const hasNextLead = currentLeadIndex >= 0 ? currentLeadIndex < leads.length - 1 : leads.length > 0;
 
-  const handleNextLead = useCallback(() => {
-    if (!selectedLeadForDetail || leads.length === 0) return;
-    const idx = leads.findIndex((l) => String(l.id) === String(selectedLeadForDetail.id));
+  const effectiveTotalCount = totalFilteredCount > 0 ? totalFilteredCount : (totalCount > 0 ? totalCount : leads.length);
+  const globalLeadIndex = currentLeadIndex >= 0 ? (page - 1) * pageSize + currentLeadIndex : 0;
+
+  const hasPrevLead = globalLeadIndex > 0 || currentLeadIndex > 0 || page > 1;
+  const hasNextLead = (
+    (currentLeadIndex >= 0 && currentLeadIndex < leads.length - 1) ||
+    page < totalPages ||
+    globalLeadIndex < effectiveTotalCount - 1
+  );
+
+  const handleNextLead = useCallback(async () => {
+    if (!selectedLeadForDetail && leads.length === 0) return;
+
+    const idx = selectedLeadForDetail
+      ? leads.findIndex((l) => String(l.id) === String(selectedLeadForDetail.id))
+      : -1;
+
+    // Case 1: Next lead exists within current page
     if (idx !== -1 && idx < leads.length - 1) {
       const nextLead = leads[idx + 1];
       setSelectedLeadForDetail(nextLead);
       setActiveLeadIndex(idx + 1);
-    } else if (idx === -1 && leads.length > 0) {
-      // If current lead was removed or not in the list (e.g. filtered out after status change), advance to first eligible
-      const nextLead = leads[0];
-      setSelectedLeadForDetail(nextLead);
-      setActiveLeadIndex(0);
-    } else if (idx === leads.length - 1 && page < totalPages) {
-      // If reached the end of current page, advance page
-      setPage((p) => p + 1);
+      return;
     }
-  }, [leads, selectedLeadForDetail, page, totalPages]);
 
-  const handlePrevLead = useCallback(() => {
-    if (!selectedLeadForDetail || leads.length === 0) return;
-    const idx = leads.findIndex((l) => String(l.id) === String(selectedLeadForDetail.id));
+    // Case 2: At end of current page and more pages exist in filtered queue
+    if ((idx === leads.length - 1 || idx === -1) && page < totalPages) {
+      const nextPage = page + 1;
+      try {
+        const params = getFilterQueryParams(nextPage);
+        const res = await fetch(`/api/leads?${params.toString()}`);
+        if (res.ok) {
+          const data: LeadsResponse = await res.json();
+          if (data.leads && data.leads.length > 0) {
+            setPage(nextPage);
+            setLeads(data.leads);
+            setTotalFilteredCount(data.total || 0);
+            setTotalPages(data.totalPages || 1);
+            setSelectedLeadForDetail(data.leads[0]);
+            setActiveLeadIndex(0);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch next page for lead stepper:", err);
+      }
+    }
+
+    // Case 3: Lead was not found in current page array (e.g. filtered out after status change), advance to first eligible
+    if (idx === -1 && leads.length > 0) {
+      setSelectedLeadForDetail(leads[0]);
+      setActiveLeadIndex(0);
+      return;
+    }
+
+    showToast("You have reached the end of the filtered queue.", "success");
+  }, [selectedLeadForDetail, leads, page, totalPages, getFilterQueryParams]);
+
+  const handlePrevLead = useCallback(async () => {
+    if (!selectedLeadForDetail && leads.length === 0) return;
+
+    const idx = selectedLeadForDetail
+      ? leads.findIndex((l) => String(l.id) === String(selectedLeadForDetail.id))
+      : -1;
+
+    // Case 1: Previous lead exists within current page
     if (idx > 0) {
       const prevLead = leads[idx - 1];
       setSelectedLeadForDetail(prevLead);
       setActiveLeadIndex(idx - 1);
+      return;
     }
-  }, [leads, selectedLeadForDetail]);
+
+    // Case 2: At start of current page and previous page exists
+    if (idx === 0 && page > 1) {
+      const prevPage = page - 1;
+      try {
+        const params = getFilterQueryParams(prevPage);
+        const res = await fetch(`/api/leads?${params.toString()}`);
+        if (res.ok) {
+          const data: LeadsResponse = await res.json();
+          if (data.leads && data.leads.length > 0) {
+            setPage(prevPage);
+            setLeads(data.leads);
+            setTotalFilteredCount(data.total || 0);
+            setTotalPages(data.totalPages || 1);
+            const lastLead = data.leads[data.leads.length - 1];
+            setSelectedLeadForDetail(lastLead);
+            setActiveLeadIndex(data.leads.length - 1);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch prev page for lead stepper:", err);
+      }
+    }
+  }, [selectedLeadForDetail, leads, page, getFilterQueryParams]);
 
   // Saved Views Handlers
   const handleApplySavedView = (view: SavedView) => {
@@ -1916,7 +1993,10 @@ export default function CRMPage() {
         key={selectedLeadForDetail?.id ?? "closed"}
         lead={selectedLeadForDetail}
         isOpen={Boolean(selectedLeadForDetail)}
-        onClose={() => setSelectedLeadForDetail(null)}
+        onClose={() => {
+          setSelectedLeadForDetail(null);
+          fetchLeads();
+        }}
         users={users}
         schemaMeta={schemaMeta}
         campaigns={campaigns}
@@ -1930,14 +2010,13 @@ export default function CRMPage() {
           setLeads((prev) =>
             prev.map((l) => (String(l.id) === String(updatedLead.id) ? updatedLead : l))
           );
-          fetchLeads();
         }}
         onNextLead={handleNextLead}
         onPrevLead={handlePrevLead}
         hasPrevLead={hasPrevLead}
         hasNextLead={hasNextLead}
-        leadIndex={currentLeadIndex >= 0 ? currentLeadIndex : undefined}
-        totalLeadsCount={leads.length}
+        leadIndex={globalLeadIndex}
+        totalLeadsCount={effectiveTotalCount}
       />
 
       {/* Scheduled Tasks & Callbacks Modal */}

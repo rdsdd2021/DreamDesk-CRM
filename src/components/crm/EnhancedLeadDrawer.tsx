@@ -532,12 +532,16 @@ export function EnhancedLeadDrawer({
         setToastMessage(`Logged "${opt.label}". Advancing to next student...`);
         setSuccessToast(true);
         setTimeout(() => setSuccessToast(false), 3000);
-        onNextLead!();
         if (onLeadUpdated) {
           onLeadUpdated(updatedLead, true);
         }
+        onNextLead!();
       } else {
-        setToastMessage(`Logged "${opt.label}" (Attempt #${updatedLead.attempt_count || 1}). Lead remains active for retry.`);
+        setToastMessage(
+          hasNextLead
+            ? `Logged "${opt.label}" (Attempt #${updatedLead.attempt_count || 1}). Lead remains active for retry.`
+            : `Logged "${opt.label}". You have reached the end of the filtered queue.`
+        );
         setSuccessToast(true);
         setTimeout(() => setSuccessToast(false), 3500);
         if (onLeadUpdated) {
@@ -623,12 +627,16 @@ export function EnhancedLeadDrawer({
         setToastMessage(`Saved "${targetDisp.name}". Advancing to next student...`);
         setSuccessToast(true);
         setTimeout(() => setSuccessToast(false), 3000);
-        onNextLead!();
         if (onLeadUpdated) {
           onLeadUpdated(updatedLead, true);
         }
+        onNextLead!();
       } else {
-        setToastMessage(`Call outcome "${targetDisp.name}" and rank score saved successfully!`);
+        setToastMessage(
+          hasNextLead
+            ? `Call outcome "${targetDisp.name}" and rank score saved successfully!`
+            : `Saved "${targetDisp.name}". You have reached the end of the filtered queue.`
+        );
         setSuccessToast(true);
         setTimeout(() => setSuccessToast(false), 3500);
         if (onLeadUpdated) {
@@ -771,6 +779,14 @@ export function EnhancedLeadDrawer({
               </Badge>
             </div>
           </div>
+
+          {/* Real-time Confirmation Toast Banner */}
+          {successToast && (
+            <div className="mb-3 p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>{toastMessage}</span>
+            </div>
+          )}
 
           {/* Student Profile Identity Card */}
           <div className="flex items-start gap-3.5 pt-1">
