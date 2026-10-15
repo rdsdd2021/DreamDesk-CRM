@@ -641,7 +641,8 @@ export default function CRMPage() {
   const hasNextLead = (
     (currentLeadIndex >= 0 && currentLeadIndex < leads.length - 1) ||
     page < totalPages ||
-    globalLeadIndex < effectiveTotalCount - 1
+    globalLeadIndex < effectiveTotalCount - 1 ||
+    (currentLeadIndex === -1 && leads.length > 0)
   );
 
   const handleNextLead = useCallback(async () => {
@@ -682,15 +683,18 @@ export default function CRMPage() {
       }
     }
 
-    // Case 3: Lead was not found in current page array (e.g. filtered out after status change), advance to first eligible
+    // Case 3: Lead was not found in current page array (e.g. filtered out after status change), advance to next eligible
     if (idx === -1 && leads.length > 0) {
-      setSelectedLeadForDetail(leads[0]);
-      setActiveLeadIndex(0);
-      return;
+      const nextIdx = (selectedLeadForDetail && String(leads[0].id) === String(selectedLeadForDetail.id)) ? 1 : 0;
+      if (nextIdx < leads.length) {
+        setSelectedLeadForDetail(leads[nextIdx]);
+        setActiveLeadIndex(nextIdx);
+        return;
+      }
     }
 
     showToast("You have reached the end of the filtered queue.", "success");
-  }, [selectedLeadForDetail, leads, page, totalPages, getFilterQueryParams]);
+  }, [selectedLeadForDetail, leads, page, totalPages, getFilterQueryParams, showToast]);
 
   const handlePrevLead = useCallback(async () => {
     if (!selectedLeadForDetail && leads.length === 0) return;
@@ -1990,7 +1994,6 @@ export default function CRMPage() {
 
       {/* Enhanced Multi-Tab Lead Drawer */}
       <EnhancedLeadDrawer
-        key={selectedLeadForDetail?.id ?? "closed"}
         lead={selectedLeadForDetail}
         isOpen={Boolean(selectedLeadForDetail)}
         onClose={() => {

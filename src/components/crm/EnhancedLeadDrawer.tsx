@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Lead, User, SchemaMeta, Disposition, Campaign, LeadActivity } from "@/types/crm";
 import {
   Sheet,
@@ -131,6 +131,13 @@ export function EnhancedLeadDrawer({
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [fieldSearchQuery, setFieldSearchQuery] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 0;
+    }
+  }, [lead?.id]);
 
   // Counselor Ownership Lock Policy State
   const [leadLockInfo, setLeadLockInfo] = useState<{
@@ -168,9 +175,11 @@ export function EnhancedLeadDrawer({
 
   // Dynamic Call Outcome & Gatekeeper Navigation Lock State
   const [callOutcomePending, setCallOutcomePending] = useState(false);
+  const [slideDirection, setSlideDirection] = useState<"next" | "prev" | "none">("none");
   const [autoAdvanceOnSave, setAutoAdvanceOnSave] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("dreamdesk_auto_advance_leads") !== "0";
+      const stored = localStorage.getItem("dreamdesk_auto_advance_leads");
+      return stored !== "0";
     }
     return true;
   });
@@ -444,7 +453,10 @@ export function EnhancedLeadDrawer({
           setTimeout(() => setSuccessToast(false), 3000);
           return;
         }
-        if (hasPrevLead && onPrevLead) onPrevLead();
+        if (hasPrevLead && onPrevLead) {
+          setSlideDirection("prev");
+          onPrevLead();
+        }
       } else if (e.key === "]" || (e.key === "ArrowRight" && e.altKey)) {
         e.preventDefault();
         if (isNavigationLocked) {
@@ -453,7 +465,10 @@ export function EnhancedLeadDrawer({
           setTimeout(() => setSuccessToast(false), 3000);
           return;
         }
-        if (hasNextLead && onNextLead) onNextLead();
+        if (hasNextLead && onNextLead) {
+          setSlideDirection("next");
+          onNextLead();
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -526,9 +541,10 @@ export function EnhancedLeadDrawer({
         fetchActivities(lead.id);
       }
 
-      const willAdvance = Boolean(autoAdvanceOnSave && hasNextLead && onNextLead);
+      const willAdvance = Boolean(hasNextLead && onNextLead);
 
       if (willAdvance) {
+        setSlideDirection("next");
         setToastMessage(`Logged "${opt.label}". Advancing to next student...`);
         setSuccessToast(true);
         setTimeout(() => setSuccessToast(false), 3000);
@@ -621,9 +637,10 @@ export function EnhancedLeadDrawer({
         fetchLockStatus(lead.id);
       }
 
-      const willAdvance = Boolean(autoAdvanceOnSave && hasNextLead && onNextLead);
+      const willAdvance = Boolean(hasNextLead && onNextLead);
 
       if (willAdvance) {
+        setSlideDirection("next");
         setToastMessage(`Saved "${targetDisp.name}". Advancing to next student...`);
         setSuccessToast(true);
         setTimeout(() => setSuccessToast(false), 3000);
@@ -693,8 +710,17 @@ export function EnhancedLeadDrawer({
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && handleAttemptClose()}>
-      <SheetContent className="w-full sm:max-w-xl md:max-w-2xl overflow-y-auto p-0 flex flex-col bg-background shadow-2xl">
-        {/* Drawer Header */}
+      <SheetContent ref={scrollRef} className="w-full sm:max-w-xl md:max-w-2xl overflow-y-auto p-0 flex flex-col bg-background shadow-2xl">
+        <div
+          key={lead.id}
+          className={cn(
+            "flex flex-col flex-1 min-h-0",
+            slideDirection === "next" && "animate-in slide-in-from-right-8 duration-300 ease-out fade-in-60",
+            slideDirection === "prev" && "animate-in slide-in-from-left-8 duration-300 ease-out fade-in-60",
+            slideDirection === "none" && "animate-in fade-in-60 duration-200"
+          )}
+        >
+          {/* Drawer Header */}
         <div className="p-4 sm:p-6 pb-4 bg-muted/40 border-b border-border/80">
           {/* Top metadata & Lead Stepper Navigation Row (pr-10 sm:pr-12 gives clear breathing room from Sheet close button) */}
           <div className="flex items-center justify-between gap-2 mb-3 pr-10 sm:pr-12">
@@ -719,6 +745,7 @@ export function EnhancedLeadDrawer({
                           alert("Please save or log the call outcome before navigating.");
                           return;
                         }
+                        setSlideDirection("prev");
                         onPrevLead();
                       }}
                       title={isNavigationLocked ? "Save outcome to unlock navigation" : "Previous Lead (Shortcut: [ or Alt+Left)"}
@@ -738,6 +765,7 @@ export function EnhancedLeadDrawer({
                           alert("Please save or log the call outcome before navigating.");
                           return;
                         }
+                        setSlideDirection("next");
                         onNextLead();
                       }}
                       title={isNavigationLocked ? "Save outcome to unlock navigation" : "Next Lead (Shortcut: ] or Alt+Right)"}
@@ -1878,6 +1906,7 @@ export function EnhancedLeadDrawer({
         )}
       </Tabs>
         </div>
+      </div>
 
         {/* Sticky Mobile Quick Actions Bar (Finger-friendly for telecallers & counselors) */}
         <div className="sticky bottom-0 left-0 right-0 p-3 bg-card/95 backdrop-blur-md border-t border-border/80 flex items-center gap-2 sm:hidden z-20 shadow-lg safe-area-bottom">
