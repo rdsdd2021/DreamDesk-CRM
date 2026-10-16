@@ -274,6 +274,16 @@ export function AnalyticsDashboard({
     });
     lines.push("");
 
+    // Daily Calling Velocity Breakdown
+    if (callingTrendData.length > 0) {
+      lines.push("=== DAILY OUTREACH & CALLING VELOCITY ===");
+      lines.push("Date / Time,Total Dials,Connected Calls,Unreachable Attempts,Admissions Enrolled");
+      callingTrendData.forEach((t) => {
+        lines.push(`"${t.date}",${t.total_calls},${t.connected_calls},${t.unreachable_calls},${t.admitted_count}`);
+      });
+      lines.push("");
+    }
+
     // Sample Leads
     lines.push("=== SAMPLE MATCHING LEADS ===");
     lines.push("Lead Code,Name,Phone,Status,School,Stream,Score,Counselor,Campaign,Date Added");
@@ -333,6 +343,33 @@ export function AnalyticsDashboard({
     leads: c.total_assigned,
     color: c.avatar_color,
   })) : [];
+
+  const callingTrendData = useMemo(() => {
+    if (reportData?.dailyCallingTrend && reportData.dailyCallingTrend.length > 0) {
+      return reportData.dailyCallingTrend;
+    }
+    return (reportData?.dailyIntakeTrend || []).map((t) => ({
+      date: t.date,
+      total_calls: t.calls || t.leads || 0,
+      connected_calls: t.connected || 0,
+      unreachable_calls: t.unreachable || 0,
+      admitted_count: t.admitted || 0,
+      time_label: undefined as string | undefined,
+    }));
+  }, [reportData]);
+
+  const callingStats = useMemo(() => {
+    let dials = 0;
+    let connected = 0;
+    let unreachable = 0;
+    callingTrendData.forEach((d) => {
+      dials += d.total_calls;
+      connected += d.connected_calls;
+      unreachable += d.unreachable_calls;
+    });
+    const rate = dials > 0 ? Math.round((connected / dials) * 100) : 0;
+    return { dials, connected, unreachable, rate };
+  }, [callingTrendData]);
 
   const dailyTrend = reportData?.dailyIntakeTrend || [];
 
@@ -793,42 +830,158 @@ export function AnalyticsDashboard({
         </Card>
       </div>
 
-      {/* TIMELINE INTAKE TREND (IF AVAILABLE) */}
-      {dailyTrend.length > 1 && (
+      {/* DAILY CALLING & OUTREACH VELOCITY TREND */}
+      {callingTrendData.length > 0 && (
         <Card className="shadow-xs border-border/80">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
+          <CardHeader className="pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
               <div>
                 <CardTitle className="text-sm font-bold flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-primary" />
-                  <span>Lead Intake & Registration Trend</span>
+                  <PhoneCall className="w-4 h-4 text-primary" />
+                  <span>Daily Calling & Outreach Velocity Trend</span>
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Daily distribution of incoming student inquiries matching active filters
+                  Operational outreach output: Total dials, answered conversations, and unreachable attempts over time
                 </CardDescription>
               </div>
-              <Badge variant="outline" className="font-mono text-xs">
-                {dailyTrend.length} Days Recorded
-              </Badge>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="text-xs font-medium gap-1.5 py-1 px-2.5 bg-muted/30">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                  <span className="text-muted-foreground">Total Dials:</span>
+                  <span className="font-mono font-bold text-foreground">{callingStats.dials.toLocaleString()}</span>
+                </Badge>
+
+                <Badge variant="outline" className="text-xs font-medium gap-1.5 py-1 px-2.5 bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span>Connected:</span>
+                  <span className="font-mono font-bold">{callingStats.connected.toLocaleString()} ({callingStats.rate}%)</span>
+                </Badge>
+
+                <Badge variant="outline" className="text-xs font-medium gap-1.5 py-1 px-2.5 bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400">
+                  <span className="w-2 h-2 rounded-full bg-amber-500" />
+                  <span>Unreachable:</span>
+                  <span className="font-mono font-bold">{callingStats.unreachable.toLocaleString()}</span>
+                </Badge>
+
+                <Badge variant="secondary" className="font-mono text-xs">
+                  {callingTrendData.length} {callingTrendData[0]?.time_label ? "Hour Slots" : "Days"}
+                </Badge>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="h-48">
+            <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={dailyTrend} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
+                <AreaChart data={callingTrendData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
                   <defs>
-                    <linearGradient id="intakeGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0} />
+                    <linearGradient id="connectedGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id="unreachableGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id="totalCallsGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0} />
                     </linearGradient>
                   </defs>
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                  <XAxis 
+                    dataKey="date" 
+                    tick={{ fontSize: 10 }} 
+                    tickFormatter={(val: string) => {
+                      if (val && val.length === 10 && val.includes("-")) {
+                        try {
+                          const parts = val.split("-");
+                          const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+                          return d.toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+                        } catch {
+                          return val;
+                        }
+                      }
+                      return val;
+                    }}
+                  />
                   <YAxis tick={{ fontSize: 10 }} />
                   <Tooltip
-                    formatter={(val: any) => [Number(val).toLocaleString() + " leads", "Intake"]}
-                    contentStyle={{ borderRadius: "8px", fontSize: "12px" }}
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload || !payload.length) return null;
+                      const item = payload[0]?.payload;
+                      const total = item?.total_calls ?? item?.calls ?? 0;
+                      const connected = item?.connected_calls ?? item?.connected ?? 0;
+                      const unreachable = item?.unreachable_calls ?? item?.unreachable ?? 0;
+                      const rate = total > 0 ? Math.round((connected / total) * 100) : 0;
+                      let formattedLabel = String(label);
+                      if (formattedLabel.length === 10 && formattedLabel.includes("-")) {
+                        const parts = formattedLabel.split("-");
+                        const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+                        formattedLabel = d.toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+                      } else if (item?.time_label) {
+                        formattedLabel = `Time Slot: ${item.time_label}`;
+                      }
+
+                      return (
+                        <div className="bg-popover/95 backdrop-blur-md border border-border p-3 rounded-xl shadow-lg text-xs space-y-1.5 min-w-[200px]">
+                          <div className="font-bold text-foreground border-b border-border/60 pb-1.5 flex items-center justify-between">
+                            <span>{formattedLabel}</span>
+                            <Badge variant="outline" className="text-[10px] font-mono px-1.5 py-0 bg-primary/10 border-primary/20 text-primary">
+                              {rate}% Connected
+                            </Badge>
+                          </div>
+                          <div className="flex items-center justify-between text-muted-foreground pt-0.5">
+                            <span className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                              Total Calls Dialed:
+                            </span>
+                            <span className="font-mono font-bold text-foreground">{Number(total).toLocaleString()}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400">
+                            <span className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                              Connected Calls:
+                            </span>
+                            <span className="font-mono font-bold">{Number(connected).toLocaleString()}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-amber-600 dark:text-amber-400">
+                            <span className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-amber-500" />
+                              Unreachable Attempts:
+                            </span>
+                            <span className="font-mono font-bold">{Number(unreachable).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      );
+                    }}
                   />
-                  <Area type="monotone" dataKey="leads" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#intakeGrad)" />
+                  <Area
+                    type="monotone"
+                    dataKey="unreachable_calls"
+                    name="Unreachable Attempts"
+                    stroke="#f59e0b"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#unreachableGrad)"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="connected_calls"
+                    name="Connected Calls"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#connectedGrad)"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="total_calls"
+                    name="Total Dials"
+                    stroke="#6366f1"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#totalCallsGrad)"
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             </div>

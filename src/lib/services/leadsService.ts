@@ -3820,56 +3820,156 @@ export class LeadsService {
 
     counselorBreakdown.sort((a, b) => b.admissions_count - a.admissions_count || b.calls_in_period - a.calls_in_period);
 
-    // 10. Daily / Timeline Intake Trend
-    const trendRows = db.prepare(`
-      SELECT 
-        SUBSTR(leads.created_at, 1, 10) as date,
-        COUNT(*) as leads,
-        SUM(CASE WHEN leads.status = 'Admitted' THEN 1 ELSE 0 END) as admitted
-      FROM leads
-      ${whereClause}
-      GROUP BY date
-      ORDER BY date ASC
-      LIMIT 30
-    `).all(queryParams) as any[];
+    // 10. Daily / Timeline Calling & Outreach Velocity Trend
+    let dailyCallingTrend: {
+      date: string;
+      total_calls: number;
+      connected_calls: number;
+      unreachable_calls: number;
+      admitted_count: number;
+      time_label?: string;
+    }[] = [];
 
-    // Query real daily calls from lead_activities
-    const dailyCallsMap: Record<string, number> = {};
     try {
       let callTrendSql = `
-        SELECT SUBSTR(created_at, 1, 10) as date, COUNT(*) as count
+        SELECT 
+          SUBSTR(lead_activities.created_at, 1, 10) as date,
+          COUNT(*) as total_calls,
+          SUM(CASE WHEN lead_activities.activity_type = 'disposition' THEN 1 ELSE 0 END) as connected_calls,
+          SUM(CASE WHEN lead_activities.activity_type = 'call_attempt' THEN 1 ELSE 0 END) as unreachable_calls
         FROM lead_activities
-        WHERE activity_type IN ('disposition', 'call_attempt')
+        WHERE lead_activities.activity_type IN ('disposition', 'call_attempt')
       `;
       const callTrendParams: any[] = [];
       if (userScope && !userScope.canViewAllLeads) {
-        callTrendSql += " AND (performed_by_id = ? OR performed_by_name = ?)";
+        callTrendSql += " AND (lead_activities.performed_by_id = ? OR lead_activities.performed_by_name = ?)";
         callTrendParams.push(userScope.userId, userScope.name);
       } else if (params.assigned_to && params.assigned_to !== "all") {
         const counselorObj = counselors.find((u) => u.id === params.assigned_to);
-        callTrendSql += " AND (performed_by_id = ? OR performed_by_name = ?)";
+        callTrendSql += " AND (lead_activities.performed_by_id = ? OR lead_activities.performed_by_name = ?)";
         callTrendParams.push(params.assigned_to, counselorObj?.name || params.assigned_to);
       }
+
+      if (params.campaign_id && params.campaign_id !== "all") {
+        callTrendSql += " AND lead_activities.lead_id IN (SELECT id FROM leads WHERE campaign_id = ?)";
+        callTrendParams.push(params.campaign_id);
+      }
+
       if (dateFrom) {
-        callTrendSql += " AND created_at >= ?";
+        callTrendSql += " AND lead_activities.created_at >= ?";
         callTrendParams.push(dateFrom);
       }
       if (dateTo) {
-        callTrendSql += " AND created_at <= ?";
+        callTrendSql += " AND lead_activities.created_at <= ?";
         callTrendParams.push(dateTo);
       }
-      callTrendSql += " GROUP BY date";
-      const callRows = db.prepare(callTrendSql).all(...callTrendParams) as { date: string; count: number }[];
-      callRows.forEach((cr) => { dailyCallsMap[cr.date] = cr.count; });
+
+      callTrendSql += " GROUP BY date ORDER BY date ASC LIMIT 30";
+      const callRows = db.prepare(callTrendSql).all(...callTrendParams) as {
+        date: string;
+        total_calls: number;
+        connected_calls: number;
+        unreachable_calls: number;
+      }[];
+
+      // Query admissions by date from lead_activities
+      let admittedTrendSql = `
+        SELECT 
+          SUBSTR(created_at, 1, 10) as date,
+          COUNT(*) as count
+        FROM lead_activities
+        WHERE (activity_type = 'stage_change' AND new_value = 'Admitted')
+           OR (activity_type = 'disposition' AND (title LIKE '%Admitted%' OR new_value LIKE '%Admitted%'))
+      `;
+      const admittedParams: any[] = [];
+      if (userScope && !userScope.canViewAllLeads) {
+        admittedTrendSql += " AND (performed_by_id = ? OR performed_by_name = ?)";
+        admittedParams.push(userScope.userId, userScope.name);
+      } else if (params.assigned_to && params.assigned_to !== "all") {
+        const counselorObj = counselors.find((u) => u.id === params.assigned_to);
+        admittedTrendSql += " AND (performed_by_id = ? OR performed_by_name = ?)";
+        admittedParams.push(params.assigned_to, counselorObj?.name || params.assigned_to);
+      }
+      if (dateFrom) {
+        admittedTrendSql += " AND created_at >= ?";
+        admittedParams.push(dateFrom);
+      }
+      if (dateTo) {
+        admittedTrendSql += " AND created_at <= ?";
+        admittedParams.push(dateTo);
+      }
+      admittedTrendSql += " GROUP BY date";
+      const admittedRows = db.prepare(admittedTrendSql).all(...admittedParams) as { date: string; count: number }[];
+      const admittedMap: Record<string, number> = {};
+      admittedRows.forEach((ar) => { admittedMap[ar.date] = ar.count; });
+
+      const isSingleDay = (preset === "today" || preset === "yesterday" || (callRows.length <= 1 && dateFrom && dateTo && dateFrom.slice(0, 10) === dateTo.slice(0, 10)));
+      if (isSingleDay && callRows.length > 0) {
+        const targetDate = callRows[0].date;
+        let hourlySql = `
+          SELECT 
+            SUBSTR(created_at, 12, 2) || ':00' as hour_slot,
+            COUNT(*) as total_calls,
+            SUM(CASE WHEN activity_type = 'disposition' THEN 1 ELSE 0 END) as connected_calls,
+            SUM(CASE WHEN activity_type = 'call_attempt' THEN 1 ELSE 0 END) as unreachable_calls
+          FROM lead_activities
+          WHERE activity_type IN ('disposition', 'call_attempt')
+            AND SUBSTR(created_at, 1, 10) = ?
+        `;
+        const hourlyParams: any[] = [targetDate];
+        if (userScope && !userScope.canViewAllLeads) {
+          hourlySql += " AND (performed_by_id = ? OR performed_by_name = ?)";
+          hourlyParams.push(userScope.userId, userScope.name);
+        } else if (params.assigned_to && params.assigned_to !== "all") {
+          const counselorObj = counselors.find((u) => u.id === params.assigned_to);
+          hourlySql += " AND (performed_by_id = ? OR performed_by_name = ?)";
+          hourlyParams.push(params.assigned_to, counselorObj?.name || params.assigned_to);
+        }
+        hourlySql += " GROUP BY hour_slot ORDER BY hour_slot ASC";
+        const hourlyRows = db.prepare(hourlySql).all(...hourlyParams) as {
+          hour_slot: string;
+          total_calls: number;
+          connected_calls: number;
+          unreachable_calls: number;
+        }[];
+
+        const hourSlots = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
+        const hourMap: Record<string, { total: number; connected: number; unreachable: number }> = {};
+        hourlyRows.forEach((hr) => {
+          hourMap[hr.hour_slot] = {
+            total: hr.total_calls,
+            connected: hr.connected_calls,
+            unreachable: hr.unreachable_calls,
+          };
+        });
+        dailyCallingTrend = hourSlots.map((slot) => ({
+          date: slot,
+          total_calls: hourMap[slot]?.total || 0,
+          connected_calls: hourMap[slot]?.connected || 0,
+          unreachable_calls: hourMap[slot]?.unreachable || 0,
+          admitted_count: 0,
+          time_label: slot,
+        }));
+      } else {
+        dailyCallingTrend = callRows.map((cr) => ({
+          date: cr.date,
+          total_calls: cr.total_calls || 0,
+          connected_calls: cr.connected_calls || 0,
+          unreachable_calls: cr.unreachable_calls || 0,
+          admitted_count: admittedMap[cr.date] || 0,
+        }));
+      }
     } catch (e) {
-      console.error("Failed to aggregate daily call trend:", e);
+      console.error("Failed to aggregate daily calling velocity trend:", e);
     }
 
-    const dailyIntakeTrend = trendRows.map((r) => ({
-      date: r.date,
-      leads: r.leads || 0,
-      calls: dailyCallsMap[r.date] || 0,
-      admitted: r.admitted || 0,
+    const dailyIntakeTrend = dailyCallingTrend.map((t) => ({
+      date: t.date,
+      leads: t.total_calls,
+      calls: t.total_calls,
+      connected: t.connected_calls,
+      unreachable: t.unreachable_calls,
+      admitted: t.admitted_count,
     }));
 
     // 11. Sample Filtered Leads (for detailed report table)
@@ -3942,6 +4042,7 @@ export class LeadsService {
       dispositionBreakdown,
       counselorBreakdown,
       dailyIntakeTrend,
+      dailyCallingTrend,
       sampleLeads,
     };
   }

@@ -418,7 +418,17 @@ export interface AnalyticsReportData {
     date: string;
     leads: number;
     calls: number;
+    connected?: number;
+    unreachable?: number;
     admitted: number;
+  }[];
+  dailyCallingTrend?: {
+    date: string;
+    total_calls: number;
+    connected_calls: number;
+    unreachable_calls: number;
+    admitted_count: number;
+    time_label?: string;
   }[];
   sampleLeads: {
     id: number;
