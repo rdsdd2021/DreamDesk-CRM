@@ -75,6 +75,7 @@ import {
   PhoneOff,
   UserX,
   XCircle,
+  Flame,
 } from "lucide-react";
 
 interface EnhancedLeadDrawerProps {
@@ -1098,118 +1099,208 @@ export function EnhancedLeadDrawer({
                   </div>
                 </div>
 
-                {/* Dynamic Disposition Outcome Cards */}
+                {/* Dynamic Disposition Outcome Trays */}
                 {activeReachableDisps.length === 0 ? (
                   <div className="p-4 rounded-xl border border-dashed border-border/80 text-center text-xs text-muted-foreground">
                     No active call dispositions configured for this campaign.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                    {activeReachableDisps.map((disp) => {
-                      const isSelected = selectedDispId === disp.id;
-                      const isPositive = disp.category === "positive";
-                      const isNeutral = disp.category === "neutral" || Boolean(disp.requires_callback);
-                      const isNegative = disp.category === "negative";
-
-                      return (
-                        <button
-                          key={disp.id}
-                          type="button"
-                          onClick={() => {
-                            if (isSelected) {
-                              setSelectedDispId("");
-                              setSelectedSubDispId("");
-                            } else {
-                              setSelectedDispId(disp.id);
-                              setSelectedSubDispId("");
-                              if (disp.requires_callback && !callbackDate) {
-                                setCallbackInHours(2);
-                              }
-                            }
-                          }}
-                          className={cn(
-                            "p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2.5 min-h-[96px] relative overflow-hidden",
-                            isSelected
-                              ? isPositive
-                                ? "bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-300 ring-2 ring-emerald-500/30 shadow-xs"
-                                : isNeutral
-                                ? "bg-amber-500/15 border-amber-500 text-amber-800 dark:text-amber-300 ring-2 ring-amber-500/30 shadow-xs"
-                                : isNegative
-                                ? "bg-rose-500/15 border-rose-500 text-rose-800 dark:text-rose-300 ring-2 ring-rose-500/30 shadow-xs"
-                                : "bg-primary/15 border-primary text-primary ring-2 ring-primary/30 shadow-xs"
-                              : "bg-background border-border/80 hover:bg-muted/50 text-foreground"
-                          )}
-                        >
-                          <div className="flex items-center justify-between w-full">
-                            <div
-                              className={cn(
-                                "w-7 h-7 rounded-lg flex items-center justify-center shrink-0",
-                                isPositive
-                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                                  : isNeutral
-                                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                                  : isNegative
-                                  ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
-                                  : "bg-primary/10 text-primary"
-                              )}
-                            >
-                              {isPositive ? (
-                                <CheckCircle2 className="w-4 h-4" />
-                              ) : isNeutral ? (
-                                <Clock className="w-4 h-4" />
-                              ) : isNegative ? (
-                                <UserX className="w-4 h-4" />
-                              ) : (
-                                <PhoneCall className="w-4 h-4" />
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-1">
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  "text-[10px] px-1.5 py-0 font-mono font-semibold border-0",
-                                  disp.score > 0
-                                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
-                                    : disp.score < 0
-                                    ? "bg-rose-500/15 text-rose-700 dark:text-rose-400"
-                                    : "bg-muted text-muted-foreground"
-                                )}
-                              >
-                                {disp.score > 0 ? `+${disp.score}` : disp.score}
-                              </Badge>
-                              {isSelected && (
-                                <span
+                  <div className="space-y-3.5">
+                    {/* TRAY 1: Progressing Forward */}
+                    {activeReachableDisps.some((d) => d.category === "positive") && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
+                          <Flame className="w-3.5 h-3.5" />
+                          <span>🌟 Progressing Forward</span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {activeReachableDisps
+                            .filter((d) => d.category === "positive")
+                            .map((disp) => {
+                              const isSelected = selectedDispId === disp.id;
+                              return (
+                                <button
+                                  key={disp.id}
+                                  type="button"
+                                  onClick={() => {
+                                    if (isSelected) {
+                                      setSelectedDispId("");
+                                      setSelectedSubDispId("");
+                                    } else {
+                                      setSelectedDispId(disp.id);
+                                      setSelectedSubDispId("");
+                                      if (disp.requires_callback && !callbackDate) {
+                                        setCallbackInHours(2);
+                                      }
+                                    }
+                                  }}
                                   className={cn(
-                                    "w-2 h-2 rounded-full",
-                                    isPositive
-                                      ? "bg-emerald-500"
-                                      : isNeutral
-                                      ? "bg-amber-500"
-                                      : isNegative
-                                      ? "bg-rose-500"
-                                      : "bg-primary"
+                                    "p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 min-h-[88px] relative overflow-hidden",
+                                    isSelected
+                                      ? "bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-300 ring-2 ring-emerald-500/30 shadow-xs"
+                                      : "bg-background border-border/80 hover:bg-muted/50 text-foreground"
                                   )}
-                                />
-                              )}
-                            </div>
-                          </div>
+                                >
+                                  <div className="flex items-center justify-between w-full">
+                                    <div className="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <Badge
+                                        variant="outline"
+                                        className="text-[10px] px-1.5 py-0 font-mono font-semibold border-0 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                                      >
+                                        +{disp.score}
+                                      </Badge>
+                                      {isSelected && <span className="w-2 h-2 rounded-full bg-emerald-500" />}
+                                    </div>
+                                  </div>
+                                  <div className="flex-1 flex flex-col justify-end">
+                                    <div className="text-xs font-bold leading-snug break-words hyphens-auto" title={disp.name}>
+                                      {disp.name}
+                                    </div>
+                                    <div className="text-[10px] text-muted-foreground leading-tight mt-0.5 truncate">
+                                      {disp.sub_dispositions && disp.sub_dispositions.length > 0
+                                        ? `${disp.sub_dispositions.length} sub-options`
+                                        : "High intent step"}
+                                    </div>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
 
-                          <div className="flex-1 flex flex-col justify-end">
-                            <div className="text-xs font-bold leading-snug break-words hyphens-auto" title={disp.name}>
-                              {disp.name}
-                            </div>
-                            <div className="text-[10px] text-muted-foreground leading-tight mt-1 truncate">
-                              {disp.requires_callback
-                                ? "Schedule callback"
-                                : disp.sub_dispositions && disp.sub_dispositions.length > 0
-                                ? `${disp.sub_dispositions.length} sub-options`
-                                : disp.category.charAt(0).toUpperCase() + disp.category.slice(1)}
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
+                    {/* TRAY 2: Needs Follow-up */}
+                    {activeReachableDisps.some((d) => d.category === "neutral" || (d.requires_callback && d.category !== "positive")) && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-700 dark:text-amber-400">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>⏳ Needs Follow-up</span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {activeReachableDisps
+                            .filter((d) => d.category === "neutral" || (d.requires_callback && d.category !== "positive"))
+                            .map((disp) => {
+                              const isSelected = selectedDispId === disp.id;
+                              return (
+                                <button
+                                  key={disp.id}
+                                  type="button"
+                                  onClick={() => {
+                                    if (isSelected) {
+                                      setSelectedDispId("");
+                                      setSelectedSubDispId("");
+                                    } else {
+                                      setSelectedDispId(disp.id);
+                                      setSelectedSubDispId("");
+                                      if (disp.requires_callback && !callbackDate) {
+                                        setCallbackInHours(2);
+                                      }
+                                    }
+                                  }}
+                                  className={cn(
+                                    "p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 min-h-[88px] relative overflow-hidden",
+                                    isSelected
+                                      ? "bg-amber-500/15 border-amber-500 text-amber-800 dark:text-amber-300 ring-2 ring-amber-500/30 shadow-xs"
+                                      : "bg-background border-border/80 hover:bg-muted/50 text-foreground"
+                                  )}
+                                >
+                                  <div className="flex items-center justify-between w-full">
+                                    <div className="w-6 h-6 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                                      <Clock className="w-3.5 h-3.5" />
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <Badge
+                                        variant="outline"
+                                        className="text-[10px] px-1.5 py-0 font-mono font-semibold border-0 bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                                      >
+                                        +{disp.score}
+                                      </Badge>
+                                      {isSelected && <span className="w-2 h-2 rounded-full bg-amber-500" />}
+                                    </div>
+                                  </div>
+                                  <div className="flex-1 flex flex-col justify-end">
+                                    <div className="text-xs font-bold leading-snug break-words hyphens-auto" title={disp.name}>
+                                      {disp.name}
+                                    </div>
+                                    <div className="text-[10px] text-muted-foreground leading-tight mt-0.5 truncate">
+                                      {disp.requires_callback ? "Prompts callback date" : "Warm evaluation"}
+                                    </div>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* TRAY 3: Closed / Dropped */}
+                    {activeReachableDisps.some((d) => d.category === "negative") && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-rose-700 dark:text-rose-400">
+                          <XCircle className="w-3.5 h-3.5" />
+                          <span>🛑 Closed / Dropped</span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {activeReachableDisps
+                            .filter((d) => d.category === "negative")
+                            .map((disp) => {
+                              const isSelected = selectedDispId === disp.id;
+                              return (
+                                <button
+                                  key={disp.id}
+                                  type="button"
+                                  onClick={() => {
+                                    if (isSelected) {
+                                      setSelectedDispId("");
+                                      setSelectedSubDispId("");
+                                    } else {
+                                      setSelectedDispId(disp.id);
+                                      setSelectedSubDispId("");
+                                      if (disp.requires_callback && !callbackDate) {
+                                        setCallbackInHours(2);
+                                      }
+                                    }
+                                  }}
+                                  className={cn(
+                                    "p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 min-h-[88px] relative overflow-hidden",
+                                    isSelected
+                                      ? "bg-rose-500/15 border-rose-500 text-rose-800 dark:text-rose-300 ring-2 ring-rose-500/30 shadow-xs"
+                                      : "bg-background border-border/80 hover:bg-muted/50 text-foreground"
+                                  )}
+                                >
+                                  <div className="flex items-center justify-between w-full">
+                                    <div className="w-6 h-6 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                                      <UserX className="w-3.5 h-3.5" />
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <Badge
+                                        variant="outline"
+                                        className="text-[10px] px-1.5 py-0 font-mono font-semibold border-0 bg-rose-500/15 text-rose-700 dark:text-rose-400"
+                                      >
+                                        {disp.score}
+                                      </Badge>
+                                      {isSelected && <span className="w-2 h-2 rounded-full bg-rose-500" />}
+                                    </div>
+                                  </div>
+                                  <div className="flex-1 flex flex-col justify-end">
+                                    <div className="text-xs font-bold leading-snug break-words hyphens-auto" title={disp.name}>
+                                      {disp.name}
+                                    </div>
+                                    <div className="text-[10px] text-muted-foreground leading-tight mt-0.5 truncate">
+                                      {disp.sub_dispositions && disp.sub_dispositions.length > 0
+                                        ? `${disp.sub_dispositions.length} sub-options`
+                                        : "Disqualified lead"}
+                                    </div>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 

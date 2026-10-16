@@ -18,6 +18,7 @@ import {
   Layers,
   Clock,
   Tag,
+  Sparkles,
   LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -89,8 +90,8 @@ export function AppSidebar({
     },
     {
       id: "dispositions",
-      label: "Call Dispositions",
-      icon: Tag,
+      label: "Admissions Playbook",
+      icon: Sparkles,
     },
     {
       id: "fields",

@@ -20,7 +20,7 @@ import { AnalyticsDashboard } from "@/components/crm/AnalyticsDashboard";
 import { PipelineKanbanView } from "@/components/crm/PipelineKanbanView";
 import { CampaignsSchemaStudio } from "@/components/crm/CampaignsSchemaStudio";
 import { CampaignsWorkspace } from "@/components/crm/CampaignsWorkspace";
-import { DispositionsWorkspace } from "@/components/crm/DispositionsWorkspace";
+import { PlaybookStudioWorkspace } from "@/components/crm/PlaybookStudioWorkspace";
 import { SchemaStudioWorkspace } from "@/components/crm/SchemaStudioWorkspace";
 import { WorkQueueTabs, WorkQueueId } from "@/components/crm/WorkQueueTabs";
 import { KeyboardShortcutsModal } from "@/components/crm/KeyboardShortcutsModal";
@@ -1807,10 +1807,10 @@ export default function CRMPage() {
             </div>
           )}
 
-          {/* VIEW 4B: DEDICATED CALL DISPOSITIONS & OUTCOMES WORKSPACE */}
+          {/* VIEW 4B: ADMISSIONS PLAYBOOK & SMART OUTCOMES STUDIO */}
           {currentView === "dispositions" && (
             <div className="max-w-7xl mx-auto">
-              <DispositionsWorkspace
+              <PlaybookStudioWorkspace
                 onFilterByDisposition={(dispName) => {
                   setSelectedFacets({ disposition: [dispName] });
                   setCurrentView("leads");
