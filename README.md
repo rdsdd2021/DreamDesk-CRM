@@ -110,35 +110,41 @@ Replaces bloated, 3,000px vertical activity feeds with an intelligent, high-dens
 - Create, rename, hide, and reorder custom student attributes on the fly without database migrations.
 - Dynamic attributes (e.g. *JEE Percentile*, *Preferred Stream*, *Hostel Required*, *Parent Phone*) are stored as queryable JSON documents with automatic faceted filter discovery.
 
-### 8. 📞 Telecalling Retry Cadence, 2-Zone Controller & Supervisory Stage Locking
+### 8. 🎓 Admissions Playbook, Smart Outcomes Studio & Telecalling Cadence
+- **Admissions Playbook & Smart Outcomes (`PlaybookStudioWorkspace.tsx`)**: Replaced complex telecom jargon (dispositions, codes, weightings) with 4 unmistakable human reaction trays:
+  - 🌟 **Progressing Forward**: High intent admission steps (Enrolled, Campus Visit Scheduled, Ready to Apply). Automatically awards lead priority points.
+  - ⏳ **Needs Follow-up**: Active student considerations (Parent Review, Fee Structure, Awaiting Results) with mandatory callback scheduling.
+  - 📵 **Couldn't Connect**: 1-tap fast retry logging (RNR, Switched Off, Busy) that enforces cooling-off periods without falsely marking contact.
+  - 🛑 **Closed / Dropped**: Ineligible or opted-out leads safely archived.
+- **1-Click Starter Playbook Packs**: Pre-configured playbooks for *Undergrad & College*, *Engineering & STEM*, and *MBA / Business Schools*.
+- **Frictionless Outcome Recipe Modal (`PlaybookOutcomeModal.tsx`)**: Single-column, clean layout with integrated click-to-pick emoji popover, 1-click popular presets (`🔥 Interested`, `🎓 Admitted`, `⏳ Follow-up`, etc.), automatic smart defaults, and 1-click sub-reason tags.
 - **"Unreachable is an Attempt, Not Contact Proof"**: Ringing No Answer, Busy, Switched Off, and Invalid Number increment `attempt_count` and enforce an automated cooling-off window (3h cooldown) without falsely marking the student as *Contacted*.
-- **Configurable Retry Limits**: Unreachable leads remain active in retry queues until max attempts (default: 3) are exhausted, after which they automatically transition to the *Unreachable* pool for SMS/WhatsApp drip re-engagement.
-- **2-Zone Outcome Controller**:
-  - *Zone 1 (1-Click Instant Retry)*: 0.2s 1-click outcome chips (`RNR`, `Busy`, `Switched Off`, `Wrong Number`) with optional queue auto-advance on the Speed Dialer Desk and Student Profile Drawer.
-  - *Zone 2 (Connected Conversation)*: Categorized chips with progressive sub-dispositions, counseling booking confirmation prompts, and mandatory callback presets (`+2h`, `Tomorrow 11 AM`, `Tomorrow 4 PM`, `Next Monday`).
-- **Supervisory Lifecycle Stage Locking**: Counselors cannot manually toggle admission stages; stages are calculated automatically by CRM rules based on validated call outcomes. Manual stage overrides are locked and restricted to Supervisors (`Admin` / `Team Lead`) with full audit trail logging.
-- **Dynamic Objection Rebuttal Assistant**: In-drawer talking points tailored to specific student hesitations (budget/fee installment plans, NAAC A+ placements, hostel safety, scholarship tests).
+- **Supervisory Lifecycle Stage Locking**: Counselors cannot arbitrarily jump admission stages; stages are calculated automatically by CRM rules based on validated call outcomes. Manual stage overrides are locked and restricted to Supervisors (`Admin` / `Team Lead`) with full audit trail logging.
 
-### 9. 💬 1-Click WhatsApp & Phone Softphone Integration
+### 9. 🎯 Telecaller Focus Mode Cockpit
+- **Distraction-Free Dialing (`FocusModeWorkspace.tsx`)**: Streamlined single-screen workflow for telecallers, locking down administrative CRM settings to maximize call throughput.
+- **Call Navigation Gatekeeper**: Prevents callers from advancing or skipping records while a call is active until an outcome is logged.
+- **Auto-Advancing Stepper**: Automatically advances to the next candidate in the queue upon outcome submission across paginated and filtered datasets.
+
+### 10. 💬 1-Click WhatsApp & Phone Softphone Integration
 - Integrated WhatsApp message drawer with dynamic variable interpolation (`{name}`, `{stream}`, `{lead_code}`, `{callback_at}`).
 - Pre-built templates for Admission Brochures, Counseling Confirmations, Scholarship Tests, and Follow-ups.
 - Direct `tel:` links for desktop softphones and mobile click-to-call.
 
-### 10. 🛑 Instant User Deactivation & Real-Time Session Lockout
+### 11. 🛑 Instant User Deactivation & Real-Time Session Lockout
 - Admins can instantly deactivate compromised or departing counselors from the Team Management tab.
 - Instantly flushes all active SQLite sessions for that user.
 - Periodic client heartbeat detects the 401 status and redirects the deactivated user to the login screen immediately.
 
-### 11. 🌍 Login Geolocation & IP Audit Logging
+### 12. 🌍 Login Geolocation & IP Audit Logging
 - Automatically logs user IP address, approximate city, country, and ISP on every login.
 - Displays last login metadata in the Staff Management table and writes tamper-evident audit records in `activity_logs`.
 
-### 12. 📊 Executive Dashboard with Multi-Dimensional Filtering
-- Filter entire analytics datasets by:
-  - **Date Presets**: Today, Yesterday, Last 7 Days, Last 30 Days, This Quarter, This Year, or Custom Date Range.
-  - **Counselor Workloads**: Compare throughput across staff.
-  - **Marketing Campaigns**: Track conversion rates per channel.
-  - **Stream & Academic Boards**: Visualize demographic breakdowns.
+### 13. 📊 Executive Dashboard, Real-Time Call Velocity & "Uncalled Today" Queue
+- **Daily Calling & Outreach Velocity Trend**: Dynamic hourly and daily charts tracking outbound call volume, connect ratios, and progression trends throughout the admissions cycle.
+- **"Uncalled Today" Dialing Queue**: Dedicated quick-access tab isolating leads that have not yet received an outreach attempt today, eliminating accidental double-dialing.
+- **Real-Time Data Reflection**: Immediate SQLite activity synchronization ensuring every telecaller call reflects instantly in executive reports and dashboards.
+- **Multi-Dimensional Filtering**: Filter entire analytics datasets by Date Presets (Today, Yesterday, Last 7/30 Days, Custom Range), Counselor Workloads, Marketing Campaigns, and Academic Boards.
 - **1-Click CSV Export**: Download filtered lead reports directly from the dashboard.
 
 ---
@@ -177,8 +183,9 @@ The CRM exposes 30+ optimized App Router REST endpoints with strict session auth
 | | `POST` | `/api/policies/check` | Pre-flight validation of 7-day ownership lock | Authenticated |
 | **Schema & Meta** | `GET` / `POST` | `/api/schema` | Custom field definition studio (JSON metadata) | Super Admin |
 | | `GET` / `POST` | `/api/campaigns` | Marketing campaign creation and tracking | Admin / TL |
-| | `GET` / `POST` | `/api/dispositions` | Root disposition code configuration | Admin / TL |
-| | `GET` / `POST` | `/api/dispositions/sub` | Nested 2-level sub-disposition management | Admin / TL |
+| | `GET` / `POST` | `/api/dispositions` | Root disposition & outcome recipe configuration | Admin / TL |
+| | `GET` / `POST` | `/api/dispositions/sub` | Nested 2-level sub-disposition & tag management | Admin / TL |
+| | `GET` / `POST` | `/api/dispositions/scoring-config` | Dynamic lead scoring weights & threshold calibration | Admin / TL |
 | | `GET` / `POST` | `/api/whatsapp-templates` | Manage WhatsApp message templates & variables | Admin / TL |
 | | `GET` / `POST` | `/api/saved-views` | Custom counselor filter views and column sets | Authenticated |
 | **Analytics & Audit**| `GET` | `/api/analytics/report` | Multi-dimensional dashboard analytics | Admin / TL |
@@ -315,17 +322,21 @@ DreamDesk CRM/
 │   │   └── page.tsx             # High-Density Admissions Workspace
 │   ├── components/
 │   │   ├── crm/                 # Core CRM Modules
-│   │   │   ├── BulkActionBar.tsx        # Floating multi-select operations dock
-│   │   │   ├── BulkAssignModal.tsx      # Policy-aware lead reallocation modal
-│   │   │   ├── BulkCampaignModal.tsx    # Campaign switcher with priority tasks
-│   │   │   ├── BulkTagsModal.tsx        # Multi-tag batch editor
-│   │   │   ├── EnhancedLeadDrawer.tsx   # Student deep-dive profile drawer
-│   │   │   ├── LeadsTable.tsx           # High-density keyboard-navigable table
-│   │   │   ├── LeadTimeline.tsx         # Executive Journey & Multi-Density log
-│   │   │   ├── NotificationBell.tsx     # Real-time alert bell & task counter
-│   │   │   ├── PipelineKanbanView.tsx   # Admissions pipeline board
-│   │   │   ├── PoliciesWorkspace.tsx    # Governance & 7-day lock manager
-│   │   │   ├── TasksWorkspace.tsx       # Priority tasks & callback center
+│   │   │   ├── AnalyticsWorkspace.tsx       # Calling Velocity & Admissions Dashboard
+│   │   │   ├── BulkActionBar.tsx            # Floating multi-select operations dock
+│   │   │   ├── BulkAssignModal.tsx          # Policy-aware lead reallocation modal
+│   │   │   ├── BulkCampaignModal.tsx        # Campaign switcher with priority tasks
+│   │   │   ├── BulkTagsModal.tsx            # Multi-tag batch editor
+│   │   │   ├── EnhancedLeadDrawer.tsx       # Student deep-dive profile & call drawer
+│   │   │   ├── FocusModeWorkspace.tsx       # Distraction-free telecaller dialing cockpit
+│   │   │   ├── LeadsTable.tsx               # High-density keyboard-navigable table
+│   │   │   ├── LeadTimeline.tsx             # Executive Journey & Multi-Density log
+│   │   │   ├── NotificationBell.tsx         # Real-time alert bell & task counter
+│   │   │   ├── PipelineKanbanView.tsx       # Admissions pipeline board
+│   │   │   ├── PlaybookOutcomeModal.tsx     # Single-column friction-free outcome popup
+│   │   │   ├── PlaybookStudioWorkspace.tsx  # Visual Admissions Playbook & Smart Recipes
+│   │   │   ├── PoliciesWorkspace.tsx        # Governance & 7-day lock manager
+│   │   │   ├── TasksWorkspace.tsx           # Priority tasks & callback center
 │   │   │   └── ...
 │   │   └── ui/                  # Radix UI / Base UI accessible primitives
 │   └── lib/
@@ -346,6 +357,10 @@ For an in-depth, granular log of all schema additions, API expansions, and UI re
 👉 **[CHANGELOG.md](./CHANGELOG.md)**
 
 ### Release Highlights
+- **v2.8.0 (2026-10-16)**: Admissions Playbook & Smart Outcomes Studio with 4 Human Reaction Trays and Single-Column Recipe Modal (`PlaybookStudioWorkspace.tsx`, `PlaybookOutcomeModal.tsx`).
+- **v2.7.0 (2026-10-15)**: Real-Time Dashboard Call Reporting, Daily Calling & Outreach Velocity Trend, and "Uncalled Today" Queue (`AnalyticsWorkspace.tsx`).
+- **v2.6.0 (2026-10-14)**: Telecaller Focus Mode Cockpit, Dynamic SQLite Dispositions, and Composite Lead Ranking Engine (`FocusModeWorkspace.tsx`).
+- **v2.5.0 (2026-10-08)**: Enterprise Security Hardening, Zero-Data-Loss Deduplication & Hotkey Synchronization.
 - **v2.4.0 (2026-10-08)**: Redesigned Lead History into Smart Executive Journey & Multi-Density Timeline (`LeadTimeline.tsx`).
 - **v2.3.0 (2026-10-07)**: Bulk Action Task Engine & Priority Notification System (`tasksService.ts`, `NotificationBell.tsx`, `BulkCampaignModal.tsx`).
 - **v2.2.0 (2026-10-06)**: 7-Day Counselor Ownership Policy Protection & Anti-Poaching Governance (`policyService.ts`, `PoliciesWorkspace.tsx`).

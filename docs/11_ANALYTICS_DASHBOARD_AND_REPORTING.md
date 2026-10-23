@@ -52,27 +52,38 @@ The dashboard features multi-dimensional filtering, allowing management to slice
 ## 3. Core Analytics Visualizations
 
 ### 1. Executive KPI Metrics Cards
-- **Total Inflow**: Total leads created within the selected period.
-- **Conversion Velocity**: Percentage of inquiries converted to `Admitted` status.
+- **Total Outreach**: Total calls and contact attempts logged within the selected period.
+- **Connection Rate**: Percentage of dialed calls that connected with students or parents.
+- **Conversion Velocity**: Percentage of inquiries successfully converted to `Admitted` status.
 - **Active Pipeline**: Total leads currently in `Interested` or `Follow-up` stages.
-- **Average Response Time**: Time elapsed between lead generation and first logged call.
+- **Average Response Latency**: Time elapsed between lead generation and first logged call.
 
-### 2. Admissions Pipeline Funnel
-Interactive funnel chart tracking dropout rates across each admissions milestone:
+### 2. Daily Calling & Outreach Velocity Trend
+*(Replaced the legacy static lead intake trend, as student cohorts are uploaded in bulk at the start of enrollment sessions).*
+- **Hourly Call Velocity (Bar Chart)**:
+  - Tracks call volume distribution across working hours (9:00 AM to 7:00 PM).
+  - Highlights peak candidate connection windows (typically 11:30 AM–1:00 PM and 4:30 PM–6:30 PM).
+- **Daily Outreach & Connect Trend (Area Chart)**:
+  - Visualizes daily call throughput, connected conversations, and positive outcome progression across 7-day and 30-day windows.
+- **Disposition Mix**: Real-time breakdown of Progressing vs Follow-up vs Unreachable vs Dropped outcomes.
+
+### 3. Admissions Pipeline Funnel
+Interactive funnel chart tracking candidate progression across admissions milestones:
 1. `New Inquiry` (100%)
 2. `Contacted` (78%)
 3. `Interested - High Intent` (42%)
 4. `Application Submitted` (26%)
 5. `Admitted / Fee Paid` (18%)
 
-### 3. Counselor Throughput Leaderboard
+### 4. Counselor Throughput & Velocity Leaderboard
 Comparative staff performance table:
-- Calls Logged per Day
+- Calls Logged per Day & Hour
 - Average Call Duration
-- Conversion Rate (%)
+- Connection Rate (%)
+- Progressing Outcomes Generated
 - Overdue Callback Count
 
-### 4. Marketing Campaign Conversion Chart
+### 5. Marketing Campaign Conversion Chart
 Bar and pie charts displaying:
 - Inquiry Volume per Campaign
 - Confirmed Enrollments per Campaign
@@ -80,7 +91,23 @@ Bar and pie charts displaying:
 
 ---
 
-## 4. 1-Click CSV Export & Reporting
+## 4. Real-Time Data Reflection & The "Uncalled Today" Queue
+
+### A. Real-Time SQLite Activity Synchronization
+A core technical improvement in DreamDesk CRM is immediate, zero-lag query execution:
+- Every call outcome logged by a telecaller or counselor in `EnhancedLeadDrawer` or `FocusModeWorkspace` is recorded in SQLite with an immediate transaction commit.
+- Dashboard queries aggregate fresh `lead_activities` directly, ensuring analytics cards, velocity charts, and counselor leaderboards reflect calls the instant they happen.
+
+### B. The "Uncalled Today" Dialing Queue
+To ensure telecallers don't repeatedly dial the same candidate multiple times in a single day:
+- A dedicated **"Uncalled Today"** queue tab is available in the main workspace and Speed Dialer.
+- Evaluates `last_attempt_at` and logs from today's calendar date:
+  - If a student received a call attempt today (whether connected, busy, or unanswered), they are immediately excluded from the uncalled queue.
+  - Telecallers working through the queue are guaranteed fresh candidates who have not yet been contacted today.
+
+---
+
+## 5. 1-Click CSV Export & Reporting
 
 *Endpoint*: `GET /api/analytics/report`
 
@@ -91,7 +118,7 @@ At any time, leadership can download a customized admissions report:
 
 ---
 
-## 5. 🏫 Real-World Use Case Scenarios
+## 6. 🏫 Real-World Use Case Scenarios
 
 ### Scenario A: Weekly Executive Dean's Review
 - **Context**: The Dean of Admissions meets with the Chancellor every Monday at 9:00 AM to review progress against enrollment targets.
@@ -112,7 +139,7 @@ At any time, leadership can download a customized admissions report:
 
 ---
 
-## 6. ⚙️ Technical Engine Reference
+## 7. ⚙️ Technical Engine Reference
 
 - **Aggregations**: Calculated directly inside optimized SQLite indexed queries with memory caching.
 - **Response Latency**: <30ms query time across 500,000+ lead records.

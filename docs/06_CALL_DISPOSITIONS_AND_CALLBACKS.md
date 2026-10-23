@@ -1,10 +1,109 @@
-# 📞 Call Dispositions, Retry Cadence & Telecalling Framework
+# 🎓 Admissions Playbook, Smart Outcomes Studio & Telecalling Framework
 
-This guide covers the **Telecalling & Counseling Workflow Framework**, **2-Zone Outcome Controller**, **Configurable Retry Cadence**, and **Supervisory Stage Locking** in DreamDesk CRM.
+This guide covers the **Admissions Playbook & Smart Outcomes Studio**, the **4 Reaction Trays**, the **Frictionless Outcome Recipe Modal**, the **Dynamic Composite Lead Ranking Engine**, **Telecalling Retry Cadence**, and **Supervisory Stage Locking** in DreamDesk CRM.
 
 ---
 
-## 1. Core Operating Philosophy: "Unreachable Is an Attempt, Not Contact Proof"
+## 1. Abstracting Telecom Complexity: The Admissions Playbook Mental Model
+
+In traditional CRM software, telecalling configuration is burdened with confusing telecom jargon:
+- Arcane codes: `ADM_SUBMITTED`, `INT_HIGH`, `CB_REQ`, `RNR`.
+- Nested multi-level drop-downs and manual score mathematical weights.
+- Multi-select campaign mapping checkboxes.
+
+DreamDesk CRM abstracts this technical plumbing into a clear, human mental model: **The Admissions Playbook & Smart Outcome Recipes**.
+
+Academic administrators and counselors don't think in terms of database tables; they think in terms of:
+1. *What did the student or parent say?*
+2. *What is their level of interest?*
+3. *What should happen next?*
+
+```mermaid
+flowchart TD
+    subgraph PlaybookAdmin ["What Admins & Counselors See & Configure"]
+        Recipe["Smart Outcome Recipe (e.g. 'Campus Visit Scheduled' 🏛️)"]
+        Tray["1. Reaction Tray (🌟 Progressing / ⏳ Follow-up / 📵 Unreachable / 🛑 Closed)"]
+        Intent["2. Student Temperature (🎓 Admitted / 🔥 Hot / 🌤️ Warm / ❄️ Cold / 🛑 Dropped)"]
+        NextStep["3. Automated Action (📅 Callback Date / 🛡️ Cooldown / 💬 WhatsApp)"]
+        
+        Recipe --> Tray
+        Recipe --> Intent
+        Recipe --> NextStep
+    end
+
+    subgraph AutoEngine ["What the Engine Computes Under the Hood (Automatic)"]
+        Score["Calculates Composite Lead Score (+75 pts, Instant Queue Priority)"]
+        Stage["Advances Lifecycle Stage ('Interested' / 'Admitted')"]
+        Cooldown["Schedules Smart Cooldown (2h, 4h, or 24h)"]
+        DisposTable["Updates Normalized SQLite Dispositions & Sub-Dispositions"]
+    end
+
+    PlaybookAdmin ==>|Instant Execution| AutoEngine
+```
+
+---
+
+## 2. The 4 Visual Reaction Trays
+
+Both in the **Admissions Playbook Studio** (`PlaybookStudioWorkspace.tsx`) and in the **Telecaller Call Drawer** (`EnhancedLeadDrawer.tsx`), outcomes are organized into 4 unmistakable color-coded reaction trays:
+
+| Reaction Tray | Color Accent | Purpose & Workflow | Automated Engine Reaction |
+|---|---|---|---|
+| 🌟 **Progressing Forward** | Emerald (`#10b981`) | High-intent candidates moving actively toward admission (e.g., *Admission Form Submitted*, *Campus Tour Scheduled*, *Ready to Apply*). | Awards top score points (+75 to +100), updates stage to *Interested* or *Admitted*, and prioritizes in staff queues. |
+| ⏳ **Needs Follow-up** | Amber (`#f59e0b`) | Active conversations requiring another consultation (e.g., *Discussing with Parents*, *Fee Details Shared*, *Awaiting CUET/12th Results*). | Enforces mandatory callback date & time selection with 1-click presets (+2h, Tomorrow 11 AM) and keeps lead in follow-up queues. |
+| 📵 **Couldn't Connect** | Blue (`#3b82f6`) | 1-tap fast retry logging for unreached attempts (*Ringing No Answer*, *Switched Off*, *Busy*). | Increments `attempt_count`, triggers smart cooldown rest (2h–4h), does NOT mark as contacted, and auto-advances queue. |
+| 🛑 **Closed / Dropped** | Rose (`#ef4444`) | Disqualified candidates (*Enrolled Elsewhere*, *Ineligible*, *Not Interested*). | Applies negative score adjustment (-30 to -50), updates stage to *Not Interested*, and safely archives the lead. |
+
+---
+
+## 3. The Frictionless Outcome Recipe Modal (`PlaybookOutcomeModal.tsx`)
+
+Admins can customize existing outcomes or add new recipes in seconds through a modern, single-column modal:
+
+1. **Clean Single-Column Flow (`sm:max-w-xl`)**:
+   - Zero horizontal split-screen cramp; fits comfortably on any laptop or desktop screen.
+   - Natural top-to-bottom visual hierarchy with no numbered-step fatigue.
+2. **Click-to-Pick Emoji Popover**:
+   - Integrated button opening a curated 24-emoji grid that closes reliably on outside click.
+3. **1-Click Starter Presets**:
+   - Pre-filled template pills (`🔥 Interested`, `🎓 Admitted`, `⏳ Follow-up`, `👨‍👩‍👧 Parents`, `📳 No Answer`) that pre-fill title, tray, score, and default tags in one click.
+4. **Smart Category Defaults**:
+   - Clicking a Category Tray automatically sets recommended Intent Levels and Callback requirements.
+5. **Student Temperature Picker**:
+   - 5 simple visual pills (`🎓 +100`, `🔥 +75`, `🌤️ +35`, `❄️ 0`, `🛑 -30`) with a 1-line plain-language explanation of stage impact.
+6. **Effortless Sub-Reason Tags**:
+   - Removable chips with 1-click suggested additions (`+ Fee Details`, `+ Campus Visit`, `+ Hostel Query`, `+ Location Far`).
+7. **Natural Action Bar**:
+   - Cancel and Save buttons placed naturally at the bottom of the form where user focus ends.
+
+---
+
+## 4. 1-Click Starter Playbook Packs
+
+The Admissions Playbook includes 3 pre-built institutional templates ready for 1-click deployment:
+
+1. 🎓 **Undergrad & College Admissions**: Standard admissions cycle (Campus visits, parent consultations, scholarship queries, mark sheet verification).
+2. ⚙️ **Engineering & STEM Admissions**: Tailored for JEE Mains/Advanced ranks, branch selection (CSE, AI/ML, ECE), and hostel availability.
+3. 💼 **MBA & Post-Graduate Admissions**: Tailored for CAT/MAT/GMAT percentiles, GD/PI interview rounds, and corporate sponsorship.
+
+---
+
+## 5. Composite Lead Ranking & Dynamic Scoring Engine
+
+DreamDesk CRM dynamically ranks every student lead based on academic merit and verified phone consultation outcomes:
+
+$$\text{Composite Score} = (\text{Academic Merit} \times W_{acad}) + (\text{Outcome Score} \times W_{disp}) - (\text{Attempt Penalty} \times \text{Attempts})$$
+
+- **Configurable Weights**: Managed live from the Playbook Studio calibration panel:
+  - `academic_weight` (Default: 40%)
+  - `disposition_weight` (Default: 60%)
+  - `attempt_penalty` (Default: 5 points per unanswered dial)
+  - `high_intent_threshold` (Default: 70 points for "Hot" candidate badge)
+- **Automatic Recalculation**: Every saved call outcome immediately recalculates the lead's composite score and re-ranks queues in real time.
+
+---
+
+## 6. Core Operating Philosophy: "Unreachable Is an Attempt, Not Contact Proof"
 
 In high-volume education admissions, telecallers make 80–150 outreach calls daily. A fundamental flaw of legacy CRMs is marking any dialed number as *"Contacted"*, which:
 - Falsely inflates contact and outreach metrics.
@@ -156,16 +255,67 @@ To maintain data integrity and prevent reporting discrepancies, counselors canno
 
 ---
 
-## 7. Technical Schema Reference
+## 7. Navigation Gatekeeper & Multi-Page Auto-Advancing Stepper
 
-### `leads` Table Schema Additions:
+To eliminate operator mistakes and lost consultation notes during fast telecalling:
+
+1. **Call Navigation Gatekeeper (`isNavigationLocked`)**:
+   - When a call outcome button is selected or a conversation is active, the drawer prevents switching to other candidates via keyboard hotkeys (<kbd>[</kbd> / <kbd>]</kbd>) or clicking rows until the call outcome is saved or explicitly cancelled.
+   - A friendly warning toast reminds the caller: *"Please save the call outcome before navigating to another student."*
+2. **Multi-Page Filtered Stepper**:
+   - The profile drawer supports seamless keyboard stepping (<kbd>[</kbd> / <kbd>]</kbd>) through filtered cohorts, automatically loading subsequent pages without closing the drawer.
+3. **Instant Auto-Advancement**:
+   - Saving any call outcome automatically slides smoothly to the next candidate in the queue, cutting out 2–3 mouse clicks per student.
+
+---
+
+## 8. Technical Schema & Dynamic SQLite Tables
+
+### Dynamic Outcomes Tables:
 ```sql
-ALTER TABLE leads ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE leads ADD COLUMN last_attempt_at DATETIME;
-ALTER TABLE leads ADD COLUMN cooldown_until DATETIME;
-ALTER TABLE leads ADD COLUMN call_outcome TEXT;
+CREATE TABLE IF NOT EXISTS dispositions (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  code TEXT UNIQUE NOT NULL,
+  category TEXT NOT NULL CHECK(category IN ('positive', 'neutral', 'negative', 'unreachable')),
+  color TEXT NOT NULL DEFAULT '#3b82f6',
+  score INTEGER NOT NULL DEFAULT 0,
+  requires_callback INTEGER NOT NULL DEFAULT 0,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sub_dispositions (
+  id TEXT PRIMARY KEY,
+  disposition_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  code TEXT,
+  score INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (disposition_id) REFERENCES dispositions(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS campaign_dispositions (
+  campaign_id TEXT NOT NULL,
+  disposition_id TEXT NOT NULL,
+  PRIMARY KEY (campaign_id, disposition_id),
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+  FOREIGN KEY (disposition_id) REFERENCES dispositions(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS lead_scoring_policies (
+  id TEXT PRIMARY KEY,
+  academic_weight REAL NOT NULL DEFAULT 0.40,
+  disposition_weight REAL NOT NULL DEFAULT 0.60,
+  attempt_penalty REAL NOT NULL DEFAULT 5.0,
+  high_intent_threshold REAL NOT NULL DEFAULT 70.0,
+  auto_recalculate_on_call INTEGER NOT NULL DEFAULT 1,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
 ### Key API Endpoints:
-- `POST /api/leads/[id]/disposition`: Accepts `{ disposition_id, sub_disposition_id, notes, callback_at, call_outcome }`.
-- `PATCH /api/leads/[id]/field`: Validates caller permissions before permitting manual `status` modifications.
+- `GET /api/dispositions`: Fetch active dispositions with nested sub-dispositions and linked campaigns.
+- `POST / PATCH / DELETE /api/dispositions`: Dynamic outcome creation, updates, and deactivation.
+- `POST / DELETE /api/dispositions/sub`: Dynamic sub-disposition chip insertion and deletion.
+- `GET / POST /api/dispositions/scoring-config`: Fetch and calibrate composite lead ranking weights.
+- `POST /api/leads/[id]/disposition`: Log call outcome, update stage, set callback time, and trigger score recalculation.

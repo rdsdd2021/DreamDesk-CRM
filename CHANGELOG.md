@@ -4,6 +4,92 @@ All notable changes, architectural enhancements, schema migrations, and feature 
 
 ---
 
+## [v2.8.0] — 2026-10-16
+
+### 🌟 Admissions Playbook, Smart Outcomes Studio & Frictionless Outcome Recipe Modal
+**Objective**: Abstract the operational complexity of legacy telecom dispositions, sub-dispositions, mathematical score points, and campaign bindings into an intuitive visual **Admissions Playbook** with clean reaction trays and a single-column, friction-free outcome popup.
+
+#### 1. Admissions Playbook Studio (`PlaybookStudioWorkspace.tsx`)
+- **Abstracted Conceptual Model**: Replaced technical disposition management with an intuitive "Admissions Playbook & Smart Outcome Recipes" mental model.
+- **4 Color-Coded Human Reaction Trays**:
+  - 🌟 **Progressing Forward** (Emerald): High-intent admission steps (Enrolled, Campus Visit Scheduled, Ready to Apply). Automatically awards top ranking priority and advances students to *Interested* or *Admitted*.
+  - ⏳ **Needs Follow-up** (Amber): Active considerations (Discussing with Parents, Fee & Installment Inquiry, Awaiting 12th/CUET Results). Automatically prompts for callback dates.
+  - 📵 **Couldn't Connect** (Blue): 1-tap fast retry logging (Ringing No Response, Switched Off, Busy). Calculates attempt counts and activates smart cooldown.
+  - 🛑 **Closed / Dropped** (Rose): Ineligible, joined elsewhere, or opted out. Halts active dialing and safely archives the lead.
+- **1-Click Starter Playbook Packs**:
+  - 🎓 *Undergrad & College Admissions*: Standard higher-ed cycle (visits, parent consultations, scholarships).
+  - ⚙️ *Engineering & STEM Admissions*: Tailored for JEE, branch selection (CSE, AI/ML, ECE), and hostel availability.
+  - 💼 *MBA & Post-Graduate Admissions*: Tailored for CAT/MAT/GMAT percentiles, GD/PI rounds, and executive financing.
+- **Live KPI Counter Ribbon**: Real-time counts across all 4 reaction trays with instant search and tray filtering.
+- **Collapsible Lead Scoring Engine**: In-studio calibration panel for academic vs disposition weights, attempt penalties, and high-intent score thresholds.
+
+#### 2. Streamlined & Frictionless Outcome Modal (`PlaybookOutcomeModal.tsx`)
+- **Focused Single-Column Layout (`sm:max-w-xl`)**: Completely eliminated the cramped 2-column split (which caused scrolling issues on standard laptop displays) in favor of a clean, top-to-bottom layout with zero numbered-step clutter.
+- **Click-to-Pick Emoji Popover**: Replaced finicky CSS hover menus with a dedicated button opening a clean 24-emoji curated grid that closes reliably on outside click.
+- **1-Click Starter Presets**: When adding new outcomes, 5 pre-filled popular pills (`🔥 Interested`, `🎓 Admitted`, `⏳ Follow-up`, `👨‍👩‍👧 Parents`, `📳 No Answer`) allow admins to create a fully configured outcome in 1 click.
+- **Instant Smart Defaults**: Selecting a Category Tray automatically sets recommended Intent Levels and Callback requirements, saving operators from manual configuration.
+- **Simplified Student Temperature (Intent)**: Clean 5-pill segmented picker (`🎓 +100`, `🔥 +75`, `🌤️ +35`, `❄️ 0`, `🛑 -30`) with a 1-line plain-language explanation of stage impact.
+- **Effortless Sub-Reason Tags**: Removable chips with 1-click suggested additions (`+ Fee Details`, `+ Campus Visit`, `+ Hostel Query`, `+ Location Far`).
+- **Natural Action Bar**: Cancel and Save buttons placed naturally at the bottom of the form where user focus ends.
+
+#### 3. Telecaller Call Drawer Integration (`EnhancedLeadDrawer.tsx`)
+- Grouped all reachable outcomes into the 3 reaction trays (🌟 Progressing, ⏳ Needs Follow-up, 🛑 Closed) alongside 1-tap unreachable shortcuts.
+- Telecallers can identify and log conversation outcomes in under 2 seconds with zero operational confusion.
+
+---
+
+## [v2.7.0] — 2026-10-15
+
+### 📊 Real-Time Call Reporting, Daily Calling Velocity & "Uncalled Today" Queue
+**Objective**: Guarantee real-time dashboard reflection for all telecaller calls, provide actionable hourly/daily outreach velocity charts, and eliminate duplicate intra-day dialing through a dedicated uncalled queue.
+
+#### 1. Real-Time Dashboard Call Reporting (`src/lib/services/leadsService.ts`, `AnalyticsWorkspace.tsx`)
+- **Direct Activity Log Aggregation**: Resolved data lag where counselor call attempts were not reflecting in real-time dashboards by querying fresh SQLite activity logs directly within the transaction boundary.
+- **Multi-Dimensional Metrics Sync**: Accurately counts connected conversations, unreachable attempts, total call duration, and first-call response latency across selected time windows.
+
+#### 2. Daily Calling & Outreach Velocity Trend
+- **Replaced Static Intake Trend**: Removed the static "Lead Intake & Registration Trend" (redundant since cohorts are pre-uploaded at the start of enrollment sessions) with the dynamic **Daily Calling & Outreach Velocity Trend**.
+- **Dual Visual Granularity**:
+  - **Hourly Call Velocity**: Bar chart illustrating call distribution throughout working hours (9 AM - 7 PM), highlighting peak connection windows.
+  - **Daily Outreach Trend**: Area & bar charts tracking daily outbound volume, connection rates, and outcome progression over 7-day and 30-day horizons.
+- **Counselor Velocity Breakdown**: Compares call velocity and connect percentages across team members.
+
+#### 3. "Uncalled Today" Dialing Queue
+- **Intra-Day Dialing Protection**: Added a dedicated **"Uncalled Today"** queue filter tab in the main Leads workspace.
+- **Duplicate Dial Prevention**: Prevents multiple callers or the same caller from repeatedly dialing leads that have already received an outreach attempt earlier today.
+- **Automated Queue Exclusion**: Leads dialed today (whether connected or unreachable) are immediately filtered out of the uncalled queue until the next calendar day.
+
+---
+
+## [v2.6.0] — 2026-10-14
+
+### 🎯 Telecaller Focus Mode, Dynamic Dispositions & Navigation Gatekeeper
+**Objective**: Build a distraction-free calling cockpit for telecallers, make call outcomes 100% dynamic and admin-configurable in SQLite, and enforce call completion gatekeeping before record switching.
+
+#### 1. Telecaller Focus Mode Workspace (`FocusModeWorkspace.tsx`)
+- **Distraction-Free Cockpit**: Streamlined, single-screen telecalling desk eliminating non-essential CRM navigation tabs for staff with the Telecaller role.
+- **Next-in-Line Dialing Dock**: Highlights the next candidate in the queue with academic summary, past call attempts, and 1-click dial action.
+- **Lockdown of Admin Controls**: Restricts bulk actions, schema editing, and deletion for telecaller profiles to enforce data hygiene and focus.
+
+#### 2. Dynamic Dispositions & Composite Lead Ranking Engine
+- **Database Schema Migration**:
+  - `dispositions`: Dynamic table with `id`, `name`, `code`, `category`, `color`, `score`, `requires_callback`, `is_active`.
+  - `sub_dispositions`: Dynamic table linking sub-reasons to parent dispositions with custom scoring.
+  - `campaign_dispositions`: Many-to-many junction table binding dispositions to specific marketing campaigns.
+  - `lead_scoring_policies`: Configurable policy table storing academic weights, disposition weights, attempt penalties, and high-intent thresholds.
+- **REST API Endpoints**:
+  - `GET / POST / PATCH / DELETE /api/dispositions`: Dynamic root outcome CRUD.
+  - `POST / DELETE /api/dispositions/sub`: Sub-disposition tag management.
+  - `GET / POST /api/dispositions/scoring-config`: Lead scoring formula calibration.
+- **Composite Lead Ranking Algorithm**: Automatically recalculates lead scores upon every call outcome:
+  $$\text{Composite Score} = (\text{Academic Score} \times W_{acad}) + (\text{Outcome Score} \times W_{disp}) - (\text{Attempts} \times P_{att})$$
+
+#### 3. Navigation Gatekeeper & Multi-Page Auto-Advancing Stepper (`EnhancedLeadDrawer.tsx`)
+- **Call Navigation Gatekeeper**: Prevents callers from skipping or switching records while a call is active until an outcome is logged.
+- **Multi-Page Stepper**: Synchronized keyboard stepper (<kbd>[</kbd> / <kbd>]</kbd>) and automatic advance to the next lead upon saving an outcome across filtered and paginated datasets.
+
+---
+
 ## [v2.5.0] — 2026-10-08
 
 ### 🔒 Enterprise Security Hardening, Policy Integrity, Zero-Data-Loss Deduplication & UX Synchronization
