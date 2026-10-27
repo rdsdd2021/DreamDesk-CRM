@@ -1,4 +1,4 @@
-import { getDatabase } from "@/lib/db/database";
+import { getDatabase, withDbRetry } from "@/lib/db/database";
 import { CrmPolicy, CrmPolicyConfig, PolicyValidationResult, User, UserRole } from "@/types/crm";
 
 export class PolicyService {
@@ -265,9 +265,15 @@ export class PolicyService {
     isOverrideActive: boolean;
   } {
     const { leadIds, newUserId, currentUser, overridePolicy } = options;
-    const allowedIds: number[] = [];
-    const lockedIds: number[] = [];
-    const violations: PolicyValidationResult[] = [];
+    if (!leadIds || leadIds.length === 0) {
+      return {
+        allowedIds: [],
+        lockedIds: [],
+        violations: [],
+        totalEvaluated: 0,
+        isOverrideActive: false,
+      };
+    }
 
     const policy = this.getPolicy("counselor_lock");
     const exemptRoles: UserRole[] = policy?.config.exempt_roles || ["admin", "team_lead"];
@@ -279,19 +285,111 @@ export class PolicyService {
 
     const allowOverride = Boolean(isExemptRole && (overridePolicy !== false));
 
-    for (const id of leadIds) {
-      const result = this.validateReassignment({
-        leadId: id,
-        newUserId: newUserId || null,
-        currentUser,
-        overridePolicy: allowOverride,
-      });
+    // If policy is disabled or unconfigured, all leads are immediately allowed
+    if (!policy || !policy.is_enabled) {
+      return {
+        allowedIds: [...leadIds],
+        lockedIds: [],
+        violations: [],
+        totalEvaluated: leadIds.length,
+        isOverrideActive: false,
+      };
+    }
 
-      if (result.allowed) {
+    const lockDays = policy.config.lock_days || 7;
+    const db = getDatabase();
+
+    // Set-based locked leads detection across chunks of 500
+    const lockedMap = new Map<number, { leadCode: string; counselorId: string; counselorName: string; lastCallAt: string; daysSinceCall: number; daysRemaining: number }>();
+
+    withDbRetry(() => {
+      const CHUNK_SIZE = 500;
+      for (let i = 0; i < leadIds.length; i += CHUNK_SIZE) {
+        const chunk = leadIds.slice(i, i + CHUNK_SIZE);
+        const placeholders = chunk.map(() => "?").join(",");
+
+        const sql = `
+          SELECT 
+            leads.id, 
+            leads.lead_code, 
+            leads.assigned_to, 
+            COALESCE(users.name, 'Counselor') as counselor_name,
+            COALESCE(act.last_activity, leads.updated_at) as last_call_at
+          FROM leads
+          LEFT JOIN users ON leads.assigned_to = users.id
+          LEFT JOIN (
+            SELECT lead_id, MAX(created_at) as last_activity
+            FROM lead_activities
+            WHERE activity_type IN ('disposition', 'call', 'note', 'whatsapp')
+            GROUP BY lead_id
+          ) act ON leads.id = act.lead_id
+          WHERE leads.id IN (${placeholders})
+            AND leads.assigned_to IS NOT NULL
+            AND (
+              (act.last_activity IS NOT NULL AND act.last_activity >= datetime('now', '-${lockDays} days'))
+              OR (leads.disposition_id IS NOT NULL AND leads.updated_at >= datetime('now', '-${lockDays} days'))
+            )
+        `;
+
+        const rows = db.prepare(sql).all(...chunk) as any[];
+
+        const now = Date.now();
+        for (const row of rows) {
+          if (newUserId && newUserId === row.assigned_to) {
+            continue;
+          }
+
+          const callTime = new Date(row.last_call_at).getTime();
+          const diffDays = Math.max(0, (now - callTime) / (1000 * 60 * 60 * 24));
+          const daysSinceCall = Math.floor(diffDays);
+          const daysRemaining = Math.max(1, Math.ceil(lockDays - diffDays));
+
+          lockedMap.set(row.id, {
+            leadCode: row.lead_code,
+            counselorId: row.assigned_to,
+            counselorName: row.counselor_name,
+            lastCallAt: row.last_call_at,
+            daysSinceCall,
+            daysRemaining,
+          });
+        }
+      }
+    });
+
+    const allowedIds: number[] = [];
+    const lockedIds: number[] = [];
+    const violations: PolicyValidationResult[] = [];
+
+    for (const id of leadIds) {
+      const lockInfo = lockedMap.get(id);
+
+      if (!lockInfo) {
         allowedIds.push(id);
       } else {
         lockedIds.push(id);
-        violations.push(result);
+        const violation: PolicyValidationResult = {
+          allowed: allowOverride,
+          policy_id: "counselor_lock",
+          policy_name: policy?.name || "Counselor Ownership Lock-in Policy",
+          is_override: allowOverride,
+          reason: allowOverride ? undefined : "counselor_lock_active",
+          lead_id: id,
+          lead_code: lockInfo.leadCode,
+          counselor_id: lockInfo.counselorId,
+          counselor_name: lockInfo.counselorName,
+          last_call_at: lockInfo.lastCallAt,
+          days_since_call: lockInfo.daysSinceCall,
+          days_remaining: lockInfo.daysRemaining,
+          lock_days: lockDays,
+          message: allowOverride
+            ? `Admin/Team Leader override applied for lead ${lockInfo.leadCode} (contacted ${lockInfo.daysSinceCall}d ago by ${lockInfo.counselorName}).`
+            : `Policy Restriction: Lead ${lockInfo.leadCode} was contacted ${lockInfo.daysSinceCall} day(s) ago by ${lockInfo.counselorName} and is protected under the ${lockDays}-day ownership policy (${lockInfo.daysRemaining} days remaining).`,
+        };
+        violations.push(violation);
+
+        if (allowOverride) {
+          allowedIds.push(id);
+        }
       }
     }
 

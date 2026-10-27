@@ -16,9 +16,10 @@ export function getDatabase(): Database.Database {
   }
 
   const dbPath = process.env.DATABASE_PATH || path.join(dataDir, "crm.db");
-  const db = new Database(dbPath);
+  const db = new Database(dbPath, { timeout: 15000 });
 
   // High performance SQLite tuning for 500k+ records
+  db.pragma("busy_timeout = 15000"); // 15-second busy timeout for write lock contention
   db.pragma("journal_mode = WAL");
   db.pragma("synchronous = NORMAL");
   db.pragma("cache_size = -64000"); // 64MB memory cache
@@ -54,6 +55,21 @@ function initializeSchema(db: Database.Database) {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+    CREATE TABLE IF NOT EXISTS system_errors (
+      id TEXT PRIMARY KEY,
+      error_code TEXT NOT NULL,
+      message TEXT NOT NULL,
+      details TEXT,
+      stack TEXT,
+      endpoint TEXT,
+      http_status INTEGER DEFAULT 500,
+      user_id TEXT,
+      user_name TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_system_errors_created ON system_errors(created_at);
+    CREATE INDEX IF NOT EXISTS idx_system_errors_code ON system_errors(error_code);
   `);
 
   // Migrations for existing DBs
@@ -924,5 +940,80 @@ function initPolicies(db: Database.Database) {
     }
   } catch (err) {
     console.error("Failed to initialize policies:", err);
+  }
+}
+
+/**
+ * Executes a database operation with exponential backoff retry on SQLITE_BUSY / locked contention.
+ */
+export function withDbRetry<T>(fn: () => T, maxRetries = 3, baseDelayMs = 50): T {
+  let attempt = 0;
+  while (true) {
+    try {
+      return fn();
+    } catch (error: any) {
+      attempt++;
+      const isBusy =
+        error?.code === "SQLITE_BUSY" ||
+        error?.code === "SQLITE_LOCKED" ||
+        error?.message?.includes("database is locked") ||
+        error?.message?.includes("busy");
+
+      if (!isBusy || attempt > maxRetries) {
+        throw error;
+      }
+
+      // Synchronous exponential backoff with random jitter to reduce contention
+      const jitter = Math.floor(Math.random() * 40);
+      const delay = baseDelayMs * Math.pow(2, attempt - 1) + jitter;
+      
+      const start = Date.now();
+      while (Date.now() - start < delay) {
+        // Micro busy-wait loop for sync thread execution
+      }
+    }
+  }
+}
+
+/**
+ * Persists an unhandled system/server error into the database for admin visibility.
+ */
+export function logServerError(params: {
+  errorCode?: string;
+  message: string;
+  details?: string;
+  stack?: string;
+  endpoint?: string;
+  httpStatus?: number;
+  userId?: string;
+  userName?: string;
+}) {
+  try {
+    const db = getDatabase();
+    const id = crypto.randomUUID();
+    db.prepare(`
+      INSERT INTO system_errors (id, error_code, message, details, stack, endpoint, http_status, user_id, user_name)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      params.errorCode || "INTERNAL_ERROR",
+      params.message.slice(0, 500),
+      params.details ? params.details.slice(0, 2000) : null,
+      params.stack ? params.stack.slice(0, 4000) : null,
+      params.endpoint || null,
+      params.httpStatus || 500,
+      params.userId || null,
+      params.userName || null
+    );
+
+    // Keep table trimmed to latest 1,000 entries
+    db.exec(`
+      DELETE FROM system_errors 
+      WHERE id NOT IN (
+        SELECT id FROM system_errors ORDER BY created_at DESC LIMIT 1000
+      )
+    `);
+  } catch (err) {
+    console.error("Failed to log server error to SQLite:", err);
   }
 }

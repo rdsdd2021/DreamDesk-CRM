@@ -35,6 +35,7 @@ interface AppSidebarProps {
   currentUser?: User | null;
   allowedViews?: string[];
   onLogout?: () => void;
+  onOpenDiagnostics?: () => void;
   isMobileDrawer?: boolean;
   onCloseMobileDrawer?: () => void;
 }
@@ -50,6 +51,7 @@ export function AppSidebar({
   currentUser,
   allowedViews,
   onLogout,
+  onOpenDiagnostics,
   isMobileDrawer = false,
   onCloseMobileDrawer,
 }: AppSidebarProps) {
@@ -284,11 +286,15 @@ export function AppSidebar({
         )}
 
         {!isCollapsed ? (
-          <div className="space-y-1.5">
+          <div
+            onClick={onOpenDiagnostics}
+            className="space-y-1.5 cursor-pointer p-1 -m-1 rounded-xl hover:bg-muted/40 transition-colors"
+            title="Click to open Server Health & Error Diagnostics"
+          >
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-muted-foreground font-medium flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span>SQLite WAL Engine</span>
+                <span className="hover:text-foreground transition-colors">SQLite Engine Health</span>
               </span>
               <span className="font-mono text-[10px] text-muted-foreground font-bold">
                 64MB RAM
@@ -311,7 +317,11 @@ export function AppSidebar({
             </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-2" title="SQLite WAL Online">
+          <div
+            onClick={onOpenDiagnostics}
+            className="flex flex-col items-center gap-2 cursor-pointer p-1 rounded-lg hover:bg-muted/40"
+            title="SQLite WAL Online • Click for Diagnostics"
+          >
             <span className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20" />
             <Database className="w-3.5 h-3.5 text-muted-foreground" />
           </div>

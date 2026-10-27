@@ -21,7 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Target, Loader2, Sparkles, CheckCircle2 } from "lucide-react";
+import { Target, Loader2, Sparkles, CheckCircle2, AlertCircle } from "lucide-react";
+import { ApiClient } from "@/lib/api/apiClient";
 
 interface BulkCampaignModalProps {
   isOpen: boolean;
@@ -46,6 +47,7 @@ export function BulkCampaignModal({
 }: BulkCampaignModalProps) {
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("none");
   const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Task & Caller Notification Engine State
   const [createFollowupTask, setCreateFollowupTask] = useState(true);
@@ -62,6 +64,7 @@ export function BulkCampaignModal({
 
   const handleSubmit = async () => {
     setSubmitting(true);
+    setErrorMessage(null);
     const taskConfigPayload: BulkTaskConfig | undefined = createFollowupTask
       ? {
           create_task: true,
@@ -72,9 +75,8 @@ export function BulkCampaignModal({
       : undefined;
 
     try {
-      const res = await fetch("/api/leads/bulk-campaign", {
+      const res = await ApiClient.fetchJson<any>("/api/leads/bulk-campaign", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           lead_ids: isAllFilteredSelected ? undefined : selectedLeadIds,
           apply_to_all_filtered: isAllFilteredSelected,
@@ -84,13 +86,14 @@ export function BulkCampaignModal({
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update campaign");
+      if (res.error || !res.data) {
+        throw new Error(res.error?.message || "Failed to update campaign");
+      }
 
-      onCampaignApplied(data.message || "Campaign updated successfully!");
+      onCampaignApplied(res.data.message || "Campaign updated successfully!");
       onClose();
     } catch (err: any) {
-      alert("Error: " + err.message);
+      setErrorMessage(err.message || "Failed to update campaign");
     } finally {
       setSubmitting(false);
     }
@@ -116,6 +119,13 @@ export function BulkCampaignModal({
             {isAllFilteredSelected && " (all filtered)"}.
           </DialogDescription>
         </DialogHeader>
+
+        {errorMessage && (
+          <div className="p-3 rounded-xl bg-destructive/10 text-destructive border border-destructive/20 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span className="font-medium">{errorMessage}</span>
+          </div>
+        )}
 
         {/* Campaign Selection */}
         <div className="space-y-2">

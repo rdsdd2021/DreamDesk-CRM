@@ -52,10 +52,11 @@ export async function POST(request: NextRequest) {
       expiresAt: session.expiresAt,
     });
 
+    const isHttps = request.nextUrl.protocol === "https:" || request.headers.get("x-forwarded-proto") === "https";
     // Set secure HTTP-only session cookie
     response.cookies.set("dreamdesk_session", session.sessionId, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: isHttps,
       sameSite: "lax",
       path: "/",
       maxAge: 7 * 24 * 60 * 60, // 7 days

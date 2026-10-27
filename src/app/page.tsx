@@ -47,6 +47,10 @@ import { TeamWorkspace } from "@/components/crm/TeamWorkspace";
 import { ImportWorkspace } from "@/components/crm/ImportWorkspace";
 import { ActivityWorkspace } from "@/components/crm/ActivityWorkspace";
 import { PoliciesWorkspace } from "@/components/crm/PoliciesWorkspace";
+import { SystemDiagnosticsDrawer } from "@/components/crm/SystemDiagnosticsDrawer";
+import { GlobalErrorBoundary } from "@/components/ui/GlobalErrorBoundary";
+import { WorkspaceErrorBoundary } from "@/components/ui/WorkspaceErrorBoundary";
+import { NetworkStatusPill } from "@/components/ui/NetworkStatusPill";
 import { PaginationBar } from "@/components/crm/PaginationBar";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -181,6 +185,7 @@ export default function CRMPage() {
   const [studioTab, setStudioTab] = useState<"fields" | "campaigns" | "dispositions" | "matrix">("fields");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isCommandCenterOpen, setIsCommandCenterOpen] = useState(false);
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
 
   // Right Filter Sidebar State (persisted in localStorage after hydration)
   const [filterSidebarOpen, setFilterSidebarOpen] = useState<boolean>(true);
@@ -1228,8 +1233,12 @@ export default function CRMPage() {
   }
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden text-foreground">
-      {/* Toast Notification Banner */}
+    <GlobalErrorBoundary>
+      <div className="flex h-screen bg-background overflow-hidden text-foreground">
+        {/* Floating Network Offline/Online Indicator */}
+        <NetworkStatusPill />
+
+        {/* Toast Notification Banner */}
       {toastMessage && (
         <div className="fixed top-5 right-5 z-50 animate-in fade-in slide-in-from-top-4 duration-200">
           <div
@@ -1300,6 +1309,7 @@ export default function CRMPage() {
         currentUser={currentUser}
         allowedViews={permissions?.allowedViews}
         onLogout={handleLogout}
+        onOpenDiagnostics={() => setIsDiagnosticsOpen(true)}
       />
 
       {/* Main App Container */}
@@ -1750,196 +1760,218 @@ export default function CRMPage() {
 
           {/* VIEW 2: DASHBOARD & INSIGHTS */}
           {currentView === "dashboard" && (
-            <div className="max-w-7xl mx-auto">
-              <AnalyticsDashboard
-                totalCount={totalCount}
-                unassignedCount={summary.unassignedCount}
-                assignedCount={summary.assignedCount}
-                users={users}
-                facets={facets}
-                campaigns={campaigns}
-                dispositions={dispositions}
-                statusBreakdown={summary.statusBreakdown}
-                onNavigateToFilter={(key, val) => {
-                  setSelectedFacets({ [key]: [val] });
-                  setCurrentView("leads");
-                }}
-                currentUser={currentUser}
-              />
-            </div>
+            <WorkspaceErrorBoundary workspaceName="Analytics Dashboard">
+              <div className="max-w-7xl mx-auto">
+                <AnalyticsDashboard
+                  totalCount={totalCount}
+                  unassignedCount={summary.unassignedCount}
+                  assignedCount={summary.assignedCount}
+                  users={users}
+                  facets={facets}
+                  campaigns={campaigns}
+                  dispositions={dispositions}
+                  statusBreakdown={summary.statusBreakdown}
+                  onNavigateToFilter={(key, val) => {
+                    setSelectedFacets({ [key]: [val] });
+                    setCurrentView("leads");
+                  }}
+                  currentUser={currentUser}
+                />
+              </div>
+            </WorkspaceErrorBoundary>
           )}
 
           {/* VIEW 3: PIPELINE & KANBAN */}
           {currentView === "pipeline" && (
-            <div className="max-w-7xl mx-auto">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-xs text-muted-foreground">
-                  Interactive stage board. Move leads forward as counseling conversations progress.
-                </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setCurrentView("leads")}
-                  className="h-7 text-xs"
-                >
-                  Switch to Table View
-                </Button>
-              </div>
+            <WorkspaceErrorBoundary workspaceName="Pipeline & Kanban">
+              <div className="max-w-7xl mx-auto">
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-xs text-muted-foreground">
+                    Interactive stage board. Move leads forward as counseling conversations progress.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setCurrentView("leads")}
+                    className="h-7 text-xs"
+                  >
+                    Switch to Table View
+                  </Button>
+                </div>
 
-              <PipelineKanbanView
-                leads={leads}
-                onViewLeadDetails={(lead) => setSelectedLeadForDetail(lead)}
-                onUpdateLeadStatus={handleUpdateLeadStatus}
-              />
-            </div>
+                <PipelineKanbanView
+                  leads={leads}
+                  onViewLeadDetails={(lead) => setSelectedLeadForDetail(lead)}
+                  onUpdateLeadStatus={handleUpdateLeadStatus}
+                />
+              </div>
+            </WorkspaceErrorBoundary>
           )}
 
           {/* VIEW 4A: DEDICATED CAMPAIGNS & SOURCES WORKSPACE */}
           {currentView === "campaigns" && (
-            <div className="max-w-7xl mx-auto">
-              <CampaignsWorkspace
-                onFilterByCampaign={(campaignId, campaignName) => {
-                  setSelectedFacets({ campaign_id: [campaignId] });
-                  setCurrentView("leads");
-                }}
-                totalLeadsCount={totalCount}
-              />
-            </div>
+            <WorkspaceErrorBoundary workspaceName="Campaigns & Marketing Outreach">
+              <div className="max-w-7xl mx-auto">
+                <CampaignsWorkspace
+                  onFilterByCampaign={(campaignId, campaignName) => {
+                    setSelectedFacets({ campaign_id: [campaignId] });
+                    setCurrentView("leads");
+                  }}
+                  totalLeadsCount={totalCount}
+                />
+              </div>
+            </WorkspaceErrorBoundary>
           )}
 
           {/* VIEW 4B: ADMISSIONS PLAYBOOK & SMART OUTCOMES STUDIO */}
           {currentView === "dispositions" && (
-            <div className="max-w-7xl mx-auto">
-              <PlaybookStudioWorkspace
-                onFilterByDisposition={(dispName) => {
-                  setSelectedFacets({ disposition: [dispName] });
-                  setCurrentView("leads");
-                }}
-              />
-            </div>
+            <WorkspaceErrorBoundary workspaceName="Admissions Playbook & Smart Outcomes">
+              <div className="max-w-7xl mx-auto">
+                <PlaybookStudioWorkspace
+                  onFilterByDisposition={(dispName) => {
+                    setSelectedFacets({ disposition: [dispName] });
+                    setCurrentView("leads");
+                  }}
+                />
+              </div>
+            </WorkspaceErrorBoundary>
           )}
 
           {/* VIEW 4C: DEDICATED DYNAMIC SCHEMA & FIELDS STUDIO */}
           {currentView === "fields" && (
-            <div className="max-w-7xl mx-auto">
-              <SchemaStudioWorkspace
-                schemaMeta={schemaMeta}
-                onSchemaChange={() => {
-                  loadMetaAndUsers();
-                  fetchLeads();
-                }}
-                totalLeadsCount={totalCount}
-              />
-            </div>
+            <WorkspaceErrorBoundary workspaceName="Dynamic Schema & Fields Studio">
+              <div className="max-w-7xl mx-auto">
+                <SchemaStudioWorkspace
+                  schemaMeta={schemaMeta}
+                  onSchemaChange={() => {
+                    loadMetaAndUsers();
+                    fetchLeads();
+                  }}
+                  totalLeadsCount={totalCount}
+                />
+              </div>
+            </WorkspaceErrorBoundary>
           )}
 
           {/* VIEW 4D: ARCHITECTURE LINKAGE STUDIO (FALLBACK/CROSS-MATRIX) */}
           {currentView === "studio" && (
-            <div className="max-w-7xl mx-auto">
-              <CampaignsSchemaStudio
-                initialTab={studioTab}
-                schemaMeta={schemaMeta}
-                onSchemaChange={() => {
-                  loadMetaAndUsers();
-                  fetchLeads();
-                }}
-                onFilterByCampaign={(campaignId, campaignName) => {
-                  setSelectedFacets({ campaign_id: [campaignId] });
-                  setCurrentView("leads");
-                }}
-                totalLeadsCount={totalCount}
-              />
-            </div>
+            <WorkspaceErrorBoundary workspaceName="Linkage Studio">
+              <div className="max-w-7xl mx-auto">
+                <CampaignsSchemaStudio
+                  initialTab={studioTab}
+                  schemaMeta={schemaMeta}
+                  onSchemaChange={() => {
+                    loadMetaAndUsers();
+                    fetchLeads();
+                  }}
+                  onFilterByCampaign={(campaignId, campaignName) => {
+                    setSelectedFacets({ campaign_id: [campaignId] });
+                    setCurrentView("leads");
+                  }}
+                  totalLeadsCount={totalCount}
+                />
+              </div>
+            </WorkspaceErrorBoundary>
           )}
 
           {/* VIEW 5: DEDICATED TASKS & SCHEDULED CALLBACKS WORKSPACE */}
           {currentView === "tasks" && (
-            <div className="max-w-7xl mx-auto">
-              <TasksWorkspace
-                roleMode={roleMode}
-                activeCounselorId={activeCounselorId}
-                users={users}
-                onSelectLeadById={async (leadId) => {
-                  const found = leads.find((l) => l.id === leadId);
-                  if (found) {
-                    setSelectedLeadForDetail(found);
-                  } else {
-                    try {
-                      const res = await fetch(`/api/leads?search=${leadId}&limit=1`);
-                      const data = await res.json();
-                      if (data.leads && data.leads.length > 0) {
-                        setSelectedLeadForDetail(data.leads[0]);
+            <WorkspaceErrorBoundary workspaceName="Tasks & Scheduled Callbacks">
+              <div className="max-w-7xl mx-auto">
+                <TasksWorkspace
+                  roleMode={roleMode}
+                  activeCounselorId={activeCounselorId}
+                  users={users}
+                  onSelectLeadById={async (leadId) => {
+                    const found = leads.find((l) => l.id === leadId);
+                    if (found) {
+                      setSelectedLeadForDetail(found);
+                    } else {
+                      try {
+                        const res = await fetch(`/api/leads?search=${leadId}&limit=1`);
+                        const data = await res.json();
+                        if (data.leads && data.leads.length > 0) {
+                          setSelectedLeadForDetail(data.leads[0]);
+                        }
+                      } catch (e) {
+                        console.error("Failed to load lead by id:", e);
                       }
-                    } catch (e) {
-                      console.error("Failed to load lead by id:", e);
                     }
-                  }
-                }}
-                onOpenWhatsApp={(lead) => setWhatsAppTargetLead(lead)}
-              />
-            </div>
+                  }}
+                  onOpenWhatsApp={(lead) => setWhatsAppTargetLead(lead)}
+                />
+              </div>
+            </WorkspaceErrorBoundary>
           )}
 
           {/* VIEW 6: DEDICATED COUNSELORS & TEAM WORKLOAD WORKSPACE */}
           {currentView === "team" && (
-            <div className="max-w-7xl mx-auto">
-              <TeamWorkspace
-                users={users}
-                totalCount={totalCount}
-                unassignedCount={summary.unassignedCount}
-                assignedCount={summary.assignedCount}
-                currentUser={currentUser}
-                canManageTeam={permissions?.canManageTeam}
-                onUserAdded={() => {
-                  loadMetaAndUsers();
-                  showToast("Counselor added to roster", "success");
-                }}
-                onUserUpdated={() => {
-                  loadMetaAndUsers();
-                }}
-                onFilterByCounselor={(counselorId) => {
-                  setSelectedFacets({ assigned_to: [counselorId] });
-                  setCurrentView("leads");
-                }}
-                onAutoDistribute={() => handleAutoDistribute(250)}
-                isAutoDistributing={isAutoDistributing}
-              />
-            </div>
+            <WorkspaceErrorBoundary workspaceName="Counselors & Team Workload">
+              <div className="max-w-7xl mx-auto">
+                <TeamWorkspace
+                  users={users}
+                  totalCount={totalCount}
+                  unassignedCount={summary.unassignedCount}
+                  assignedCount={summary.assignedCount}
+                  currentUser={currentUser}
+                  canManageTeam={permissions?.canManageTeam}
+                  onUserAdded={() => {
+                    loadMetaAndUsers();
+                    showToast("Counselor added to roster", "success");
+                  }}
+                  onUserUpdated={() => {
+                    loadMetaAndUsers();
+                  }}
+                  onFilterByCounselor={(counselorId) => {
+                    setSelectedFacets({ assigned_to: [counselorId] });
+                    setCurrentView("leads");
+                  }}
+                  onAutoDistribute={() => handleAutoDistribute(250)}
+                  isAutoDistributing={isAutoDistributing}
+                />
+              </div>
+            </WorkspaceErrorBoundary>
           )}
 
           {/* VIEW 7: DEDICATED BATCH CSV INGESTION & FIELD MAPPING STUDIO */}
           {currentView === "import" && (
-            <div className="max-w-7xl mx-auto">
-              <ImportWorkspace
-                campaigns={campaigns}
-                schemaMeta={schemaMeta}
-                onImportComplete={(count, newHeaders) => {
-                  showToast(
-                    `Imported ${count.toLocaleString()} leads! ${
-                      newHeaders.length > 0 ? `Registered new fields: ${newHeaders.join(", ")}` : ""
-                    }`,
-                    "success"
-                  );
-                  fetchLeads();
-                  loadMetaAndUsers();
-                }}
-                onNavigateToLeads={() => setCurrentView("leads")}
-              />
-            </div>
+            <WorkspaceErrorBoundary workspaceName="Batch Ingestion & Field Mapping">
+              <div className="max-w-7xl mx-auto">
+                <ImportWorkspace
+                  campaigns={campaigns}
+                  schemaMeta={schemaMeta}
+                  onImportComplete={(count, newHeaders) => {
+                    showToast(
+                      `Imported ${count.toLocaleString()} leads! ${
+                        newHeaders.length > 0 ? `Registered new fields: ${newHeaders.join(", ")}` : ""
+                      }`,
+                      "success"
+                    );
+                    fetchLeads();
+                    loadMetaAndUsers();
+                  }}
+                  onNavigateToLeads={() => setCurrentView("leads")}
+                />
+              </div>
+            </WorkspaceErrorBoundary>
           )}
 
           {/* VIEW 8: DEDICATED AUDIT & ACTIVITY LOGS WORKSPACE */}
           {currentView === "activity" && (
-            <div className="max-w-7xl mx-auto">
-              <ActivityWorkspace />
-            </div>
+            <WorkspaceErrorBoundary workspaceName="Compliance & Activity Audit Trail">
+              <div className="max-w-7xl mx-auto">
+                <ActivityWorkspace />
+              </div>
+            </WorkspaceErrorBoundary>
           )}
 
           {/* VIEW 9: DEDICATED GOVERNANCE & CRM POLICIES WORKSPACE */}
           {currentView === "policies" && (
-            <div className="max-w-7xl mx-auto">
-              <PoliciesWorkspace />
-            </div>
+            <WorkspaceErrorBoundary workspaceName="Governance & CRM Policies">
+              <div className="max-w-7xl mx-auto">
+                <PoliciesWorkspace />
+              </div>
+            </WorkspaceErrorBoundary>
           )}
         </main>
       </div>
@@ -2167,6 +2199,10 @@ export default function CRMPage() {
             currentUser={currentUser}
             allowedViews={permissions?.allowedViews}
             onLogout={handleLogout}
+            onOpenDiagnostics={() => {
+              setIsMobileNavOpen(false);
+              setIsDiagnosticsOpen(true);
+            }}
             isMobileDrawer={true}
             onCloseMobileDrawer={() => setIsMobileNavOpen(false)}
           />
@@ -2184,6 +2220,13 @@ export default function CRMPage() {
         myLeadsCount={summary.totalLeads}
         allowedViews={permissions?.allowedViews}
       />
+
+      {/* System Diagnostics & Database Health Drawer */}
+      <SystemDiagnosticsDrawer
+        isOpen={isDiagnosticsOpen}
+        onClose={() => setIsDiagnosticsOpen(false)}
+      />
     </div>
+  </GlobalErrorBoundary>
   );
 }

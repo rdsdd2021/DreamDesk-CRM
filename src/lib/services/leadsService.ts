@@ -1,4 +1,4 @@
-import { getDatabase } from "@/lib/db/database";
+import { getDatabase, withDbRetry, logServerError } from "@/lib/db/database";
 import {
   Lead,
   FilterParams,
@@ -596,12 +596,34 @@ export class LeadsService {
   }
 
   /**
+   * Retrieves an array of matching lead IDs for a filtered cohort without fetching full lead records.
+   */
+  static getTargetLeadIds(filterParams: FilterParams = {}, limit?: number): number[] {
+    const db = getDatabase();
+    const { whereClause, queryParams } = this.buildWhereClause(filterParams);
+    const limitClause = limit ? `LIMIT ${Math.max(1, limit)}` : "";
+
+    const sql = `
+      SELECT leads.id 
+      FROM leads 
+      LEFT JOIN users ON leads.assigned_to = users.id 
+      LEFT JOIN campaigns ON leads.campaign_id = campaigns.id 
+      LEFT JOIN dispositions ON leads.disposition_id = dispositions.id 
+      ${whereClause} 
+      ORDER BY leads.id ASC 
+      ${limitClause}
+    `;
+    const rows = db.prepare(sql).all(queryParams) as { id: number }[];
+    return rows.map((r) => r.id);
+  }
+
+  /**
    * Bulk Assign Leads to counselors (Auto balanced, Quota-based, or Single counselor).
    */
   static bulkAssign(
     request: BulkAssignRequest,
     currentUser?: User | null
-  ): { affectedCount: number; skippedLockedCount?: number; message: string } {
+  ): { affectedCount: number; skippedLockedCount?: number; counselorTally?: Record<string, number>; message: string } {
     const db = getDatabase();
 
     // Determine target lead IDs
@@ -630,7 +652,7 @@ export class LeadsService {
     }
 
     if (targetLeadIds.length === 0) {
-      return { affectedCount: 0, message: "No matching leads found for assignment." };
+      return { affectedCount: 0, counselorTally: {}, message: "No matching leads found for assignment." };
     }
 
     // Validate target leads against Counselor Ownership Lock Policy
@@ -658,6 +680,7 @@ export class LeadsService {
       return {
         affectedCount: 0,
         skippedLockedCount,
+        counselorTally: {},
         message: firstMsg || `All ${targetLeadIds.length} selected leads are protected under the 7-day call lock policy.`,
       };
     }
@@ -669,6 +692,7 @@ export class LeadsService {
     `);
 
     let affectedCount = 0;
+    const counselorTally: Record<string, number> = {};
     const counselorList = db.prepare("SELECT id, name FROM users").all() as { id: string; name: string }[];
     const counselorMap = new Map<string, string>(counselorList.map((c) => [c.id, c.name]));
 
@@ -679,91 +703,99 @@ export class LeadsService {
 
     const performerName = currentUser?.name || "Admin";
 
-    const assignTransaction = db.transaction(() => {
-      if (request.mode === "single") {
-        const userId = request.single_user_id || null;
-        const cName = userId ? counselorMap.get(userId) || "Counselor" : "Unassigned";
-        for (const id of finalLeadIds) {
-          const isOverride = lockedSet.has(id);
-          updateLead.run({ id, userId });
-          insertAssignActivity.run({
-            lead_id: id,
-            title: isOverride ? `Assigned to Counselor: ${cName} (Lock Overridden)` : `Assigned to Counselor: ${cName}`,
-            description: isOverride
-              ? `Allocated via bulk assignment (Admin/Team Leader override of 7-day lock)`
-              : `Allocated via bulk assignment (${request.mode})`,
-            new_value: cName,
-            metadata: JSON.stringify({ assigned_to: userId, mode: request.mode, is_override: isOverride }),
-            performed_by: performerName,
-          });
-          affectedCount++;
-        }
-      } else if (request.mode === "auto") {
-        const userIds = request.selected_user_ids || [];
-        if (userIds.length === 0) throw new Error("No counselors selected for auto-assignment.");
-
-        // Round-robin equal distribution
-        finalLeadIds.forEach((id, index) => {
-          const userId = userIds[index % userIds.length];
-          const cName = counselorMap.get(userId) || "Counselor";
-          const isOverride = lockedSet.has(id);
-          updateLead.run({ id, userId });
-          insertAssignActivity.run({
-            lead_id: id,
-            title: isOverride ? `Assigned to Counselor: ${cName} (Lock Overridden)` : `Assigned to Counselor: ${cName}`,
-            description: isOverride
-              ? `Auto-balanced distribution (Admin/Team Leader override of 7-day lock)`
-              : `Auto-balanced round-robin distribution`,
-            new_value: cName,
-            metadata: JSON.stringify({ assigned_to: userId, mode: request.mode, is_override: isOverride }),
-            performed_by: performerName,
-          });
-          affectedCount++;
-        });
-      } else if (request.mode === "quota") {
-        const quotas = request.user_quotas || {};
-        let currentIndex = 0;
-
-        for (const [userId, quota] of Object.entries(quotas)) {
-          const countToGive = Math.min(quota, finalLeadIds.length - currentIndex);
-          const cName = counselorMap.get(userId) || "Counselor";
-          for (let i = 0; i < countToGive; i++) {
-            const id = finalLeadIds[currentIndex++];
+    withDbRetry(() => {
+      const assignTransaction = db.transaction(() => {
+        if (request.mode === "single") {
+          const userId = request.single_user_id || null;
+          const cName = userId ? counselorMap.get(userId) || "Counselor" : "Unassigned";
+          for (const id of finalLeadIds) {
             const isOverride = lockedSet.has(id);
             updateLead.run({ id, userId });
             insertAssignActivity.run({
               lead_id: id,
               title: isOverride ? `Assigned to Counselor: ${cName} (Lock Overridden)` : `Assigned to Counselor: ${cName}`,
               description: isOverride
-                ? `Quota-allocated assignment (Admin/Team Leader override of 7-day lock)`
-                : `Quota-allocated assignment (${countToGive} capacity target)`,
+                ? `Allocated via bulk assignment (Admin/Team Leader override of 7-day lock)`
+                : `Allocated via bulk assignment (${request.mode})`,
               new_value: cName,
-              metadata: JSON.stringify({ assigned_to: userId, mode: request.mode, quota, is_override: isOverride }),
+              metadata: JSON.stringify({ assigned_to: userId, mode: request.mode, is_override: isOverride }),
               performed_by: performerName,
             });
             affectedCount++;
+            if (userId) {
+              counselorTally[userId] = (counselorTally[userId] || 0) + 1;
+            }
           }
-          if (currentIndex >= finalLeadIds.length) break;
-        }
-      }
+        } else if (request.mode === "auto") {
+          const userIds = request.selected_user_ids || [];
+          if (userIds.length === 0) throw new Error("No counselors selected for auto-assignment.");
 
-      // Log bulk action
-      db.prepare(`
-        INSERT INTO activity_logs (action_type, description, affected_count, metadata, performed_by)
-        VALUES ('bulk_assign', @description, @affectedCount, @metadata, @performed_by)
-      `).run({
-        description: `Bulk assigned ${affectedCount} leads using mode: ${request.mode}`,
-        affectedCount,
-        metadata: JSON.stringify({
-          mode: request.mode,
-          finalLeadIdsCount: finalLeadIds.length,
-          skippedLockedCount,
-        }),
-        performed_by: performerName,
+          // Round-robin equal distribution
+          finalLeadIds.forEach((id, index) => {
+            const userId = userIds[index % userIds.length];
+            const cName = counselorMap.get(userId) || "Counselor";
+            const isOverride = lockedSet.has(id);
+            updateLead.run({ id, userId });
+            insertAssignActivity.run({
+              lead_id: id,
+              title: isOverride ? `Assigned to Counselor: ${cName} (Lock Overridden)` : `Assigned to Counselor: ${cName}`,
+              description: isOverride
+                ? `Auto-balanced distribution (Admin/Team Leader override of 7-day lock)`
+                : `Auto-balanced round-robin distribution`,
+              new_value: cName,
+              metadata: JSON.stringify({ assigned_to: userId, mode: request.mode, is_override: isOverride }),
+              performed_by: performerName,
+            });
+            affectedCount++;
+            counselorTally[userId] = (counselorTally[userId] || 0) + 1;
+          });
+        } else if (request.mode === "quota") {
+          const quotas = request.user_quotas || {};
+          let currentIndex = 0;
+
+          for (const [userId, quota] of Object.entries(quotas)) {
+            const countToGive = Math.min(quota, finalLeadIds.length - currentIndex);
+            const cName = counselorMap.get(userId) || "Counselor";
+            for (let i = 0; i < countToGive; i++) {
+              const id = finalLeadIds[currentIndex++];
+              const isOverride = lockedSet.has(id);
+              updateLead.run({ id, userId });
+              insertAssignActivity.run({
+                lead_id: id,
+                title: isOverride ? `Assigned to Counselor: ${cName} (Lock Overridden)` : `Assigned to Counselor: ${cName}`,
+                description: isOverride
+                  ? `Quota-allocated assignment (Admin/Team Leader override of 7-day lock)`
+                  : `Quota-allocated assignment (${countToGive} capacity target)`,
+                new_value: cName,
+                metadata: JSON.stringify({ assigned_to: userId, mode: request.mode, quota, is_override: isOverride }),
+                performed_by: performerName,
+              });
+              affectedCount++;
+              counselorTally[userId] = (counselorTally[userId] || 0) + 1;
+            }
+            if (currentIndex >= finalLeadIds.length) break;
+          }
+        }
+
+        // Log bulk action
+        db.prepare(`
+          INSERT INTO activity_logs (action_type, description, affected_count, metadata, performed_by)
+          VALUES ('bulk_assign', @description, @affectedCount, @metadata, @performed_by)
+        `).run({
+          description: `Bulk assigned ${affectedCount} leads using mode: ${request.mode}`,
+          affectedCount,
+          metadata: JSON.stringify({
+            mode: request.mode,
+            finalLeadIdsCount: finalLeadIds.length,
+            skippedLockedCount,
+          }),
+          performed_by: performerName,
+        });
       });
+
+      assignTransaction();
     });
 
-    assignTransaction();
     this.invalidateCache();
 
     let resultMessage = `Successfully assigned ${affectedCount} student leads.`;
@@ -789,6 +821,7 @@ export class LeadsService {
     return {
       affectedCount,
       skippedLockedCount,
+      counselorTally,
       message: resultMessage,
     };
   }

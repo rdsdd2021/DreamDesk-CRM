@@ -14,8 +14,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bookmark, Plus, X, Tag as TagIcon, CheckCircle2, Sparkles } from "lucide-react";
+import { Bookmark, Plus, X, Tag as TagIcon, CheckCircle2, Sparkles, AlertCircle } from "lucide-react";
 import { TaskPriority, BulkTaskConfig } from "@/types/crm";
+import { ApiClient } from "@/lib/api/apiClient";
 
 interface BulkTagsModalProps {
   isOpen: boolean;
@@ -53,6 +54,7 @@ export function BulkTagsModal({
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [customTagInput, setCustomTagInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Task scheduling options
   const [createFollowupTask, setCreateFollowupTask] = useState(false);
@@ -83,6 +85,8 @@ export function BulkTagsModal({
   };
 
   const handleSubmit = async () => {
+    setSubmitting(true);
+    setErrorMessage(null);
     const taskConfigPayload: BulkTaskConfig | undefined = createFollowupTask
       ? {
           create_task: true,
@@ -93,9 +97,8 @@ export function BulkTagsModal({
       : undefined;
 
     try {
-      const res = await fetch("/api/leads/bulk-tags", {
+      const res = await ApiClient.fetchJson<any>("/api/leads/bulk-tags", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           lead_ids: isAllFilteredSelected ? undefined : selectedLeadIds,
           apply_to_all_filtered: isAllFilteredSelected,
@@ -106,14 +109,15 @@ export function BulkTagsModal({
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update tags");
+      if (res.error || !res.data) {
+        throw new Error(res.error?.message || "Failed to update tags");
+      }
 
-      onTagsApplied(data.message || "Tags updated successfully!");
+      onTagsApplied(res.data.message || "Tags updated successfully!");
       setSelectedTags([]);
       onClose();
     } catch (err: any) {
-      alert("Error: " + err.message);
+      setErrorMessage(err.message || "Failed to update tags");
     } finally {
       setSubmitting(false);
     }
@@ -139,6 +143,13 @@ export function BulkTagsModal({
             {isAllFilteredSelected && " (all matching active filters)"}.
           </DialogDescription>
         </DialogHeader>
+
+        {errorMessage && (
+          <div className="p-3 rounded-xl bg-destructive/10 text-destructive border border-destructive/20 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span className="font-medium">{errorMessage}</span>
+          </div>
+        )}
 
         {/* Action Toggle (Add vs Remove) */}
         <div className="space-y-1.5">
