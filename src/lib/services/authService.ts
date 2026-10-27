@@ -214,9 +214,8 @@ export class AuthService {
   }
 
   static authenticate(
-    emailOrUserId: string,
+    email: string,
     password?: string,
-    bypassPassword = false,
     metadata?: { ip?: string; location?: string; userAgent?: string }
   ): { user: User; session: { sessionId: string; expiresAt: Date }; permissions: RolePermissions } {
     const db = getDatabase();
@@ -225,32 +224,30 @@ export class AuthService {
       SELECT id, name, email, role, status, avatar_color, password_hash, salt, created_at,
              last_login_at, last_login_ip, last_login_location, deactivated_at, deactivated_by
       FROM users
-      WHERE (LOWER(email) = LOWER(?) OR id = ?)
-    `).get(emailOrUserId.trim(), emailOrUserId.trim()) as any;
+      WHERE LOWER(email) = LOWER(?)
+    `).get(email.trim()) as any;
 
     if (!userRow) {
-      throw new Error("No user found with the provided credentials.");
+      throw new Error("Invalid email or password.");
     }
 
     if (userRow.status === "inactive") {
       throw new Error("Your account has been deactivated. Please contact an administrator.");
     }
 
-    if (!bypassPassword) {
-      if (!password) {
-        throw new Error("Password is required.");
-      }
+    if (!password) {
+      throw new Error("Password is required.");
+    }
 
-      if (!userRow.password_hash || !userRow.salt) {
-        // Fallback for unset password
-        if (password !== "password123") {
-          throw new Error("Invalid password.");
-        }
-      } else {
-        const isValid = this.verifyPassword(password, userRow.password_hash, userRow.salt);
-        if (!isValid) {
-          throw new Error("Invalid email or password.");
-        }
+    if (!userRow.password_hash || !userRow.salt) {
+      // Fallback for unset password
+      if (password !== "password123") {
+        throw new Error("Invalid password.");
+      }
+    } else {
+      const isValid = this.verifyPassword(password, userRow.password_hash, userRow.salt);
+      if (!isValid) {
+        throw new Error("Invalid email or password.");
       }
     }
 

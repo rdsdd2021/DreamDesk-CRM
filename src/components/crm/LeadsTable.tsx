@@ -878,7 +878,7 @@ export function LeadsTable({
                     <School className="w-8 h-8 stroke-[1.25] text-muted-foreground/50" />
                     <div className="text-sm font-semibold text-foreground">No student leads found</div>
                     <div className="text-xs text-muted-foreground max-w-sm">
-                      Try clearing or changing your filters, or generate sample student leads using the button above.
+                      No student leads match your current query or filters. Import leads from CSV to get started.
                     </div>
                   </div>
                 </TableCell>

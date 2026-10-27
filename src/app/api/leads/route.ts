@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const statusParam = searchParams.get("status");
     const status = statusParam ? statusParam.split(",").filter(Boolean) : undefined;
 
-    // Parse assigned_to array: ?assigned_to=usr_rohit,unassigned
+    // Parse assigned_to array: ?assigned_to=usr_admin,unassigned
     const assignedParam = searchParams.get("assigned_to");
     const assigned_to = assignedParam ? assignedParam.split(",").filter(Boolean) : undefined;
 

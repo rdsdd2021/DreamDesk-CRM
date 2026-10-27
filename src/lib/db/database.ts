@@ -498,12 +498,6 @@ function seedInitialData(db: Database.Database) {
 
     const defaultUsers = [
       { id: "usr_admin", name: "Super Admin", email: "admin@dreamdesk.in", role: "admin", status: "active", avatar_color: "#4f46e5" },
-      { id: "usr_rohit", name: "Rohit Sharma", email: "rohit.sharma@dreamdesk.in", role: "senior_counselor", status: "active", avatar_color: "#2563eb" },
-      { id: "usr_ananya", name: "Ananya Verma", email: "ananya.v@dreamdesk.in", role: "counselor", status: "active", avatar_color: "#db2777" },
-      { id: "usr_vikram", name: "Vikram Malhotra", email: "vikram.m@dreamdesk.in", role: "team_lead", status: "active", avatar_color: "#16a34a" },
-      { id: "usr_priya", name: "Priya Patel", email: "priya.p@dreamdesk.in", role: "counselor", status: "active", avatar_color: "#ea580c" },
-      { id: "usr_sneha", name: "Sneha Rao", email: "sneha.rao@dreamdesk.in", role: "counselor", status: "active", avatar_color: "#9333ea" },
-      { id: "usr_aditya", name: "Aditya Roy", email: "aditya.roy@dreamdesk.in", role: "telecaller", status: "active", avatar_color: "#0891b2" },
     ];
 
     const insertManyUsers = db.transaction((users) => {
@@ -801,37 +795,37 @@ function seedInitialData(db: Database.Database) {
     const defaultRules = [
       {
         id: "rule_medical",
-        name: "Medical / NEET Stream -> Dr. Priya Sharma",
+        name: "Medical / NEET Stream -> Admissions Desk",
         criteria_field: "stream",
         criteria_value: "Medical / NEET",
-        assigned_to: "usr_priya",
+        assigned_to: "usr_admin",
         is_active: 1,
         priority: 1,
       },
       {
         id: "rule_engineering",
-        name: "Engineering / JEE Stream -> Rohit Verma",
+        name: "Engineering / JEE Stream -> Admissions Desk",
         criteria_field: "stream",
         criteria_value: "Engineering / JEE",
-        assigned_to: "usr_rohit",
+        assigned_to: "usr_admin",
         is_active: 1,
         priority: 2,
       },
       {
         id: "rule_commerce",
-        name: "Commerce / CA Stream -> Ananya Iyer",
+        name: "Commerce / CA Stream -> Admissions Desk",
         criteria_field: "stream",
         criteria_value: "Commerce / CA",
-        assigned_to: "usr_ananya",
+        assigned_to: "usr_admin",
         is_active: 1,
         priority: 3,
       },
       {
         id: "rule_arts",
-        name: "Humanities / Arts Stream -> Vikram Patel",
+        name: "Humanities / Arts Stream -> Admissions Desk",
         criteria_field: "stream",
         criteria_value: "Humanities / Arts",
-        assigned_to: "usr_vikram",
+        assigned_to: "usr_admin",
         is_active: 1,
         priority: 4,
       },

@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { LeadsService } from "@/lib/services/leadsService";
 
 export async function POST(request: NextRequest) {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json(
+      { error: "Synthetic lead generation is disabled in production environments." },
+      { status: 403 }
+    );
+  }
+
   try {
     const body = await request.json().catch(() => ({}));
     const count = Math.min(100000, Math.max(10, body.count || 2500));

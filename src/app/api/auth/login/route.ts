@@ -4,7 +4,7 @@ import { AuthService } from "@/lib/services/authService";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password, userId, quickLogin, locationInfo } = body;
+    const { email, password, locationInfo } = body;
 
     // Resolve client IP address
     const forwarded = request.headers.get("x-forwarded-for");
@@ -30,18 +30,14 @@ export async function POST(request: NextRequest) {
       userAgent: request.headers.get("user-agent") || "Browser Terminal",
     };
 
-    let authResult;
-
-    if (quickLogin && userId) {
-      authResult = AuthService.authenticate(userId, undefined, true, metadata);
-    } else if (email) {
-      authResult = AuthService.authenticate(email, password, false, metadata);
-    } else {
+    if (!email || !password) {
       return NextResponse.json(
-        { error: "Email and password or quick profile selection are required." },
+        { error: "Email address and password are required." },
         { status: 400 }
       );
     }
+
+    const authResult = AuthService.authenticate(email, password, metadata);
 
     const { user, session, permissions } = authResult;
 

@@ -31,7 +31,7 @@ interface CommandCenterProps {
   onSelectView: (view: string) => void;
   onSelectLead: (lead: Lead) => void;
   onOpenImport: () => void;
-  onOpenGenerate: () => void;
+  onOpenGenerate?: () => void;
 }
 
 export function CommandCenter({
@@ -224,16 +224,18 @@ export function CommandCenter({
             <span>Import Student Leads from CSV</span>
           </CommandItem>
 
-          <CommandItem
-            onSelect={() => {
-              onOpenGenerate();
-              onOpenChange(false);
-            }}
-            className="text-xs cursor-pointer"
-          >
-            <Sparkles className="w-4 h-4 mr-2 text-primary" />
-            <span>Generate Synthetic Test Data</span>
-          </CommandItem>
+          {onOpenGenerate && (
+            <CommandItem
+              onSelect={() => {
+                onOpenGenerate();
+                onOpenChange(false);
+              }}
+              className="text-xs cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 mr-2 text-primary" />
+              <span>Generate Synthetic Test Data</span>
+            </CommandItem>
+          )}
         </CommandGroup>
       </CommandList>
     </CommandDialog>

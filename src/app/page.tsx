@@ -167,19 +167,6 @@ export default function CRMPage() {
     }
   };
 
-  const handleSwitchUser = async (userToSwitch: User) => {
-    try {
-      await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: userToSwitch.id, quickLogin: true }),
-      });
-      window.location.reload();
-    } catch (err) {
-      console.error("Switch user error:", err);
-    }
-  };
-
   // Navigation & View State
   const [currentView, setCurrentView] = useState<string>("leads");
   const [studioTab, setStudioTab] = useState<"fields" | "campaigns" | "dispositions" | "matrix">("fields");
@@ -211,7 +198,7 @@ export default function CRMPage() {
 
   // Counselor Role Filter (Admin: all leads, or Counselor: my leads)
   const [roleMode, setRoleMode] = useState<"admin" | "counselor">("admin");
-  const [activeCounselorId, setActiveCounselorId] = useState<string>("usr_rohit");
+  const [activeCounselorId, setActiveCounselorId] = useState<string>("usr_admin");
 
   const isRestrictedCounselor = currentUser
     ? (currentUser.role === "counselor" || currentUser.role === "senior_counselor" || currentUser.role === "telecaller")
@@ -1115,28 +1102,6 @@ export default function CRMPage() {
     }
   };
 
-  // Generate Sample Leads
-  const handleGenerateSampleLeads = async (count: number) => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/leads/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
-      showToast(data.message, "success");
-      fetchLeads();
-      loadMetaAndUsers();
-    } catch (err: any) {
-      showToast(err.message || "Failed to generate leads", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Single Lead Update Handlers
   const handleUpdateLeadStatus = async (leadId: number, status: string) => {
     try {
@@ -1290,7 +1255,6 @@ export default function CRMPage() {
         }}
         onSelectLead={(l) => setSelectedLeadForDetail(l)}
         onOpenImport={() => setCurrentView("import")}
-        onOpenGenerate={() => handleGenerateSampleLeads(2500)}
       />
 
       {/* Modern Collapsible Sidebar */}
@@ -1454,32 +1418,6 @@ export default function CRMPage() {
                     </div>
                   )}
 
-                  <DropdownMenuLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-1">
-                    Quick Role Switcher (Test)
-                  </DropdownMenuLabel>
-                  <div className="max-h-48 overflow-y-auto space-y-0.5">
-                    {users.map((u) => (
-                      <DropdownMenuItem
-                        key={u.id}
-                        onClick={() => handleSwitchUser(u)}
-                        className={`gap-2 cursor-pointer text-xs rounded-lg px-2 py-1.5 ${
-                          currentUser.id === u.id ? "bg-primary/10 font-semibold text-primary" : ""
-                        }`}
-                      >
-                        <div
-                          className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-2xs"
-                          style={{ backgroundColor: u.avatar_color }}
-                        >
-                          {u.name.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="truncate flex-1 font-medium">{u.name}</span>
-                        <span className="text-[10px] capitalize text-muted-foreground font-mono">
-                          {u.role.replace("_", " ")}
-                        </span>
-                      </DropdownMenuItem>
-                    ))}
-                  </div>
-                  <DropdownMenuSeparator className="my-1" />
                   <DropdownMenuItem
                     onClick={handleLogout}
                     className="gap-2 cursor-pointer text-xs text-rose-600 focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/20 rounded-lg py-1.5 px-2"
@@ -1673,7 +1611,6 @@ export default function CRMPage() {
                 isAutoDistributing={isAutoDistributing}
                 onOpenImport={!isTelecaller ? () => setCurrentView("import") : undefined}
                 onOpenDuplicates={!isTelecaller ? () => setIsDuplicatesModalOpen(true) : undefined}
-                onGenerateTestData={!isTelecaller && permissions?.canManageSchema ? () => handleGenerateSampleLeads(500) : undefined}
                 onOpenShortcuts={() => setIsShortcutsOpen(true)}
                 canManageTeam={!isTelecaller && permissions?.canManageTeam}
               />
