@@ -371,6 +371,48 @@ export class AuthService {
     return { success: true };
   }
 
+  /**
+   * Resets or changes a user's password with Scrypt hashing and terminates active sessions.
+   */
+  static resetPassword(
+    userId: string,
+    newPassword: string,
+    performedBy: string = "Admin"
+  ): { success: boolean; terminatedSessions: number } {
+    if (!newPassword || newPassword.trim().length < 6) {
+      throw new Error("Password must be at least 6 characters long.");
+    }
+
+    const db = getDatabase();
+    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+    if (!user) throw new Error("User account not found.");
+
+    const { hash, salt } = this.hashPassword(newPassword.trim());
+
+    db.prepare(`
+      UPDATE users 
+      SET password_hash = ?, salt = ? 
+      WHERE id = ?
+    `).run(hash, salt, userId);
+
+    // Terminate existing sessions to force re-authentication with new credentials
+    const delResult = db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
+    const terminatedSessions = delResult.changes;
+
+    try {
+      db.prepare(`
+        INSERT INTO activity_logs (action_type, description, metadata, performed_by)
+        VALUES ('PASSWORD_RESET', ?, ?, ?)
+      `).run(
+        `Password was reset for ${user.name} (${user.email}). ${terminatedSessions} active session(s) terminated.`,
+        JSON.stringify({ userId, terminatedSessions, performedBy }),
+        performedBy
+      );
+    } catch {}
+
+    return { success: true, terminatedSessions };
+  }
+
   static getAllActiveUsers(): User[] {
     const db = getDatabase();
     return db.prepare(`

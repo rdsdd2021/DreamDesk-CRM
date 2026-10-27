@@ -1488,14 +1488,18 @@ export class LeadsService {
   /**
    * Creates a new counselor / team member.
    */
-  static createUser(data: { name: string; email: string; role?: string }): User {
+  static createUser(data: { name: string; email: string; role?: string; password?: string }): User {
     const db = getDatabase();
     const cleanEmail = data.email.toLowerCase().trim();
     const id = `usr_${Date.now()}`;
     const colors = ["#2563eb", "#db2777", "#16a34a", "#ea580c", "#9333ea", "#0891b2", "#d97706"];
     const avatar_color = colors[Math.floor(Math.random() * colors.length)];
 
-    const { hash, salt } = AuthService.hashPassword("password123");
+    const initialPassword = data.password && data.password.trim().length >= 6
+      ? data.password.trim()
+      : "password123";
+
+    const { hash, salt } = AuthService.hashPassword(initialPassword);
 
     db.prepare(`
       INSERT INTO users (id, name, email, role, status, avatar_color, password_hash, salt)

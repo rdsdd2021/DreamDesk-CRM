@@ -23,13 +23,20 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, email, role } = body;
+    const { name, email, role, password } = body;
 
     if (!name || !email) {
       return NextResponse.json({ error: "Name and email are required" }, { status: 400 });
     }
 
-    const newUser = LeadsService.createUser({ name, email, role });
+    if (password && password.trim().length < 6) {
+      return NextResponse.json(
+        { error: "Password must be at least 6 characters long." },
+        { status: 400 }
+      );
+    }
+
+    const newUser = LeadsService.createUser({ name, email, role, password });
     return NextResponse.json(newUser, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || "Failed to create counselor" }, { status: 500 });
@@ -53,7 +60,30 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { userId, status } = body;
+    const { userId, status, newPassword, action } = body;
+
+    // Handle Password Reset Request
+    if (action === "reset_password" || newPassword) {
+      if (!userId || !newPassword) {
+        return NextResponse.json(
+          { error: "Both userId and newPassword are required to reset a password." },
+          { status: 400 }
+        );
+      }
+      if (newPassword.trim().length < 6) {
+        return NextResponse.json(
+          { error: "Password must be at least 6 characters long." },
+          { status: 400 }
+        );
+      }
+
+      const result = AuthService.resetPassword(userId, newPassword.trim(), session.user.name);
+      return NextResponse.json({
+        success: true,
+        message: `Password reset successfully. Terminated ${result.terminatedSessions} active session(s).`,
+        terminatedSessions: result.terminatedSessions,
+      });
+    }
 
     if (!userId || !["active", "inactive"].includes(status)) {
       return NextResponse.json({ error: "userId and status ('active' | 'inactive') are required." }, { status: 400 });

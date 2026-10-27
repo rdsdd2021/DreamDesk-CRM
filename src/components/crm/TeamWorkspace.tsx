@@ -29,6 +29,11 @@ import {
   UserCheck,
   Sparkles,
   Lock,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Copy,
+  Check,
 } from "lucide-react";
 
 interface TeamWorkspaceProps {
@@ -62,6 +67,8 @@ export function TeamWorkspace({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("counselor");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -70,10 +77,22 @@ export function TeamWorkspace({
   const [targetUserToDeactivate, setTargetUserToDeactivate] = useState<User | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
+  // Password reset modal state
+  const [targetUserToResetPassword, setTargetUserToResetPassword] = useState<User | null>(null);
+  const [newPasswordInput, setNewPasswordInput] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
+  const [passwordCopied, setPasswordCopied] = useState(false);
+
   const handleCreateCounselor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !email.trim()) {
       setError("Please provide both name and email.");
+      return;
+    }
+
+    if (password && password.trim().length < 6) {
+      setError("Password must be at least 6 characters long.");
       return;
     }
 
@@ -83,22 +102,74 @@ export function TeamWorkspace({
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), role }),
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          role,
+          password: password.trim() || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to create counselor");
 
       setName("");
       setEmail("");
+      setPassword("");
+      setShowPassword(false);
       setShowAddForm(false);
-      setSuccessMsg(`Counselor ${data.name} added successfully.`);
-      setTimeout(() => setSuccessMsg(null), 4000);
+      const passInfo = password.trim() ? "with custom password" : "with default password (password123)";
+      setSuccessMsg(`Counselor ${data.name} added successfully ${passInfo}.`);
+      setTimeout(() => setSuccessMsg(null), 5000);
       onUserAdded();
     } catch (err: any) {
       setError(err.message || "Failed to create counselor");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!targetUserToResetPassword) return;
+    if (!newPasswordInput || newPasswordInput.trim().length < 6) {
+      setError("Password must be at least 6 characters long.");
+      return;
+    }
+
+    setResetPasswordLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: targetUserToResetPassword.id,
+          newPassword: newPasswordInput.trim(),
+          action: "reset_password",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to reset password");
+
+      setSuccessMsg(`Password for ${targetUserToResetPassword.name} updated successfully. Active sessions terminated.`);
+      setTimeout(() => setSuccessMsg(null), 5000);
+      setTargetUserToResetPassword(null);
+      setNewPasswordInput("");
+      if (onUserUpdated) onUserUpdated();
+      else onUserAdded();
+    } catch (err: any) {
+      setError(err.message || "Failed to reset password");
+    } finally {
+      setResetPasswordLoading(false);
+    }
+  };
+
+  const handleGenerateRandomPassword = () => {
+    const specials = ["@", "!", "#", "$"];
+    const special = specials[Math.floor(Math.random() * specials.length)];
+    const num = Math.floor(1000 + Math.random() * 9000);
+    const pwd = `Desk${special}${num}`;
+    setNewPasswordInput(pwd);
   };
 
   const handleToggleStatus = async (userId: string, newStatus: "active" | "inactive") => {
@@ -247,7 +318,7 @@ export function TeamWorkspace({
             <span className="text-xs text-muted-foreground">All fields required</span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div className="space-y-1">
               <label className="text-xs font-semibold text-muted-foreground">Full Name</label>
               <Input
@@ -284,6 +355,35 @@ export function TeamWorkspace({
                 <option value="admin">System Administrator</option>
               </select>
             </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-muted-foreground">Initial Password</label>
+                <span className="text-[10px] text-muted-foreground">Optional</span>
+              </div>
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Default: password123"
+                  className="h-8 text-xs bg-background pr-7"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 pt-0.5">
+            <Lock className="w-3 h-3 text-primary shrink-0" />
+            <span>If password is left blank, it defaults to <code className="bg-muted px-1.5 py-0.5 rounded font-mono font-bold text-foreground">password123</code>. You can reset it anytime.</span>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
@@ -434,9 +534,25 @@ export function TeamWorkspace({
                     <ArrowRight className="w-3 h-3" />
                   </Button>
 
-                  {/* Deactivate / Reactivate Action */}
+                  {/* Password & Status Actions */}
                   {canManageTeam && (
                     <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setTargetUserToResetPassword(user);
+                          setNewPasswordInput("");
+                          setPasswordCopied(false);
+                          setShowNewPassword(false);
+                        }}
+                        className="h-7 text-xs gap-1 border-border/80 text-foreground hover:bg-muted cursor-pointer"
+                        title="Set or reset password"
+                      >
+                        <KeyRound className="w-3 h-3 text-amber-500" />
+                        <span className="hidden sm:inline">Password</span>
+                      </Button>
+
                       {isCurrentUser ? (
                         <span className="text-[10px] text-muted-foreground italic px-1">
                           You
@@ -530,6 +646,117 @@ export function TeamWorkspace({
                 : "Confirm Deactivation"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Password Modal */}
+      <Dialog
+        open={!!targetUserToResetPassword}
+        onOpenChange={(open) => !open && setTargetUserToResetPassword(null)}
+      >
+        <DialogContent className="max-w-md p-6 space-y-4">
+          <DialogHeader className="space-y-2">
+            <div className="w-10 h-10 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center">
+              <KeyRound className="w-5 h-5" />
+            </div>
+            <DialogTitle className="text-lg font-bold text-foreground">
+              Set Staff Password
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
+              Set a new login password for{" "}
+              <strong className="text-foreground">
+                {targetUserToResetPassword?.name}
+              </strong>{" "}
+              ({targetUserToResetPassword?.email}). Any active sessions across their devices will be terminated immediately.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleResetPassword} className="space-y-4 pt-1">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-foreground">
+                  New Password (min 6 chars)
+                </label>
+                <button
+                  type="button"
+                  onClick={handleGenerateRandomPassword}
+                  className="text-xs text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>Generate Quick Password</span>
+                </button>
+              </div>
+
+              <div className="relative">
+                <Input
+                  type={showNewPassword ? "text" : "password"}
+                  value={newPasswordInput}
+                  onChange={(e) => setNewPasswordInput(e.target.value)}
+                  placeholder="Enter new password..."
+                  className="text-xs bg-background pr-16 font-mono"
+                  autoFocus
+                  required
+                />
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  {newPasswordInput && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(newPasswordInput);
+                        setPasswordCopied(true);
+                        setTimeout(() => setPasswordCopied(false), 2000);
+                      }}
+                      className="text-muted-foreground hover:text-foreground cursor-pointer p-1"
+                      title="Copy to clipboard"
+                    >
+                      {passwordCopied ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-500" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="text-muted-foreground hover:text-foreground cursor-pointer p-1"
+                    tabIndex={-1}
+                  >
+                    {showNewPassword ? (
+                      <EyeOff className="w-3.5 h-3.5" />
+                    ) : (
+                      <Eye className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-muted/50 border border-border/80 text-[11px] text-muted-foreground flex items-center gap-2">
+              <Lock className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span>Password will be salted and hashed with Scrypt. Share the new credentials with the user securely.</span>
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setTargetUserToResetPassword(null)}
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={resetPasswordLoading || newPasswordInput.trim().length < 6}
+                className="text-xs font-bold gap-1.5 bg-primary text-primary-foreground cursor-pointer"
+              >
+                {resetPasswordLoading ? "Updating..." : "Update Password"}
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

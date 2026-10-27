@@ -36,6 +36,12 @@ All notable changes, architectural enhancements, schema migrations, and feature 
 - **Database Schema Seed Integrity (`database.ts`)**: Updated default assignment rules and initial user seeding to reference `usr_admin`, preventing foreign key constraint violations under `PRAGMA foreign_keys = ON`.
 - **Empty State Polish (`LeadsTable.tsx`)**: Replaced demo test-generation prompt with professional guidance to import student records from CSV.
 
+#### 4. Staff Password Provisioning & Self-Service Admin Reset Modal
+- **Optional Initial Password on User Creation (`TeamWorkspace.tsx`, `TeamModal.tsx`, `leadsService.ts`)**: Admins can now specify a custom initial password (min 6 characters) with show/hide toggle when registering a counselor, or leave it blank to automatically default to `password123`.
+- **Admin Password Reset Modal (`TeamWorkspace.tsx`, `PATCH /api/users`)**: Added a dedicated "Password" action button on each counselor card. Admins can type a new password or click "Generate Quick Password" (`Desk@4821`), copy it in 1 click, and update credentials.
+- **Session Purging on Password Reset (`AuthService.resetPassword`)**: When a password is reset, all existing active browser sessions for that user are immediately terminated, forcing re-authentication with the new password.
+- **Audit Logging**: Every password reset generates an immutable audit entry in `activity_logs`.
+
 ---
 
 ## [v2.10.0] — 2026-10-27

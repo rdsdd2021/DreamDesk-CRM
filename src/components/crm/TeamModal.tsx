@@ -31,6 +31,9 @@ import {
   MapPin,
   UserX,
   UserCheck,
+  Lock,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 interface TeamModalProps {
@@ -58,6 +61,8 @@ export function TeamModal({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("counselor");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
@@ -70,19 +75,31 @@ export function TeamModal({
       return;
     }
 
+    if (password && password.trim().length < 6) {
+      setError("Password must be at least 6 characters long.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), role }),
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          role,
+          password: password.trim() || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to create counselor");
 
       setName("");
       setEmail("");
+      setPassword("");
+      setShowPassword(false);
       setShowAddForm(false);
       if (onUserAdded) onUserAdded();
       if (onUserUpdated) onUserUpdated();
@@ -188,6 +205,30 @@ export function TeamModal({
                       className="h-8 text-xs bg-background"
                       required
                     />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-medium text-muted-foreground">Initial Password</label>
+                    <span className="text-[10px] text-muted-foreground">Optional (Defaults to password123)</span>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Default: password123"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="h-8 text-xs bg-background pr-7"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
                   </div>
                 </div>
 

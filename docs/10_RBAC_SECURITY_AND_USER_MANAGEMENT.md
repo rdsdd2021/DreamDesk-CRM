@@ -38,7 +38,18 @@ The production environment initializes with a single master Super Admin account:
 - **Default Password**: `password123`
 - **Role**: `admin` (Full institutional governance)
 
-All subsequent staff members (Counselors, Telecallers, and Team Leads) are created directly by the Super Admin in the **Team Management** workspace. No dummy accounts or test backdoors exist in production.
+### Provisioning New Staff Accounts
+All subsequent staff members (Counselors, Telecallers, and Team Leads) are created directly by the Super Admin in the **Team Management** workspace:
+1. **Name & Email**: Standard institutional identifiers.
+2. **Initial Password**: Admins can specify a custom initial password (min 6 characters) or leave it blank to automatically default to `password123`.
+3. **Password Security**: Every password is cryptographically salted with a 16-byte random salt and hashed using Scrypt before persisting to SQLite.
+
+### On-Demand Password Resets
+Super Admins can reset credentials for any staff member at any time:
+1. Open **Team Management** and click the **"Password"** key icon on the staff card.
+2. Enter a new password or click **"Generate Quick Password"** (e.g. `Desk@8291`).
+3. Click the copy button to copy credentials to the clipboard.
+4. Saving the new password terminates all existing sessions for that user, ensuring immediate revocation across all devices.
 
 ---
 
