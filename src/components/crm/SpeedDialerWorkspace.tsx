@@ -32,7 +32,9 @@ import {
   RotateCcw,
   CalendarClock,
   CornerDownRight,
+  Loader2,
 } from "lucide-react";
+import { ApiClient } from "@/lib/api/apiClient";
 
 interface SpeedDialerWorkspaceProps {
   leads: Lead[];
@@ -90,6 +92,27 @@ export function SpeedDialerWorkspace({
   const [callbackDate, setCallbackDate] = useState<string>("");
   const [autoAdvance, setAutoAdvance] = useState<boolean>(true);
   const [savingOutcome, setSavingOutcome] = useState<boolean>(false);
+  const [dialingLeadId, setDialingLeadId] = useState<number | null>(null);
+
+  const handleTriggerDial = async (leadId: number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    try {
+      setDialingLeadId(leadId);
+      const { data, error } = await ApiClient.fetchJson<{ success: boolean; dialUri: string }>(
+        `/api/leads/${leadId}/call-intent`,
+        { method: "POST" }
+      );
+      if (error) throw new Error(error.message);
+      if (data?.dialUri) {
+        window.location.href = data.dialUri;
+      }
+    } catch (err: any) {
+      console.error("Dial failed:", err);
+      alert(err.message || "Failed to trigger call dialer");
+    } finally {
+      setDialingLeadId(null);
+    }
+  };
 
   const setCallbackInHours = (hours: number) => {
     const d = new Date();
@@ -284,14 +307,18 @@ export function SpeedDialerWorkspace({
                     {/* Quick Dial Button */}
                     <div className="flex items-center gap-1 mt-0.5">
                       {l.phone && (
-                        <a
-                          href={`tel:${l.phone}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="w-7 h-7 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-600 flex items-center justify-center transition-colors"
-                          title="Dial softphone (C)"
+                        <button
+                          onClick={(e) => handleTriggerDial(l.id, e)}
+                          disabled={dialingLeadId === l.id}
+                          className="w-7 h-7 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-600 flex items-center justify-center transition-colors cursor-pointer"
+                          title="Dial softphone via secure intent (C)"
                         >
-                          <Phone className="w-3.5 h-3.5" />
-                        </a>
+                          {dialingLeadId === l.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Phone className="w-3.5 h-3.5" />
+                          )}
+                        </button>
                       )}
                       {l.phone && (
                         <button
@@ -374,14 +401,19 @@ export function SpeedDialerWorkspace({
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Direct Dial Primary CTA */}
             {currentLead.phone && (
-              <a
-                href={`tel:${currentLead.phone}`}
-                className="h-8 px-2.5 sm:px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs transition-colors"
-                title="Dial Phone (C)"
+              <button
+                onClick={(e) => handleTriggerDial(currentLead.id, e)}
+                disabled={dialingLeadId === currentLead.id}
+                className="h-8 px-2.5 sm:px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                title="Dial Phone via secure intent (C)"
               >
-                <Phone className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Call (C)</span>
-              </a>
+                {dialingLeadId === currentLead.id ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Phone className="w-3.5 h-3.5" />
+                )}
+                <span className="hidden sm:inline">{dialingLeadId === currentLead.id ? "Calling..." : "Call (C)"}</span>
+              </button>
             )}
 
             {/* WhatsApp Template CTA */}
@@ -764,14 +796,19 @@ export function SpeedDialerWorkspace({
 
           <div className="flex items-center gap-1.5 flex-1 justify-center">
             {currentLead.phone && (
-              <a
-                href={`tel:${currentLead.phone}`}
-                className="h-10 px-4 rounded-xl bg-emerald-600 active:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs flex-1 max-w-[140px]"
-                title="Dial Call (C)"
+              <button
+                onClick={(e) => handleTriggerDial(currentLead.id, e)}
+                disabled={dialingLeadId === currentLead.id}
+                className="h-10 px-4 rounded-xl bg-emerald-600 active:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs flex-1 max-w-[140px] cursor-pointer"
+                title="Dial Call via secure intent (C)"
               >
-                <Phone className="w-4 h-4" />
-                <span>Call (C)</span>
-              </a>
+                {dialingLeadId === currentLead.id ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Phone className="w-4 h-4" />
+                )}
+                <span>{dialingLeadId === currentLead.id ? "Calling..." : "Call (C)"}</span>
+              </button>
             )}
             {currentLead.phone && (
               <Button

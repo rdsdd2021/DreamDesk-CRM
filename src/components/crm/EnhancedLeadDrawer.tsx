@@ -76,7 +76,10 @@ import {
   UserX,
   XCircle,
   Flame,
+  Eye,
+  Loader2,
 } from "lucide-react";
+import { ApiClient } from "@/lib/api/apiClient";
 
 interface EnhancedLeadDrawerProps {
   lead: Lead | null;
@@ -238,9 +241,12 @@ export function EnhancedLeadDrawer({
     }
   };
 
-  // Live Calling Timer State
+  // Live Calling Timer & On-Demand Intent State
   const [isCalling, setIsCalling] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+  const [isDialing, setIsDialing] = useState(false);
+  const [unmaskedPhone, setUnmaskedPhone] = useState<string | null>(null);
+  const [isUnmasking, setIsUnmasking] = useState(false);
 
   useEffect(() => {
     let interval: any = null;
@@ -256,12 +262,27 @@ export function EnhancedLeadDrawer({
     };
   }, [isCalling]);
 
-  const handleStartCall = () => {
-    setIsCalling(true);
-    setCallOutcomePending(true);
-    setCallDuration(0);
-    if (lead?.phone) {
-      window.location.href = `tel:${lead.phone}`;
+  const handleStartCall = async () => {
+    if (!lead?.id) return;
+    try {
+      setIsDialing(true);
+      const { data, error } = await ApiClient.fetchJson<{ success: boolean; dialUri: string }>(
+        `/api/leads/${lead.id}/call-intent`,
+        { method: "POST" }
+      );
+      if (error) throw new Error(error.message);
+      setIsCalling(true);
+      setCallOutcomePending(true);
+      setCallDuration(0);
+      if (data?.dialUri) {
+        window.location.href = data.dialUri;
+      }
+      fetchActivities(lead.id);
+    } catch (err: any) {
+      console.error("Dial failed:", err);
+      alert(err.message || "Failed to trigger call dialer");
+    } finally {
+      setIsDialing(false);
     }
   };
 
@@ -298,26 +319,45 @@ export function EnhancedLeadDrawer({
     onClose();
   };
 
-  const handleSendWhatsAppTemplate = (templateText: string) => {
-    const phoneDigits = (lead?.phone || "").replace(/[^0-9]/g, "");
-    if (!phoneDigits) return;
-    const encoded = encodeURIComponent(templateText);
-    window.open(`https://wa.me/${phoneDigits}?text=${encoded}`, "_blank");
+  const handleSendWhatsAppTemplate = async (templateText: string) => {
+    if (!lead?.id) return;
+    try {
+      const { data, error } = await ApiClient.fetchJson<{ success: boolean; launchUrl: string }>(
+        `/api/leads/${lead.id}/whatsapp-intent`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ templateText }),
+        }
+      );
+      if (error) throw new Error(error.message);
+      if (data?.launchUrl) {
+        window.open(data.launchUrl, "_blank");
+      }
+      fetchActivities(lead.id);
+    } catch (err: any) {
+      console.error("WhatsApp trigger failed:", err);
+      alert(err.message || "Failed to trigger WhatsApp launch");
+    }
+  };
 
-    if (lead?.id) {
-      fetch(`/api/leads/${lead.id}/activities`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          activity_type: "whatsapp",
-          title: "WhatsApp Fast Pitch Sent",
-          description: templateText,
-          metadata: { channel: "whatsapp", phone: lead.phone },
-          performed_by_name: lead.assigned_user_name || "Counselor",
-        }),
-      })
-        .then(() => fetchActivities(lead.id))
-        .catch(console.error);
+  const handleUnmaskPhone = async () => {
+    if (!lead?.id) return;
+    try {
+      setIsUnmasking(true);
+      const { data, error } = await ApiClient.fetchJson<{ success: boolean; phone: string }>(
+        `/api/leads/${lead.id}/unmask`,
+        { method: "POST" }
+      );
+      if (error) throw new Error(error.message);
+      if (data?.phone) {
+        setUnmaskedPhone(data.phone);
+        fetchActivities(lead.id);
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to unmask phone number");
+    } finally {
+      setIsUnmasking(false);
     }
   };
 
@@ -356,6 +396,7 @@ export function EnhancedLeadDrawer({
 
     fetchDispositions();
     if (lead.id) {
+      setUnmaskedPhone(null);
       fetchActivities(lead.id);
       fetchLockStatus(lead.id);
     }
@@ -936,10 +977,20 @@ export function EnhancedLeadDrawer({
               <Button
                 size="sm"
                 onClick={handleStartCall}
+                disabled={isDialing}
                 className="h-9 px-3.5 text-xs font-semibold gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
               >
-                <PhoneCall className="w-4 h-4" />
-                <span>Call Student</span>
+                {isDialing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Connecting...</span>
+                  </>
+                ) : (
+                  <>
+                    <PhoneCall className="w-4 h-4" />
+                    <span>Call Student</span>
+                  </>
+                )}
               </Button>
             )}
 
@@ -1814,29 +1865,50 @@ export function EnhancedLeadDrawer({
                   {/* Phone */}
                   <div className="p-3 rounded-xl border border-border/70 bg-muted/20 text-xs flex items-center justify-between">
                     <div className="space-y-0.5">
-                      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                         <Phone className="w-3 h-3 text-emerald-600" />
                         <span>Mobile Phone</span>
+                        <span className="text-[9px] font-medium text-emerald-600 bg-emerald-500/10 px-1 py-0.2 rounded flex items-center gap-0.5 border border-emerald-500/20">
+                          <ShieldCheck className="w-2.5 h-2.5" />
+                          <span>Protected</span>
+                        </span>
                       </div>
-                      <div className="font-mono font-bold text-foreground text-sm">
-                        {lead.phone || "Not Provided"}
+                      <div className="font-mono font-bold text-foreground text-sm tracking-wide">
+                        {unmaskedPhone || lead.phone || "Not Provided"}
                       </div>
                     </div>
-                    {lead.phone && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleCopyText(lead.phone!, "phone")}
-                        className="h-7 px-2 text-xs font-medium cursor-pointer"
-                        title="Copy Phone"
-                      >
-                        {copiedField === "phone" ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-600" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5 text-muted-foreground" />
-                        )}
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {/* Admin Unmask Button */}
+                      {(currentUser?.role === "admin" || currentUser?.role === "team_lead") && !unmaskedPhone && lead.phone && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleUnmaskPhone}
+                          disabled={isUnmasking}
+                          className="h-7 px-2 text-[11px] font-semibold gap-1 text-muted-foreground hover:text-foreground cursor-pointer"
+                          title="Unmask raw phone for compliance"
+                        >
+                          {isUnmasking ? <Loader2 className="w-3 h-3 animate-spin" /> : <Eye className="w-3 h-3" />}
+                          <span>Reveal</span>
+                        </Button>
+                      )}
+                      {/* Copy button only allowed for Admins or if unmasked */}
+                      {(currentUser?.role === "admin" || unmaskedPhone) && lead.phone && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleCopyText(unmaskedPhone || lead.phone!, "phone")}
+                          className="h-7 px-2 text-xs font-medium cursor-pointer"
+                          title="Copy Phone"
+                        >
+                          {copiedField === "phone" ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          ) : (
+                            <Copy className="w-3.5 h-3.5 text-muted-foreground" />
+                          )}
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Email */}
@@ -2009,10 +2081,20 @@ export function EnhancedLeadDrawer({
             <Button
               size="sm"
               onClick={handleStartCall}
+              disabled={isCalling || isDialing}
               className="flex-1 h-11 text-xs font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
             >
-              <PhoneCall className="w-4 h-4" />
-              <span>Call</span>
+              {isDialing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Connecting...</span>
+                </>
+              ) : (
+                <>
+                  <PhoneCall className="w-4 h-4" />
+                  <span>{isCalling ? "In Call" : "Call"}</span>
+                </>
+              )}
             </Button>
           ) : null}
 

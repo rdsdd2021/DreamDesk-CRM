@@ -29,6 +29,7 @@ import { PolicyService } from "@/lib/services/policyService";
 import { TasksService } from "@/lib/services/tasksService";
 import { AuthService } from "@/lib/services/authService";
 import { ScoringService } from "@/lib/services/scoringService";
+import { maskPhoneNumber, isMaskedPhone } from "@/lib/utils/phoneMasker";
 
 /**
  * Normalizes phone numbers to standard 10-digit format (or clean digits)
@@ -118,11 +119,13 @@ export class LeadsService {
       offset,
     }) as any[];
 
+    const shouldMaskPhone = !userScope || (userScope.role !== "admin" && userScope.role !== "team_lead");
+
     const leads: Lead[] = rawRows.map((row) => ({
       id: row.id,
       lead_code: row.lead_code,
       name: row.name,
-      phone: row.phone,
+      phone: shouldMaskPhone ? maskPhoneNumber(row.phone) : row.phone,
       email: row.email,
       status: row.status,
       assigned_to: row.assigned_to,
@@ -2505,8 +2508,9 @@ export class LeadsService {
 
   /**
    * Fetches a single enriched lead by primary ID.
+   * Masks phone numbers for non-admin/team-lead users unless unmask is explicitly true.
    */
-  static getLeadById(leadId: number): Lead | null {
+  static getLeadById(leadId: number, userScope?: UserScope | null, unmask: boolean = false): Lead | null {
     const db = getDatabase();
     const row = db.prepare(`
       SELECT 
@@ -2528,11 +2532,13 @@ export class LeadsService {
 
     if (!row) return null;
 
+    const shouldMaskPhone = !unmask && (!userScope || (userScope.role !== "admin" && userScope.role !== "team_lead"));
+
     return {
       id: row.id,
       lead_code: row.lead_code,
       name: row.name,
-      phone: row.phone,
+      phone: shouldMaskPhone ? maskPhoneNumber(row.phone) : row.phone,
       email: row.email,
       status: row.status,
       assigned_to: row.assigned_to,
@@ -2553,6 +2559,15 @@ export class LeadsService {
       created_at: row.created_at,
       updated_at: row.updated_at,
     };
+  }
+
+  /**
+   * Retrieves raw unmasked contact details directly from database for secure click-to-dial or WhatsApp intents.
+   */
+  static getRawLeadContact(leadId: number): { id: number; name: string; phone: string | null; assigned_to: string | null } | null {
+    const db = getDatabase();
+    const row = db.prepare("SELECT id, name, phone, assigned_to FROM leads WHERE id = ?").get(leadId) as any;
+    return row || null;
   }
 
   /**
@@ -3237,6 +3252,18 @@ export class LeadsService {
         new_value: newCampName,
         performed_by_name: "Admin",
       });
+    } else if (field === "phone") {
+      // If the incoming value is masked, staff didn't type a new number; preserve existing raw digits
+      if (!isMaskedPhone(value) && value && value.trim() !== existing.phone) {
+        db.prepare("UPDATE leads SET phone = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(value.trim(), leadId);
+        this.logLeadActivity({
+          lead_id: leadId,
+          activity_type: "field_update",
+          title: "Student Phone Updated",
+          description: `Phone number updated by ${options?.currentUser?.name || "Staff"}`,
+          performed_by_name: options?.currentUser?.name || "Staff",
+        });
+      }
     } else if (field === "tags") {
       const tagsArr = Array.isArray(value) ? value : [];
       db.prepare("UPDATE leads SET tags = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(JSON.stringify(tagsArr), leadId);

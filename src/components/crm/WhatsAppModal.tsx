@@ -110,44 +110,31 @@ export function WhatsAppModal({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleSendWhatsApp = () => {
-    if (!lead?.phone) return;
-    const cleanPhone = lead.phone.replace(/[^0-9]/g, "");
-    const encoded = encodeURIComponent(messageText);
-    const url = `https://wa.me/${cleanPhone}?text=${encoded}`;
+  const handleSendWhatsApp = async () => {
+    if (!lead?.id) return;
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/leads/${lead.id}/whatsapp-intent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateText: messageText }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to launch WhatsApp");
 
-    // Log global activity
-    fetch("/api/activity", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action_type: "WHATSAPP_SENT",
-        description: `Sent WhatsApp message to ${lead.name || "Student"} (${lead.lead_code})`,
-        affected_count: 1,
-        performed_by: currentUser?.name || "Counselor",
-        metadata: JSON.stringify({ lead_id: lead.id, phone: lead.phone, template_id: selectedTemplateId }),
-      }),
-    }).catch(console.error);
+      if (onMessageSent) {
+        onMessageSent(lead.id, messageText);
+      }
 
-    // Log lead timeline audit trail
-    fetch(`/api/leads/${lead.id}/activities`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        activity_type: "whatsapp",
-        title: "WhatsApp Message Sent",
-        description: messageText.length > 200 ? `${messageText.slice(0, 200)}...` : messageText,
-        metadata: { channel: "whatsapp", phone: lead.phone, template_id: selectedTemplateId },
-        performed_by_name: currentUser?.name || "Counselor",
-      }),
-    }).catch(console.error);
-
-    if (onMessageSent) {
-      onMessageSent(lead.id, messageText);
+      if (data.launchUrl) {
+        window.open(data.launchUrl, "_blank");
+      }
+      onClose();
+    } catch (err: any) {
+      alert(err.message || "Failed to trigger WhatsApp");
+    } finally {
+      setLoading(false);
     }
-
-    window.open(url, "_blank");
-    onClose();
   };
 
   if (!lead) return null;

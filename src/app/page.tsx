@@ -842,9 +842,14 @@ export default function CRMPage() {
         }
       } else if (e.key.toLowerCase() === "c") {
         const targetLead = selectedLeadForDetail || (activeLeadIndex !== null ? leads[activeLeadIndex] : null);
-        if (targetLead?.phone) {
+        if (targetLead?.id) {
           e.preventDefault();
-          window.location.href = `tel:${targetLead.phone}`;
+          fetch(`/api/leads/${targetLead.id}/call-intent`, { method: "POST" })
+            .then((r) => r.json())
+            .then((d) => {
+              if (d.dialUri) window.location.href = d.dialUri;
+            })
+            .catch(console.error);
         }
       } else if (e.key.toLowerCase() === "f") {
         e.preventDefault();
@@ -870,10 +875,14 @@ export default function CRMPage() {
         }
       } else if (e.key.toLowerCase() === "w") {
         const targetLead = selectedLeadForDetail || (activeLeadIndex !== null ? leads[activeLeadIndex] : null);
-        if (targetLead?.phone) {
+        if (targetLead?.id) {
           e.preventDefault();
-          const cleanPhone = targetLead.phone.replace(/[^0-9]/g, "");
-          window.open(`https://wa.me/${cleanPhone}`, "_blank");
+          fetch(`/api/leads/${targetLead.id}/whatsapp-intent`, { method: "POST" })
+            .then((r) => r.json())
+            .then((d) => {
+              if (d.launchUrl) window.open(d.launchUrl, "_blank");
+            })
+            .catch(console.error);
         }
       }
     };

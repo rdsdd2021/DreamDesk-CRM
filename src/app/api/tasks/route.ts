@@ -3,6 +3,7 @@ import { LeadsService } from "@/lib/services/leadsService";
 import { TasksService } from "@/lib/services/tasksService";
 import { AuthService } from "@/lib/services/authService";
 import { getDatabase } from "@/lib/db/database";
+import { maskPhoneNumber } from "@/lib/utils/phoneMasker";
 
 export const dynamic = "force-dynamic";
 
@@ -58,49 +59,60 @@ export async function GET(request: NextRequest) {
       filteredCallbacksUpcoming = filteredCallbacksUpcoming.filter(match);
     }
 
+    const shouldMaskPhone = !currentUser || (currentUser.role !== "admin" && currentUser.role !== "team_lead");
+
     // Map callbacks to task-compatible shapes with high priority
-    const mapCallbackToTask = (c: any, isOverdue: boolean) => ({
-      id: -(c.lead_id), // negative id flags callback vs crm_task
-      lead_id: c.lead_id,
-      lead_code: c.lead_code,
-      lead_name: c.name || "Student Lead",
-      name: c.name || "Student Lead",
-      lead_phone: c.phone,
-      phone: c.phone,
-      lead_status: c.status || "Follow-up",
-      status: "pending" as const,
-      assigned_to: c.assigned_to,
-      assigned_user_name: c.assigned_user_name,
-      title: c.notes ? `Scheduled Callback: ${c.notes}` : "Scheduled Callback",
-      description: c.notes || `Callback scheduled at ${new Date(c.callback_at).toLocaleString()}`,
-      notes: c.notes,
-      priority: (isOverdue ? "urgent" : "high") as any,
-      due_date: c.callback_at,
-      callback_at: c.callback_at,
-      created_by: "System Callback Scheduler",
-      source_action: "callback",
-      is_callback: true,
-      created_at: c.callback_at,
-      updated_at: c.callback_at,
+    const mapCallbackToTask = (c: any, isOverdue: boolean) => {
+      const displayPhone = shouldMaskPhone ? maskPhoneNumber(c.phone) : c.phone;
+      return {
+        id: -(c.lead_id), // negative id flags callback vs crm_task
+        lead_id: c.lead_id,
+        lead_code: c.lead_code,
+        lead_name: c.name || "Student Lead",
+        name: c.name || "Student Lead",
+        lead_phone: displayPhone,
+        phone: displayPhone,
+        lead_status: c.status || "Follow-up",
+        status: "pending" as const,
+        assigned_to: c.assigned_to,
+        assigned_user_name: c.assigned_user_name,
+        title: c.notes ? `Scheduled Callback: ${c.notes}` : "Scheduled Callback",
+        description: c.notes || `Callback scheduled at ${new Date(c.callback_at).toLocaleString()}`,
+        notes: c.notes,
+        priority: (isOverdue ? "urgent" : "high") as any,
+        due_date: c.callback_at,
+        callback_at: c.callback_at,
+        created_by: "System Callback Scheduler",
+        source_action: "callback",
+        is_callback: true,
+        created_at: c.callback_at,
+        updated_at: c.callback_at,
+      };
+    };
+
+    const sanitizeCrmTask = (t: any) => ({
+      ...t,
+      lead_phone: shouldMaskPhone ? maskPhoneNumber(t.lead_phone) : t.lead_phone,
+      phone: shouldMaskPhone ? maskPhoneNumber(t.phone || t.lead_phone) : (t.phone || t.lead_phone),
     });
 
     // Unified lists (merging CRM tasks with callbacks without duplicating if already completed)
     const unifiedOverdue = [
-      ...crmTasksData.overdue,
+      ...crmTasksData.overdue.map(sanitizeCrmTask),
       ...filteredCallbacksOverdue.map((c) => mapCallbackToTask(c, true)),
     ];
 
     const unifiedToday = [
-      ...crmTasksData.today,
+      ...crmTasksData.today.map(sanitizeCrmTask),
       ...filteredCallbacksToday.map((c) => mapCallbackToTask(c, false)),
     ];
 
     const unifiedUpcoming = [
-      ...crmTasksData.upcoming,
+      ...crmTasksData.upcoming.map(sanitizeCrmTask),
       ...filteredCallbacksUpcoming.map((c) => mapCallbackToTask(c, false)),
     ];
 
-    const unifiedCompleted = crmTasksData.completed;
+    const unifiedCompleted = crmTasksData.completed.map(sanitizeCrmTask);
 
     return NextResponse.json({
       overdue: unifiedOverdue,

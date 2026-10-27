@@ -35,7 +35,9 @@ import {
   Clock,
   LayoutGrid,
   Table as TableIcon,
+  Loader2,
 } from "lucide-react";
+import { ApiClient } from "@/lib/api/apiClient";
 
 function InlineScoreCell({
   initialScore,
@@ -185,6 +187,45 @@ export function LeadsTable({
       }
     }
   }, [propViewMode]);
+
+  const [dialingLeadId, setDialingLeadId] = useState<number | null>(null);
+
+  const handleTriggerCall = async (leadId: number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    try {
+      setDialingLeadId(leadId);
+      const { data, error } = await ApiClient.fetchJson<{ success: boolean; dialUri: string }>(
+        `/api/leads/${leadId}/call-intent`,
+        { method: "POST" }
+      );
+      if (error) throw new Error(error.message);
+      if (data?.dialUri) {
+        window.location.href = data.dialUri;
+      }
+    } catch (err: any) {
+      console.error("Dial intent failed:", err);
+      alert(err.message || "Failed to trigger call dialer");
+    } finally {
+      setDialingLeadId(null);
+    }
+  };
+
+  const handleTriggerWhatsApp = async (leadId: number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    try {
+      const { data, error } = await ApiClient.fetchJson<{ success: boolean; launchUrl: string }>(
+        `/api/leads/${leadId}/whatsapp-intent`,
+        { method: "POST" }
+      );
+      if (error) throw new Error(error.message);
+      if (data?.launchUrl) {
+        window.open(data.launchUrl, "_blank");
+      }
+    } catch (err: any) {
+      console.error("WhatsApp intent failed:", err);
+      alert(err.message || "Failed to launch WhatsApp");
+    }
+  };
 
   const handleSwitchViewMode = (mode: "table" | "cards") => {
     setLocalViewMode(mode);
@@ -539,14 +580,19 @@ export function LeadsTable({
               {/* Big Touch Action Buttons for Telecallers & Counselors */}
               <div className="grid grid-cols-3 gap-2 pt-1">
                 {lead.phone ? (
-                  <a
-                    href={`tel:${lead.phone}`}
+                  <button
+                    onClick={(e) => handleTriggerCall(lead.id, e)}
+                    disabled={dialingLeadId === lead.id}
                     className="col-span-1 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer"
                     title="Direct Phone Call"
                   >
-                    <PhoneCall className="w-3.5 h-3.5" />
-                    <span>Call</span>
-                  </a>
+                    {dialingLeadId === lead.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <PhoneCall className="w-3.5 h-3.5" />
+                    )}
+                    <span>{dialingLeadId === lead.id ? "Calling..." : "Call"}</span>
+                  </button>
                 ) : (
                   <button disabled className="col-span-1 h-10 rounded-xl bg-muted text-muted-foreground text-xs flex items-center justify-center opacity-50">
                     No Phone
@@ -554,16 +600,14 @@ export function LeadsTable({
                 )}
 
                 {lead.phone ? (
-                  <a
-                    href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, "")}`}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    onClick={(e) => handleTriggerWhatsApp(lead.id, e)}
                     className="col-span-1 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer hover:bg-emerald-500/20"
                     title="Message on WhatsApp"
                   >
                     <MessageSquare className="w-3.5 h-3.5" />
                     <span>WhatsApp</span>
-                  </a>
+                  </button>
                 ) : null}
 
                 <Button
@@ -915,25 +959,26 @@ export function LeadsTable({
                         <div className="space-y-0.5">
                           {lead.phone && (
                             <div className="flex items-center gap-2 text-xs font-mono tabular-nums text-foreground/90 group/phone">
-                              <a
-                                href={`tel:${lead.phone}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="hover:text-primary hover:underline flex items-center gap-1 font-semibold"
-                                title="Click to call"
+                              <button
+                                onClick={(e) => handleTriggerCall(lead.id, e)}
+                                disabled={dialingLeadId === lead.id}
+                                className="hover:text-primary hover:underline flex items-center gap-1 font-semibold text-left cursor-pointer"
+                                title="Click to call via device dialer"
                               >
-                                <PhoneCall className="w-3.5 h-3.5 text-muted-foreground/70 group-hover/phone:text-primary" />
+                                {dialingLeadId === lead.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                                ) : (
+                                  <PhoneCall className="w-3.5 h-3.5 text-muted-foreground/70 group-hover/phone:text-primary" />
+                                )}
                                 <span>{lead.phone}</span>
-                              </a>
-                              <a
-                                href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, "")}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="p-1 hover:bg-emerald-500/15 text-emerald-600 rounded-md transition-colors inline-flex items-center"
-                                title="Open WhatsApp"
+                              </button>
+                              <button
+                                onClick={(e) => handleTriggerWhatsApp(lead.id, e)}
+                                className="p-1 hover:bg-emerald-500/15 text-emerald-600 rounded-md transition-colors inline-flex items-center cursor-pointer"
+                                title="Open WhatsApp via secure intent"
                               >
                                 <MessageSquare className="w-3.5 h-3.5" />
-                              </a>
+                              </button>
                             </div>
                           )}
                           {lead.email && (
