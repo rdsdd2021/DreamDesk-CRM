@@ -147,7 +147,7 @@ CREATE TABLE assignment_rules (
 ### Pre-Seeded Default Rules:
 | Priority | Rule Name | Criteria Field | Criteria Value | Designated Staff |
 |---|---|---|---|---|
-| **1** | Medical / NEET Specialist | `stream` | `Medical / NEET` | Dr. Priya Sharma |
-| **2** | Engineering / JEE Specialist | `stream` | `Engineering / JEE` | Rohit Sharma |
-| **3** | Commerce / CA Specialist | `stream` | `Commerce / CA` | Ananya Verma |
-| **4** | Humanities / Arts Specialist | `stream` | `Humanities / Arts` | Vikram Malhotra |
+| **1** | Medical / NEET Specialist | `stream` | `Medical / NEET` | Admissions Desk (Super Admin) |
+| **2** | Engineering / JEE Specialist | `stream` | `Engineering / JEE` | Admissions Desk (Super Admin) |
+| **3** | Commerce / CA Specialist | `stream` | `Commerce / CA` | Admissions Desk (Super Admin) |
+| **4** | Humanities / Arts Specialist | `stream` | `Humanities / Arts` | Admissions Desk (Super Admin) |

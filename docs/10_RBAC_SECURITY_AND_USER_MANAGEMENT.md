@@ -31,7 +31,18 @@ graph TD
 
 ---
 
-## 2. 5-Tier Role Hierarchy & Permissions Matrix
+## 2. Production Initial Account & Staff Provisioning
+
+The production environment initializes with a single master Super Admin account:
+- **Email**: `admin@dreamdesk.in`
+- **Default Password**: `password123`
+- **Role**: `admin` (Full institutional governance)
+
+All subsequent staff members (Counselors, Telecallers, and Team Leads) are created directly by the Super Admin in the **Team Management** workspace. No dummy accounts or test backdoors exist in production.
+
+---
+
+## 3. 5-Tier Role Hierarchy & Permissions Matrix
 
 *Defined in*: [`src/lib/services/authService.ts`](file:///C:/Users/Ramanuj%20Dey%20Sarkar/Desktop/New%20folder%20%282%29/DreamDesk%20CRM/src/lib/services/authService.ts#L20)
 

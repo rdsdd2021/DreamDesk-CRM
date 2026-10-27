@@ -4,6 +4,40 @@ All notable changes, architectural enhancements, schema migrations, and feature 
 
 ---
 
+## [v2.11.0] — 2026-10-27
+
+### 🛡️ Production Readiness, Login Redesign, Dummy Data Purge & Developer Backdoor Removal
+**Objective**: Transition DreamDesk CRM from a development/demo prototype with 112,500+ generated mock leads, demo role-switchers, and public data counters into a pristine, enterprise-grade production application with strict authentication, zero dummy users, a vacuumed database, and a clean slate for real student data.
+
+#### 1. Enterprise SaaS Login Screen Redesign (`src/app/login/page.tsx`)
+- **Focused, Clean Authentication**: Replaced cluttered developer demo layout with a modern, centered SaaS login card.
+- **Removed Developer Noise**: Eliminated all public counters (*"112,501 Indexed Leads"*, *"SQLite WAL Engine"*), sandbox tabs (*"Staff Sandbox"*, *"Executive Walkthrough"*), and 1-click quick-login demo profile buttons.
+- **Enhanced Security Features**:
+  - Interactive password show/hide eye toggle.
+  - "Remember this device" state persistence.
+  - End-to-end encrypted session security badge.
+  - Minimalist floating theme toggle (<kbd>Sun</kbd> / <kbd>Moon</kbd>) in top right corner.
+  - Clear, user-friendly inline alert messages for invalid credentials and deactivated accounts.
+
+#### 2. Complete Database Purge & Storage Reclamation (`data/crm.db`)
+- **112,501 Mock Leads & 278,771 Mock Activities Purged**: Removed all synthetic test student records, historical audit trails, mock tasks, and notifications.
+- **Mock Staff Account Purge**: Removed all 6 mock staff accounts (`usr_rohit`, `usr_ananya`, `usr_vikram`, `usr_priya`, `usr_sneha`, `usr_aditya`).
+- **Master Super Admin Retained**: Retained single active administrative account (`usr_admin`, `admin@dreamdesk.in`).
+- **Autoincrement Sequence Reset**: Cleared `sqlite_sequence` entries for `leads`, `lead_activities`, `crm_tasks`, `user_notifications`, and `system_errors`, ensuring the first real student inquiry begins at ID #1 (`DDM-0001`).
+- **SQLite Database VACUUM**: Executed SQL `VACUUM;` to rebuild the SQLite database file, reducing file size from **137.5 MB down to 248.00 KB** (99.8% disk space recovery).
+- **Preserved Structural Foundations**: Retained all custom schema metadata, admissions campaigns, playbooks, disposition categories, sub-dispositions, and WhatsApp templates.
+
+#### 3. Security Hardening & Developer Backdoor Removal
+- **Hardened `/api/auth/login`**: Completely removed the `quickLogin && userId` backdoor bypass; every login strictly requires email and password verification.
+- **Hardened `AuthService.authenticate`**: Removed `bypassPassword` parameter, enforcing Scrypt verification on all attempts.
+- **Role Switcher Removal (`page.tsx`)**: Removed `handleSwitchUser` and the "Quick Role Switcher (Test)" menu item from the user profile dropdown.
+- **Test Generation Removal**: Removed `handleGenerateSampleLeads` and "Generate Synthetic Test Data" options from `CommandCenter.tsx` and `UnifiedCommandBar.tsx`.
+- **Protected Lead Generator Endpoint (`/api/leads/generate`)**: Added production environment guard returning `403 Forbidden` when `NODE_ENV === "production"`.
+- **Database Schema Seed Integrity (`database.ts`)**: Updated default assignment rules and initial user seeding to reference `usr_admin`, preventing foreign key constraint violations under `PRAGMA foreign_keys = ON`.
+- **Empty State Polish (`LeadsTable.tsx`)**: Replaced demo test-generation prompt with professional guidance to import student records from CSV.
+
+---
+
 ## [v2.10.0] — 2026-10-27
 
 ### 🔒 Enterprise Student Contact Security, Phone Masking & On-Demand Dialer Activation

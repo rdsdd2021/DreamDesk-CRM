@@ -37,23 +37,20 @@ graph TD
 
 ---
 
-## 🔐 Role-Based Access Control (RBAC) & Demo Logins
+## 🔐 Role-Based Access Control (RBAC) & Production Authentication
 
 DreamDesk CRM enforces strict institutional data boundaries: counselors only access student leads assigned directly to them, while Team Leads and Admins maintain full institutional oversight.
 
-### Default Staff Accounts
+### Master Super Admin Account
 
-All accounts are pre-seeded with the password: **`password123`**
+In production mode, the application initializes with a clean single master administrative account. Additional counselors, telecallers, and team leads can be added directly via the **Team Management** workspace by an administrator.
 
-| Role | Name | Email | Password | Permissions & Workspace Scope |
+| Role | Name | Email | Default Password | Permissions & Workspace Scope |
 |---|---|---|---|---|
-| **Super Admin** | Super Admin | `admin@dreamdesk.in` | `password123` | Full System Access: User Management, Instant Deactivation, Schema Studio, Campaigns, Bulk Lead Dock, Policy Overrides |
-| **Team Lead** | Vikram Malhotra | `vikram.m@dreamdesk.in` | `password123` | All Leads, Team Performance Dashboard, Auto-Balance Lead Allocation, Policy Overrides |
-| **Senior Counselor** | Rohit Sharma | `rohit.sharma@dreamdesk.in` | `password123` | Private Assigned Leads, Priority Callbacks, Follow-up Queues, Advanced Dispositions |
-| **Counselor** | Ananya Verma | `ananya.v@dreamdesk.in` | `password123` | Private Assigned Leads, WhatsApp Drawer, Direct Dialing, In-App Notifications |
-| **Counselor** | Priya Patel | `priya.p@dreamdesk.in` | `password123` | Private Assigned Leads, WhatsApp Drawer, Direct Dialing, In-App Notifications |
-| **Counselor** | Sneha Rao | `sneha.rao@dreamdesk.in` | `password123` | Private Assigned Leads, WhatsApp Drawer, Direct Dialing, In-App Notifications |
-| **Telecaller** | Aditya Roy | `aditya.roy@dreamdesk.in` | `password123` | Assigned Telecalling Queue, Fast Call Dispositions, Callback Queue |
+| **Super Admin** | Super Admin | `admin@dreamdesk.in` | `password123` | Full System Access: User Management, Instant Deactivation, Schema Studio, Campaigns, Bulk Lead Dock, Policy Overrides, Activity Logs |
+
+> [!NOTE]
+> It is strongly recommended to update the default Super Admin password immediately upon initial production deployment via the profile or security settings.
 
 ---
 
@@ -163,6 +160,12 @@ Replaces bloated, 3,000px vertical activity feeds with an intelligent, high-dens
   - *Layer 2 (API Safety)*: Safe client (`ApiClient.fetchJson`) preventing JSON parse crashes on reverse proxy HTML 502/504 timeout pages.
   - *Layer 3 (UI Isolation)*: Isolated `WorkspaceErrorBoundary` guards wrapping individual tabs so workspace errors never crash the entire CRM.
 - **System Diagnostics Drawer (`SystemDiagnosticsDrawer.tsx`, `/api/diagnostics`)**: Live SQLite WAL health inspector, database/WAL storage metrics, and server error log browser.
+
+### 16. 🛡️ Production Readiness, Enterprise Login & Zero Developer Backdoors
+- **Streamlined Enterprise Login Card (`/login`)**: Centered, distraction-free authentication card with email & password, password visibility toggle, remember me checkbox, encrypted session badge, and dark/light mode toggle. Zero demo tabs or public marketing counters.
+- **Pristine Production Database**: Purged of all synthetic demo leads, dummy staff accounts, and test activities. Sequences reset to begin fresh student inquiries from #1 (`DDM-0001`).
+- **VACUUM Optimized**: Database file rebuilt to ~248KB (99.8% reduction from 137.5MB) ensuring instant SQLite engine startup.
+- **Zero Developer Backdoors**: Removed all `quickLogin` bypasses, user impersonation switchers, and synthetic lead generation triggers from the UI. Lead generation endpoint guarded with 403 Forbidden in production environments.
 
 ---
 
@@ -340,7 +343,7 @@ DreamDesk CRM/
 │   │   │   ├── schema/          # Dynamic Schema Studio definitions
 │   │   │   ├── tasks/           # Priority follow-up & callback task engine
 │   │   │   └── users/           # Staff accounts & instant deactivation
-│   │   ├── login/               # Glassmorphic Login Screen
+│   │   ├── login/               # Enterprise SaaS Login Screen
 │   │   └── page.tsx             # High-Density Admissions Workspace
 │   ├── components/
 │   │   ├── crm/                 # Core CRM Modules
@@ -379,6 +382,7 @@ For an in-depth, granular log of all schema additions, API expansions, and UI re
 👉 **[CHANGELOG.md](./CHANGELOG.md)**
 
 ### Release Highlights
+- **v2.11.0 (2026-10-27)**: Production Readiness, Modernized Enterprise Login Page, Complete Dummy Data & Mock Account Purge, Autoincrement Reset to #1, Database VACUUM (248KB), and Removal of Developer Backdoors.
 - **v2.10.0 (2026-10-27)**: Enterprise Student Contact Security, Phone Masking (`+91 ••••• ••421`), On-Demand Click-to-Dial Intent (`/api/leads/[id]/call-intent`), Server-Assisted WhatsApp Launch, and Audited Supervisor Reveal.
 - **v2.9.0 (2026-10-27)**: Resilient Batch Lead Allocation Cockpit with Real Progress, Speed & Dynamic ETA, SQLite Concurrency Hardening (15s busy timeout + `withDbRetry`), Micro-Chunking, Isolated Workspace Error Boundaries, and System Diagnostics Drawer.
 - **v2.8.0 (2026-10-16)**: Admissions Playbook & Smart Outcomes Studio with 4 Human Reaction Trays and Single-Column Recipe Modal (`PlaybookStudioWorkspace.tsx`, `PlaybookOutcomeModal.tsx`).
