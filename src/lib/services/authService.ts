@@ -37,6 +37,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       "pipeline",
       "campaigns",
       "dispositions",
+      "whatsapp",
       "fields",
       "team",
       "import",
@@ -63,6 +64,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       "pipeline",
       "campaigns",
       "dispositions",
+      "whatsapp",
       "team",
       "import",
       "activity",
@@ -81,7 +83,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewAuditLogs: false,
     canAssignLeads: false,
     canManagePolicies: false,
-    allowedViews: ["leads", "tasks", "pipeline"],
+    allowedViews: ["leads", "tasks", "pipeline", "whatsapp"],
   },
   counselor: {
     canViewAllLeads: false,
@@ -95,7 +97,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canViewAuditLogs: false,
     canAssignLeads: false,
     canManagePolicies: false,
-    allowedViews: ["leads", "tasks", "pipeline"],
+    allowedViews: ["leads", "tasks", "pipeline", "whatsapp"],
   },
   telecaller: {
     canViewAllLeads: false,

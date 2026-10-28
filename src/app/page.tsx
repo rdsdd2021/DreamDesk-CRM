@@ -39,6 +39,7 @@ import { EnhancedLeadDrawer } from "@/components/crm/EnhancedLeadDrawer";
 import { TasksModal } from "@/components/crm/TasksModal";
 import { DuplicatesModal } from "@/components/crm/DuplicatesModal";
 import { WhatsAppModal } from "@/components/crm/WhatsAppModal";
+import { WhatsAppTemplatesWorkspace } from "@/components/crm/WhatsAppTemplatesWorkspace";
 import { ImportModal } from "@/components/crm/ImportModal";
 import { TeamModal } from "@/components/crm/TeamModal";
 import { ActivityLogsModal } from "@/components/crm/ActivityLogsModal";
@@ -95,6 +96,7 @@ import {
   PhoneCall,
   Menu,
   ShieldCheck,
+  MessageSquare,
 } from "lucide-react";
 
 export default function CRMPage() {
@@ -1308,6 +1310,7 @@ export default function CRMPage() {
               {currentView === "pipeline" && <Kanban className="w-4 h-4 sm:w-5 sm:h-5 text-violet-500 shrink-0" />}
               {currentView === "campaigns" && <Target className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500 shrink-0" />}
               {currentView === "dispositions" && <Tag className="w-4 h-4 sm:w-5 sm:h-5 text-rose-500 shrink-0" />}
+              {currentView === "whatsapp" && <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500 shrink-0" />}
               {currentView === "fields" && <SlidersHorizontal className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500 shrink-0" />}
               {currentView === "tasks" && <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500 shrink-0" />}
               {currentView === "team" && <Users className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500 shrink-0" />}
@@ -1320,6 +1323,7 @@ export default function CRMPage() {
                 {currentView === "pipeline" && "Pipeline & Kanban"}
                 {currentView === "campaigns" && "Campaigns & Marketing Outreach"}
                 {currentView === "dispositions" && "Call Dispositions & Outcomes"}
+                {currentView === "whatsapp" && "WhatsApp Template Studio"}
                 {currentView === "fields" && "Dynamic Schema & Fields Studio"}
                 {currentView === "tasks" && "Scheduled Tasks & Callbacks"}
                 {currentView === "team" && "Counselors & Team Directory"}
@@ -1779,6 +1783,15 @@ export default function CRMPage() {
                     setCurrentView("leads");
                   }}
                 />
+              </div>
+            </WorkspaceErrorBoundary>
+          )}
+
+          {/* VIEW 4B-2: WHATSAPP TEMPLATES STUDIO */}
+          {currentView === "whatsapp" && (
+            <WorkspaceErrorBoundary workspaceName="WhatsApp Template Studio">
+              <div className="max-w-7xl mx-auto">
+                <WhatsAppTemplatesWorkspace />
               </div>
             </WorkspaceErrorBoundary>
           )}

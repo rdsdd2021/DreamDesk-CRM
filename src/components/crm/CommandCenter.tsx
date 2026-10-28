@@ -23,6 +23,7 @@ import {
   Sparkles,
   Phone,
   GraduationCap,
+  MessageSquare,
 } from "lucide-react";
 
 interface CommandCenterProps {
@@ -184,6 +185,17 @@ export function CommandCenter({
           >
             <Phone className="w-4 h-4 mr-2 text-rose-500" />
             <span>Call Outcomes & Dispositions</span>
+          </CommandItem>
+
+          <CommandItem
+            onSelect={() => {
+              onSelectView("whatsapp");
+              onOpenChange(false);
+            }}
+            className="text-xs cursor-pointer"
+          >
+            <MessageSquare className="w-4 h-4 mr-2 text-emerald-500" />
+            <span>WhatsApp Templates Studio</span>
           </CommandItem>
 
           <CommandItem

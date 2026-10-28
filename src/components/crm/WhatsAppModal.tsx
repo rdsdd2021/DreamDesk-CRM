@@ -45,6 +45,7 @@ interface WhatsAppModalProps {
   lead: Lead | null;
   currentUser?: User | null;
   onMessageSent?: (leadId: number, message: string) => void;
+  initialManaging?: boolean;
 }
 
 export function WhatsAppModal({
@@ -53,6 +54,7 @@ export function WhatsAppModal({
   lead,
   currentUser,
   onMessageSent,
+  initialManaging = false,
 }: WhatsAppModalProps) {
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
@@ -87,7 +89,7 @@ export function WhatsAppModal({
   // Load templates on mount or when modal opens
   useEffect(() => {
     if (isOpen) {
-      setIsManaging(false);
+      setIsManaging(Boolean(initialManaging || !lead));
       setTemplateFeedback(null);
       loadTemplates().then((data) => {
         if (data.length > 0) {
@@ -97,7 +99,7 @@ export function WhatsAppModal({
         }
       });
     }
-  }, [isOpen]);
+  }, [isOpen, initialManaging, lead]);
 
   // When lead changes, re-evaluate message
   useEffect(() => {
@@ -308,14 +310,16 @@ export function WhatsAppModal({
             <DialogHeader className="p-5 pb-4 bg-gradient-to-r from-emerald-600/10 via-emerald-500/5 to-transparent border-b border-border/60">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => setIsManaging(false)}
-                    className="p-1.5 rounded-lg border border-border/80 bg-background text-muted-foreground hover:text-foreground cursor-pointer"
-                    title="Back to Message Composer"
-                  >
-                    <ArrowLeft className="w-4 h-4" />
-                  </button>
+                  {lead && (
+                    <button
+                      type="button"
+                      onClick={() => setIsManaging(false)}
+                      className="p-1.5 rounded-lg border border-border/80 bg-background text-muted-foreground hover:text-foreground cursor-pointer"
+                      title="Back to Message Composer"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
+                  )}
                   <div>
                     <DialogTitle className="text-base font-bold text-foreground">
                       Edit WhatsApp Templates
@@ -468,10 +472,16 @@ export function WhatsAppModal({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setIsManaging(false)}
-                  className="h-8 text-xs"
+                  onClick={() => {
+                    if (!lead) {
+                      onClose();
+                    } else {
+                      setIsManaging(false);
+                    }
+                  }}
+                  className="h-8 text-xs cursor-pointer"
                 >
-                  Back to Message
+                  {lead ? "Back to Message" : "Close"}
                 </Button>
 
                 <Button

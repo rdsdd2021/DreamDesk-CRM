@@ -20,6 +20,7 @@ import {
   Tag,
   Sparkles,
   LogOut,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { User } from "@/types/crm";
@@ -94,6 +95,11 @@ export function AppSidebar({
       id: "dispositions",
       label: "Admissions Playbook",
       icon: Sparkles,
+    },
+    {
+      id: "whatsapp",
+      label: "WhatsApp Templates",
+      icon: MessageSquare,
     },
     {
       id: "fields",
