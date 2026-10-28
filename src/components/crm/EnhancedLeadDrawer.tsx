@@ -1962,9 +1962,9 @@ export function EnhancedLeadDrawer({
                       </div>
                     )}
                     {lead.raw_attributes?.school && (
-                      <div className="p-2.5 rounded-xl border border-border/60 bg-muted/20">
+                      <div className="col-span-2 p-2.5 rounded-xl border border-border/60 bg-muted/20">
                         <div className="text-[10px] text-muted-foreground uppercase font-semibold">School / College</div>
-                        <div className="font-semibold text-foreground mt-0.5 truncate">{String(lead.raw_attributes.school)}</div>
+                        <div className="font-semibold text-foreground mt-0.5 break-words">{String(lead.raw_attributes.school)}</div>
                       </div>
                     )}
                     {lead.raw_attributes?.city && (
@@ -1991,91 +1991,97 @@ export function EnhancedLeadDrawer({
               )}
             </TabsContent>
 
-            {/* SUPERVISOR SECONDARY TABS (FIELDS & TIMELINE) */}
+            {/* SUPERVISOR SECONDARY TABS (FIELDS & TIMELINE) - LAZY MOUNTED FOR LOW-END PERFORMANCE */}
             {!isTelecaller && (
               <>
-                {/* TAB 2: DYNAMIC FIELDS */}
+                {/* TAB 2: DYNAMIC FIELDS (Mounted only when active to save DOM memory) */}
                 <TabsContent value="fields" className="space-y-3 pt-3 m-0">
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-3 text-muted-foreground" />
-                <Input
-                  placeholder="Filter student attributes (e.g. stream, marks, city)..."
-                  value={fieldSearchQuery}
-                  onChange={(e) => setFieldSearchQuery(e.target.value)}
-                  className="pl-9 h-9 text-xs rounded-xl"
-                />
-              </div>
-
-              <div className="border border-border/80 rounded-2xl divide-y divide-border/60 bg-card text-xs overflow-hidden shadow-2xs">
-                {filteredDynamicAttributes.length === 0 ? (
-                  <div className="p-6 text-center text-xs text-muted-foreground">
-                    No matching student attributes found.
-                  </div>
-                ) : (
-                  filteredDynamicAttributes.map(([key, val]) => {
-                    const meta = schemaMeta.find((m) => m.key_name === key);
-                    const label = meta ? meta.display_label : key.replace(/_/g, " ").toUpperCase();
-
-                    return (
-                      <div key={key} className="p-3 sm:p-3.5 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                        <span className="text-muted-foreground font-semibold text-xs">
-                          {label}
-                        </span>
-                        <div className="flex items-center gap-2 max-w-[60%] justify-end">
-                          <span className="font-semibold text-foreground text-right truncate">
-                            {String(val)}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleCopyText(String(val), key)}
-                            className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted cursor-pointer shrink-0"
-                            title="Copy value"
-                          >
-                            {copiedField === key ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-600" />
-                            ) : (
-                              <Copy className="w-3.5 h-3.5" />
-                            )}
-                          </button>
-                        </div>
+                  {activeTab === "fields" && (
+                    <>
+                      <div className="relative">
+                        <Search className="w-4 h-4 absolute left-3 top-3 text-muted-foreground" />
+                        <Input
+                          placeholder="Filter student attributes (e.g. stream, marks, city)..."
+                          value={fieldSearchQuery}
+                          onChange={(e) => setFieldSearchQuery(e.target.value)}
+                          className="pl-9 h-9 text-xs rounded-xl"
+                        />
                       </div>
-                    );
-                  })
-                )}
-              </div>
-            </TabsContent>
 
-            {/* TAB 4: AUDIT TIMELINE & EXECUTIVE JOURNEY */}
-            <TabsContent value="timeline" className="pt-3 m-0">
-              <LeadTimeline
-                lead={lead}
-                activities={activities}
-                loading={loadingActivities}
-                onRefresh={() => lead?.id && fetchActivities(lead.id)}
-                onAddNote={async (noteText) => {
-                  if (!lead) return;
-                  await fetch(`/api/leads/${lead.id}/activities`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      title: "Counselor Interaction Note",
-                      description: noteText.trim(),
-                      activity_type: "note",
-                      performed_by_name: currentUser?.name || lead.assigned_user_name || "Counselor",
-                    }),
-                  });
-                  fetchActivities(lead.id);
-                }}
-                currentUser={currentUser}
-              />
-            </TabsContent>
-          </>
-        )}
+                      <div className="border border-border/80 rounded-2xl divide-y divide-border/60 bg-card text-xs overflow-hidden shadow-2xs">
+                        {filteredDynamicAttributes.length === 0 ? (
+                          <div className="p-6 text-center text-xs text-muted-foreground">
+                            No matching student attributes found.
+                          </div>
+                        ) : (
+                          filteredDynamicAttributes.map(([key, val]) => {
+                            const meta = schemaMeta.find((m) => m.key_name === key);
+                            const label = meta ? meta.display_label : key.replace(/_/g, " ").toUpperCase();
+
+                            return (
+                              <div key={key} className="p-3 sm:p-3.5 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                                <span className="text-muted-foreground font-semibold text-xs">
+                                  {label}
+                                </span>
+                                <div className="flex items-center gap-2 max-w-[60%] justify-end">
+                                  <span className="font-semibold text-foreground text-right truncate">
+                                    {String(val)}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyText(String(val), key)}
+                                    className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted cursor-pointer shrink-0"
+                                    title="Copy value"
+                                  >
+                                    {copiedField === key ? (
+                                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                    ) : (
+                                      <Copy className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </>
+                  )}
+                </TabsContent>
+
+                {/* TAB 4: AUDIT TIMELINE & EXECUTIVE JOURNEY (Mounted only when active to save DOM memory) */}
+                <TabsContent value="timeline" className="pt-3 m-0">
+                  {activeTab === "timeline" && (
+                    <LeadTimeline
+                      lead={lead}
+                      activities={activities}
+                      loading={loadingActivities}
+                      onRefresh={() => lead?.id && fetchActivities(lead.id)}
+                      onAddNote={async (noteText) => {
+                        if (!lead) return;
+                        await fetch(`/api/leads/${lead.id}/activities`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            title: "Counselor Interaction Note",
+                            description: noteText.trim(),
+                            activity_type: "note",
+                            performed_by_name: currentUser?.name || lead.assigned_user_name || "Counselor",
+                          }),
+                        });
+                        fetchActivities(lead.id);
+                      }}
+                      currentUser={currentUser}
+                    />
+                  )}
+                </TabsContent>
+              </>
+            )}
       </Tabs>
     </div>
 
         {/* Tier 3: Docked Mobile Action Bar (Finger-friendly for telecallers & counselors) */}
-        <div className="shrink-0 p-3 bg-card/95 backdrop-blur-md border-t border-border/80 flex items-center gap-2 sm:hidden z-30 shadow-lg safe-area-bottom">
+        <div className="shrink-0 p-3 bg-card border-t border-border/80 flex items-center gap-2 sm:hidden z-30 shadow-lg safe-area-bottom">
           {lead.phone ? (
             <Button
               size="sm"

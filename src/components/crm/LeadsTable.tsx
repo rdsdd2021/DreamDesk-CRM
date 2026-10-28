@@ -452,24 +452,42 @@ export function LeadsTable({
                   )}
                 </div>
 
-                {/* Academic & Score Box */}
-                <div className="grid grid-cols-2 gap-2 text-xs bg-muted/40 p-2.5 rounded-xl border border-border/70">
-                  <div className="min-w-0">
-                    <span className="text-[10px] text-muted-foreground block font-bold uppercase tracking-wider">School / College</span>
-                    <span className="font-semibold text-foreground truncate block mt-0.5">{rawAttrs.school || "Not specified"}</span>
+                {/* Academic & Score Box - Full Width for Mobile Visibility */}
+                <div className="space-y-2 text-xs bg-muted/40 p-2.5 rounded-xl border border-border/70">
+                  {/* Dedicated Full-Width School Row (No Truncation) */}
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider flex items-center gap-1">
+                      <School className="w-3 h-3 text-primary/70 shrink-0" />
+                      <span>School / College</span>
+                    </span>
+                    <p className="font-semibold text-foreground text-xs leading-snug break-words">
+                      {rawAttrs.school || <span className="text-muted-foreground/60 italic font-normal">Not specified</span>}
+                    </p>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-muted-foreground block font-bold uppercase tracking-wider">Percentage / Score</span>
-                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                      {rawAttrs.score ? (
-                        <span className="px-1.5 py-0.5 text-xs font-mono font-bold rounded-md bg-primary/10 text-primary border border-primary/20">
-                          {rawAttrs.score}
+
+                  {/* Academic Stream & Score Badges */}
+                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/50 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                      {rawAttrs.stream && (
+                        <span className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/70 text-foreground truncate max-w-[150px]">
+                          {rawAttrs.stream}
                         </span>
-                      ) : (
-                        <span className="text-muted-foreground/60 italic text-xs">N/A</span>
                       )}
+                      {rawAttrs.course && (
+                        <span className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/70 text-muted-foreground truncate max-w-[150px]">
+                          {rawAttrs.course}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      {rawAttrs.score ? (
+                        <span className="px-1.5 py-0.5 text-[11px] font-mono font-bold rounded-md bg-primary/10 text-primary border border-primary/20">
+                          {rawAttrs.score}%
+                        </span>
+                      ) : null}
                       {rawAttrs.jee_percentile && (
-                        <span className="px-1.5 py-0.5 text-xs font-mono rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20">
+                        <span className="px-1.5 py-0.5 text-[11px] font-mono rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20">
                           JEE {rawAttrs.jee_percentile}%
                         </span>
                       )}
@@ -726,7 +744,7 @@ export function LeadsTable({
         /* Table Container */
         <div className="overflow-x-auto min-h-[420px]">
           <Table>
-          <TableHeader className="bg-muted/40 backdrop-blur-md sticky top-0 z-10 border-b border-border/80">
+          <TableHeader className="bg-muted/95 sticky top-0 z-10 border-b border-border/80">
             <TableRow className="hover:bg-transparent border-none">
               {!isTelecaller && (
                 <TableHead className="w-10 px-3 text-center">

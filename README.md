@@ -383,6 +383,7 @@ For an in-depth, granular log of all schema additions, API expansions, and UI re
 👉 **[CHANGELOG.md](./CHANGELOG.md)**
 
 ### Release Highlights
+- **v2.13.0 (2026-10-28)**: Low-End Android Optimization, OOM Crash Elimination (15 leads/page on mobile), Full-Width Word-Wrapped School Cards, Zero-Blur GPU De-Throttling, and Lazy-Mounted Drawer Tabs.
 - **v2.12.1 (2026-10-28)**: Mobile Lead Details Drawer Layout Refactoring: 3-Tier Flexbox with Pinned Header, Independently Scrollable Body, and Docked Bottom Action Bar.
 - **v2.12.0 (2026-10-28)**: In-App WhatsApp Template Editor & Token Builder, Removal of Legacy Demo Auto-Tagging & Modulo Mutations on Imported Leads.
 - **v2.11.0 (2026-10-27)**: Production Readiness, Modernized Enterprise Login Page, Complete Dummy Data & Mock Account Purge, Autoincrement Reset to #1, Database VACUUM (248KB), and Removal of Developer Backdoors.

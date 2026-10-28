@@ -458,6 +458,17 @@ export function SpeedDialerWorkspace({
 
         {/* Consultation Desk Body */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* School / Institution Banner */}
+          {currentLead.raw_attributes?.school && (
+            <div className="p-2.5 rounded-xl border border-border/60 bg-muted/20 text-xs flex items-center gap-2">
+              <School className="w-4 h-4 text-primary shrink-0" />
+              <div className="min-w-0">
+                <span className="text-[10px] text-muted-foreground uppercase font-bold block">School / Institution</span>
+                <span className="font-semibold text-foreground break-words">{String(currentLead.raw_attributes.school)}</span>
+              </div>
+            </div>
+          )}
+
           {/* 4-Card Mini Briefing Strip */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
             <div className="p-2.5 rounded-xl border border-border/60 bg-muted/20 space-y-0.5">
@@ -781,7 +792,7 @@ export function SpeedDialerWorkspace({
         </div>
 
         {/* Mobile Fixed Bottom Calling & Stepper Toolbar */}
-        <div className="lg:hidden p-2.5 bg-card/95 backdrop-blur-md border-t border-border/80 flex items-center justify-between gap-2 shrink-0">
+        <div className="lg:hidden p-2.5 bg-card border-t border-border/80 flex items-center justify-between gap-2 shrink-0">
           <Button
             variant="outline"
             size="sm"

@@ -60,6 +60,7 @@ export function PaginationBar({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="15" className="text-xs">15 (Mobile)</SelectItem>
               <SelectItem value="25" className="text-xs">25</SelectItem>
               <SelectItem value="50" className="text-xs">50</SelectItem>
               <SelectItem value="100" className="text-xs">100</SelectItem>

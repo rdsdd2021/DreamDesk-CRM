@@ -190,6 +190,13 @@ export default function CRMPage() {
     }
   }, []);
 
+  // Adaptive mobile page size (15 leads on mobile to eliminate Android OOM crashes)
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setPageSize(15);
+    }
+  }, []);
+
   // Mobile Drawer State
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
@@ -236,7 +243,12 @@ export default function CRMPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedFacets, setSelectedFacets] = useState<Record<string, string[]>>({});
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      return 15;
+    }
+    return 50;
+  });
   const [sortBy, setSortBy] = useState("id");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [loading, setLoading] = useState(true);
