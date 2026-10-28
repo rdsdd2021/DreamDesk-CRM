@@ -124,7 +124,8 @@ Replaces bloated, 3,000px vertical activity feeds with an intelligent, high-dens
 - **Auto-Advancing Stepper**: Automatically advances to the next candidate in the queue upon outcome submission across paginated and filtered datasets.
 
 ### 10. 💬 1-Click WhatsApp & Phone Softphone Integration
-- Integrated WhatsApp message drawer with dynamic variable interpolation (`{name}`, `{stream}`, `{lead_code}`, `{callback_at}`).
+- Integrated WhatsApp message drawer with dynamic variable interpolation (`{name}`, `{stream}`, `{school}`, `{counselor_name}`, `{lead_code}`, `{callback_at}`).
+- **In-App WhatsApp Template Editor**: Integrated template management modal allowing counselors and administrators to create, update, delete, set default outreach templates, and insert placeholder tokens with 1 click.
 - Pre-built templates for Admission Brochures, Counseling Confirmations, Scholarship Tests, and Follow-ups.
 - Direct `tel:` links for desktop softphones and mobile click-to-call.
 
@@ -210,7 +211,7 @@ The CRM exposes 30+ optimized App Router REST endpoints with strict session auth
 | | `GET` / `POST` | `/api/dispositions` | Root disposition & outcome recipe configuration | Admin / TL |
 | | `GET` / `POST` | `/api/dispositions/sub` | Nested 2-level sub-disposition & tag management | Admin / TL |
 | | `GET` / `POST` | `/api/dispositions/scoring-config` | Dynamic lead scoring weights & threshold calibration | Admin / TL |
-| | `GET` / `POST` | `/api/whatsapp-templates` | Manage WhatsApp message templates & variables | Admin / TL |
+| | `GET` / `POST` / `PUT` / `DELETE` | `/api/whatsapp-templates` | Manage, create, and update WhatsApp message templates & variables | Admin / TL |
 | | `GET` / `POST` | `/api/saved-views` | Custom counselor filter views and column sets | Authenticated |
 | **Analytics & Audit**| `GET` | `/api/analytics/report` | Multi-dimensional dashboard analytics | Admin / TL |
 | | `GET` | `/api/analytics/performance`| Counselor workload & throughput metrics | Admin / TL |
@@ -382,6 +383,7 @@ For an in-depth, granular log of all schema additions, API expansions, and UI re
 👉 **[CHANGELOG.md](./CHANGELOG.md)**
 
 ### Release Highlights
+- **v2.12.0 (2026-10-28)**: In-App WhatsApp Template Editor & Token Builder, Removal of Legacy Demo Auto-Tagging & Modulo Mutations on Imported Leads.
 - **v2.11.0 (2026-10-27)**: Production Readiness, Modernized Enterprise Login Page, Complete Dummy Data & Mock Account Purge, Autoincrement Reset to #1, Database VACUUM (248KB), and Removal of Developer Backdoors.
 - **v2.10.0 (2026-10-27)**: Enterprise Student Contact Security, Phone Masking (`+91 ••••• ••421`), On-Demand Click-to-Dial Intent (`/api/leads/[id]/call-intent`), Server-Assisted WhatsApp Launch, and Audited Supervisor Reveal.
 - **v2.9.0 (2026-10-27)**: Resilient Batch Lead Allocation Cockpit with Real Progress, Speed & Dynamic ETA, SQLite Concurrency Hardening (15s busy timeout + `withDbRetry`), Micro-Chunking, Isolated Workspace Error Boundaries, and System Diagnostics Drawer.

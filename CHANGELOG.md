@@ -4,6 +4,34 @@ All notable changes, architectural enhancements, schema migrations, and feature 
 
 ---
 
+## [v2.12.0] — 2026-10-28
+
+### 🏷️ Removal of Legacy Demo Auto-Tagging & 💬 Full WhatsApp Template Management System
+**Objective**: Eliminate unrequested random tags appearing on newly imported student leads caused by legacy demo migration hooks, and introduce a complete in-app WhatsApp template editing, creation, and token substitution management system.
+
+#### 1. Root-Cause Resolution for Random Tags on Lead Upload (`src/lib/db/database.ts`)
+- **Problem**: When users uploaded fresh leads without tags, an automated demo seed check (`hasAnyTags.count === 0`) evaluated to `true`, executing SQLite modulo batch queries (`WHERE id % 7 = 0`, `WHERE id % 5 = 0`, etc.) that automatically assigned demo tags (*"High Priority"*, *"Hostel Required"*, *"Scholarship Applicant"*, *"VIP Referral"*, *"Local Candidate"*) across every 5th, 7th, 11th, and 13th imported lead.
+- **Fix**: Completely removed the legacy modulo update queries from `initializeSchema()`.
+- **Campaign Backfill Purge**: Also eliminated the legacy `backfillLeadActivities()` and synthetic campaign/disposition backfill loop (`camp_delhi_fair`, etc.) to prevent unwanted mutations on operational data.
+
+#### 2. WhatsApp Template In-Modal Manager (`src/components/crm/WhatsAppModal.tsx`)
+- **"Edit Templates" Mode**: Counselors and admins can click the new **"Edit Templates"** gear button next to the template selector in the WhatsApp modal to switch between message delivery and template management.
+- **Create & Edit Templates**: Users can select an existing template to edit (updating its Title, Category, Body, and default status) or click "+ New Template" to craft a brand-new outreach template.
+- **Dynamic Variable Placeholder Pills**: Added 1-click token insertion chips directly inside the template editor:
+  - `{name}` — Lead student's full name
+  - `{stream}` — Preferred academic stream / program
+  - `{school}` — School or previous institution
+  - `{counselor_name}` — Assigned counselor / telecaller's name
+  - `{callback_at}` — Scheduled follow-up time
+  - `{lead_code}` — Lead identifier code
+- **Real-Time Live Preview**: Modifying or switching templates updates the preview composer in real time.
+
+#### 3. Backend Template API & Service Layer (`src/lib/services/leadsService.ts`, `src/app/api/whatsapp-templates/route.ts`)
+- **`LeadsService.updateWhatsAppTemplate()`**: Added transaction-safe update routine that persists template alterations, sanitizes inputs, and handles single-default template flags.
+- **RESTful Endpoints**: Implemented `PUT` and `PATCH` methods on `/api/whatsapp-templates` with schema validation and error reporting.
+
+---
+
 ## [v2.11.0] — 2026-10-27
 
 ### 🛡️ Production Readiness, Login Redesign, Dummy Data Purge & Developer Backdoor Removal
