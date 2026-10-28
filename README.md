@@ -383,6 +383,7 @@ For an in-depth, granular log of all schema additions, API expansions, and UI re
 👉 **[CHANGELOG.md](./CHANGELOG.md)**
 
 ### Release Highlights
+- **v2.12.1 (2026-10-28)**: Mobile Lead Details Drawer Layout Refactoring: 3-Tier Flexbox with Pinned Header, Independently Scrollable Body, and Docked Bottom Action Bar.
 - **v2.12.0 (2026-10-28)**: In-App WhatsApp Template Editor & Token Builder, Removal of Legacy Demo Auto-Tagging & Modulo Mutations on Imported Leads.
 - **v2.11.0 (2026-10-27)**: Production Readiness, Modernized Enterprise Login Page, Complete Dummy Data & Mock Account Purge, Autoincrement Reset to #1, Database VACUUM (248KB), and Removal of Developer Backdoors.
 - **v2.10.0 (2026-10-27)**: Enterprise Student Contact Security, Phone Masking (`+91 ••••• ••421`), On-Demand Click-to-Dial Intent (`/api/leads/[id]/call-intent`), Server-Assisted WhatsApp Launch, and Audited Supervisor Reveal.

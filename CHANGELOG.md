@@ -4,6 +4,22 @@ All notable changes, architectural enhancements, schema migrations, and feature 
 
 ---
 
+## [v2.12.1] — 2026-10-28
+
+### 📱 Mobile Lead Details Drawer Layout Refactoring: Docked Action Bar & Pinned Header
+**Objective**: Fix the critical layout bug where the mobile "Call" & "WhatsApp" action buttons floated into the vertical center of the screen, obscuring form fields and notes.
+
+#### 1. Root Cause Resolution
+- **Defective Sticky Flex Container**: The action buttons previously used `sticky bottom-0` inside a flex container (`SheetContent`) that allowed full-drawer scrolling (`overflow-y-auto`). When student content was short, loading, or when scrolling back up, CSS sticky treated the element as normal document flow, centering it directly beneath the short content.
+- **Virtual Keyboard Jitter**: On mobile devices, opening the keyboard altered the viewport height, causing the sticky bar to snap directly over the input fields.
+
+#### 2. Three-Tier Flexbox Architecture (`src/components/crm/EnhancedLeadDrawer.tsx`)
+- **Tier 1 (Pinned Header - `shrink-0`)**: Pinned permanently at the top of the screen (`z-20 border-b bg-muted/40`). Counselor always sees student identity, lead code, attempt counter, status, and navigation stepper without scrolling away.
+- **Tier 2 (Scrollable Body - `flex-1 min-h-0 overflow-y-auto`)**: The body (`Tabs`, form fields, dispositions, notes, timeline) scrolls smoothly between the header and the bottom bar. Removed artificial `pb-28` bottom spacing.
+- **Tier 3 (Docked Mobile Footer - `shrink-0 sm:hidden`)**: Firmly docked at the absolute bottom edge of the screen (`bg-card/95 backdrop-blur-md border-t safe-area-bottom z-30`). The "Call", "WhatsApp", and "Save Outcome" buttons never float, jitter, or overlay content in the middle of the screen.
+
+---
+
 ## [v2.12.0] — 2026-10-28
 
 ### 🏷️ Removal of Legacy Demo Auto-Tagging & 💬 Full WhatsApp Template Management System

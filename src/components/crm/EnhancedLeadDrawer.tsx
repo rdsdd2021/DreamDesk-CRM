@@ -756,18 +756,9 @@ export function EnhancedLeadDrawer({
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && handleAttemptClose()}>
-      <SheetContent ref={scrollRef} className="w-full sm:max-w-xl md:max-w-2xl overflow-y-auto p-0 flex flex-col bg-background shadow-2xl">
-        <div
-          key={lead.id}
-          className={cn(
-            "flex flex-col flex-1 min-h-0",
-            slideDirection === "next" && "animate-in slide-in-from-right-8 duration-300 ease-out fade-in-60",
-            slideDirection === "prev" && "animate-in slide-in-from-left-8 duration-300 ease-out fade-in-60",
-            slideDirection === "none" && "animate-in fade-in-60 duration-200"
-          )}
-        >
-          {/* Drawer Header */}
-        <div className="p-4 sm:p-6 pb-4 bg-muted/40 border-b border-border/80">
+      <SheetContent className="w-full sm:max-w-xl md:max-w-2xl h-full max-h-screen overflow-hidden p-0 flex flex-col bg-background shadow-2xl">
+        {/* Tier 1: Pinned Header */}
+        <div className="shrink-0 p-4 sm:p-6 pb-4 bg-muted/40 border-b border-border/80 z-20">
           {/* Top metadata & Lead Stepper Navigation Row (pr-10 sm:pr-12 gives clear breathing room from Sheet close button) */}
           <div className="flex items-center justify-between gap-2 mb-3 pr-10 sm:pr-12">
             <div className="flex items-center gap-2 min-w-0 flex-wrap">
@@ -1067,8 +1058,17 @@ export function EnhancedLeadDrawer({
           </div>
         </div>
 
-        {/* Multi-Tab Navigation Body */}
-        <div className="p-4 sm:p-6 flex-1 space-y-4 pb-28 sm:pb-6">
+        {/* Tier 2: Scrollable Multi-Tab Navigation Body */}
+        <div
+          ref={scrollRef}
+          key={lead.id}
+          className={cn(
+            "flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4 pb-6 overscroll-contain",
+            slideDirection === "next" && "animate-in slide-in-from-right-8 duration-300 ease-out fade-in-60",
+            slideDirection === "prev" && "animate-in slide-in-from-left-8 duration-300 ease-out fade-in-60",
+            slideDirection === "none" && "animate-in fade-in-60 duration-200"
+          )}
+        >
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
             {!isTelecaller && (
               <TabsList className="grid grid-cols-3 h-10 p-1 bg-muted/60 rounded-xl">
@@ -2072,11 +2072,10 @@ export function EnhancedLeadDrawer({
           </>
         )}
       </Tabs>
-        </div>
-      </div>
+    </div>
 
-        {/* Sticky Mobile Quick Actions Bar (Finger-friendly for telecallers & counselors) */}
-        <div className="sticky bottom-0 left-0 right-0 p-3 bg-card/95 backdrop-blur-md border-t border-border/80 flex items-center gap-2 sm:hidden z-20 shadow-lg safe-area-bottom">
+        {/* Tier 3: Docked Mobile Action Bar (Finger-friendly for telecallers & counselors) */}
+        <div className="shrink-0 p-3 bg-card/95 backdrop-blur-md border-t border-border/80 flex items-center gap-2 sm:hidden z-30 shadow-lg safe-area-bottom">
           {lead.phone ? (
             <Button
               size="sm"
