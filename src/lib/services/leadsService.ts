@@ -2764,6 +2764,52 @@ export class LeadsService {
   }
 
   /**
+   * Updates an existing WhatsApp message template.
+   */
+  static updateWhatsAppTemplate(tpl: {
+    id: string;
+    name?: string;
+    category?: string;
+    template_body?: string;
+    is_default?: number;
+  }): WhatsAppTemplate {
+    const db = getDatabase();
+    const existing = db.prepare("SELECT * FROM whatsapp_templates WHERE id = ?").get(tpl.id) as WhatsAppTemplate;
+    if (!existing) {
+      throw new Error("WhatsApp template not found.");
+    }
+
+    const name = tpl.name !== undefined ? tpl.name.trim() : existing.name;
+    const category = tpl.category !== undefined ? tpl.category.trim() : existing.category;
+    const template_body = tpl.template_body !== undefined ? tpl.template_body.trim() : existing.template_body;
+    const is_default = tpl.is_default !== undefined ? Number(tpl.is_default) : (existing.is_default || 0);
+
+    if (is_default === 1) {
+      db.prepare("UPDATE whatsapp_templates SET is_default = 0 WHERE id != ?").run(tpl.id);
+    }
+
+    db.prepare(`
+      UPDATE whatsapp_templates
+      SET name = @name, category = @category, template_body = @template_body, is_default = @is_default
+      WHERE id = @id
+    `).run({
+      id: tpl.id,
+      name,
+      category,
+      template_body,
+      is_default,
+    });
+
+    return {
+      ...existing,
+      name,
+      category,
+      template_body,
+      is_default,
+    };
+  }
+
+  /**
    * Deletes a WhatsApp message template.
    */
   static deleteWhatsAppTemplate(id: string): void {

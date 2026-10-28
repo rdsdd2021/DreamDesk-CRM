@@ -31,6 +31,33 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function PUT(req: NextRequest) {
+  try {
+    const body = await req.json();
+    if (!body.id || !body.name || !body.template_body) {
+      return NextResponse.json(
+        { error: "Template id, name, and template_body are required." },
+        { status: 400 }
+      );
+    }
+    const updated = LeadsService.updateWhatsAppTemplate({
+      id: body.id,
+      name: body.name,
+      category: body.category,
+      template_body: body.template_body,
+      is_default: body.is_default,
+    });
+    return NextResponse.json(updated);
+  } catch (error: any) {
+    console.error("Failed to update WhatsApp template:", error);
+    return NextResponse.json({ error: error.message || "Failed to update template" }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  return PUT(req);
+}
+
 export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);

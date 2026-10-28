@@ -270,16 +270,6 @@ function initializeSchema(db: Database.Database) {
     db.exec("ALTER TABLE leads ADD COLUMN tags TEXT DEFAULT '[]';");
   }
 
-  // Populate sample tags for existing demo leads if empty
-  try {
-    const hasAnyTags = db.prepare("SELECT COUNT(*) as count FROM leads WHERE tags IS NOT NULL AND tags != '[]' AND tags != ''").get() as { count: number };
-    if (hasAnyTags.count === 0) {
-      db.prepare(`UPDATE leads SET tags = '["High Priority", "Hostel Required"]' WHERE id % 7 = 0`).run();
-      db.prepare(`UPDATE leads SET tags = '["Scholarship Applicant"]' WHERE id % 5 = 0 AND id % 7 != 0`).run();
-      db.prepare(`UPDATE leads SET tags = '["VIP Referral", "Fee Sensitive"]' WHERE id % 11 = 0`).run();
-      db.prepare(`UPDATE leads SET tags = '["Local Candidate"]' WHERE id % 13 = 0`).run();
-    }
-  } catch {}
 
   // Optimize indices for high-volume 500k lead queries
   db.exec(`
@@ -380,7 +370,6 @@ function initializeSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_user_notif_user_time ON user_notifications(user_id, created_at DESC);
   `);
 
-  backfillLeadActivities(db);
   seedInitialData(db);
   initPolicies(db);
 }
@@ -834,32 +823,7 @@ function seedInitialData(db: Database.Database) {
     for (const r of defaultRules) insertRule.run(r);
   }
 
-  // Backfill existing leads with sample campaign & disposition IDs if null
-  try {
-    const unassociated = db.prepare("SELECT COUNT(*) as count FROM leads WHERE campaign_id IS NULL").get() as { count: number };
-    if (unassociated && unassociated.count > 0) {
-      const campIds = ["camp_delhi_fair", "camp_kota_drive", "camp_cbse_outreach", "camp_digital_portal"];
-      const dispIds = ["disp_high_intent", "disp_cb_requested", "disp_rnr", "disp_followup_needed", "disp_couns_booked", "disp_not_interested"];
-      
-      const updateLeadCamp = db.prepare(`
-        UPDATE leads 
-        SET campaign_id = @campId, disposition_id = @dispId 
-        WHERE id = @id
-      `);
 
-      const rows = db.prepare("SELECT id FROM leads WHERE campaign_id IS NULL LIMIT 2500").all() as { id: number }[];
-      const backfillTx = db.transaction(() => {
-        for (let i = 0; i < rows.length; i++) {
-          const campId = campIds[i % campIds.length];
-          const dispId = i % 2 === 0 ? dispIds[i % dispIds.length] : null;
-          updateLeadCamp.run({ id: rows[i].id, campId, dispId });
-        }
-      });
-      backfillTx();
-    }
-  } catch (err) {
-    console.error("Backfill error:", err);
-  }
 }
 
 function initPolicies(db: Database.Database) {
