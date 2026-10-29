@@ -29,7 +29,7 @@ export function useRealtimeSync(options: UseRealtimeSyncOptions = {}) {
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const lastTimestampRef = useRef<number>(Date.now());
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectTimeoutRef = useRef<any>(null);
   const optionsRef = useRef(options);
   optionsRef.current = options;
 

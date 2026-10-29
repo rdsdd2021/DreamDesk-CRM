@@ -403,6 +403,106 @@ export default function CRMPage() {
     }
   }, [currentUser, leads, selectedLeadForDetail]);
 
+  // Native Android Hardware Back Button & In-App Navigation Bridge:
+  // Instead of navigating back to the login page, Android back button sequentially:
+  // 1. Closes open modals (WhatsApp, Tags, Command Center, Diagnostics)
+  // 2. Closes slide-over Filter Drawers and Mobile Menus
+  // 3. Closes open Student Lead Drawer
+  // 4. Returns from secondary workspaces (Tasks, Analytics, Studio) back to Leads view
+  // 5. Signals ROOT state so native shell prompts "Press back again to exit"
+  useEffect(() => {
+    const handleBackAction = (): "HANDLED" | "ROOT" => {
+      if (whatsAppTargetLead) {
+        setWhatsAppTargetLead(null);
+        return "HANDLED";
+      }
+      if (isBulkTagsModalOpen) {
+        setIsBulkTagsModalOpen(false);
+        return "HANDLED";
+      }
+      if (isBulkCampaignModalOpen) {
+        setIsBulkCampaignModalOpen(false);
+        return "HANDLED";
+      }
+      if (isCommandCenterOpen) {
+        setIsCommandCenterOpen(false);
+        return "HANDLED";
+      }
+      if (isDiagnosticsOpen) {
+        setIsDiagnosticsOpen(false);
+        return "HANDLED";
+      }
+      if (isMobileFilterOpen) {
+        setIsMobileFilterOpen(false);
+        return "HANDLED";
+      }
+      if (isMobileNavOpen) {
+        setIsMobileNavOpen(false);
+        return "HANDLED";
+      }
+      if (filterDrawerOpen) {
+        setFilterDrawerOpen(false);
+        return "HANDLED";
+      }
+      if (selectedLeadForDetail) {
+        setSelectedLeadForDetail(null);
+        return "HANDLED";
+      }
+      if (currentView !== "leads") {
+        setCurrentView("leads");
+        return "HANDLED";
+      }
+      return "ROOT";
+    };
+
+    (window as any).handleAndroidHardwareBack = handleBackAction;
+
+    const onPopState = (e: PopStateEvent) => {
+      const outcome = handleBackAction();
+      if (outcome === "HANDLED") {
+        // Kept user inside the app and handled closing the current modal/drawer
+        e.preventDefault?.();
+      }
+    };
+
+    window.addEventListener("popstate", onPopState);
+
+    return () => {
+      delete (window as any).handleAndroidHardwareBack;
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, [
+    whatsAppTargetLead,
+    isBulkTagsModalOpen,
+    isBulkCampaignModalOpen,
+    isCommandCenterOpen,
+    isDiagnosticsOpen,
+    isMobileFilterOpen,
+    isMobileNavOpen,
+    filterDrawerOpen,
+    selectedLeadForDetail,
+    currentView,
+  ]);
+
+  // Push history state whenever a drawer or modal opens to capture browser edge-swipe back
+  useEffect(() => {
+    if (
+      selectedLeadForDetail ||
+      filterDrawerOpen ||
+      isMobileFilterOpen ||
+      isMobileNavOpen ||
+      isCommandCenterOpen
+    ) {
+      window.history.pushState({ modalOpen: true }, "");
+    }
+  }, [
+    Boolean(selectedLeadForDetail),
+    filterDrawerOpen,
+    isMobileFilterOpen,
+    isMobileNavOpen,
+    isCommandCenterOpen,
+  ]);
+
   // Debounce search
   useEffect(() => {
     const handler = setTimeout(() => {

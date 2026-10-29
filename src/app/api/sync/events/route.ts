@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
   // 2. Server-Sent Events (SSE) Streaming Mode
   const encoder = new TextEncoder();
   let cleanupSubscriber: (() => void) | null = null;
-  let heartbeatTimer: NodeJS.Timeout | null = null;
+  let heartbeatTimer: any = null;
 
   const stream = new ReadableStream({
     start(controller) {
