@@ -48,6 +48,7 @@ import { TeamWorkspace } from "@/components/crm/TeamWorkspace";
 import { ImportWorkspace } from "@/components/crm/ImportWorkspace";
 import { ActivityWorkspace } from "@/components/crm/ActivityWorkspace";
 import { PoliciesWorkspace } from "@/components/crm/PoliciesWorkspace";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { SystemDiagnosticsDrawer } from "@/components/crm/SystemDiagnosticsDrawer";
 import { GlobalErrorBoundary } from "@/components/ui/GlobalErrorBoundary";
 import { WorkspaceErrorBoundary } from "@/components/ui/WorkspaceErrorBoundary";
@@ -463,6 +464,20 @@ export default function CRMPage() {
   useEffect(() => {
     fetchLeads();
   }, [fetchLeads]);
+
+  // Realtime Sync Engine: Listen for live updates from other counselors or background operations
+  const handleRealtimeLeadSync = useCallback(() => {
+    fetchLeads();
+    loadMetaAndUsers();
+  }, [fetchLeads, loadMetaAndUsers]);
+
+  useRealtimeSync({
+    onLeadChange: handleRealtimeLeadSync,
+    onTaskChange: () => {
+      loadMetaAndUsers();
+    },
+    enabled: true,
+  });
 
   // Handle Facet Toggle
   const handleFacetToggle = (key: string, value: string) => {

@@ -21,6 +21,8 @@ import {
   Sparkles,
   LogOut,
   MessageSquare,
+  Smartphone,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { User } from "@/types/crm";
@@ -243,6 +245,22 @@ export function AppSidebar({
             );
           })}
         </nav>
+
+        {/* Install Android App Quick Action */}
+        <div className="px-2 pt-1 border-t border-border/40">
+          <button
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent("trigger-pwa-install"));
+            }}
+            className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50/60 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-blue-200 dark:border-blue-900/60 transition-colors ${
+              isCollapsed ? "justify-center px-0" : ""
+            }`}
+            title="Install DreamDesk Mobile App on Android"
+          >
+            <Smartphone className="w-3.5 h-3.5 shrink-0 text-blue-500" />
+            {!isCollapsed && <span>Install Android App</span>}
+          </button>
+        </div>
       </div>
 
       {/* Bottom User Profile & Performance Widget */}

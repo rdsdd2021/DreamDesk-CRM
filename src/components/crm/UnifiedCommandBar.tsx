@@ -41,6 +41,7 @@ import {
   Rows3,
   LayoutList,
   Keyboard,
+  Smartphone,
 } from "lucide-react";
 
 interface UnifiedCommandBarProps {
@@ -518,6 +519,16 @@ export function UnifiedCommandBar({
                   </DropdownMenuItem>
                 </>
               )}
+              <DropdownMenuSeparator className="my-1" />
+              <DropdownMenuItem
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent("trigger-pwa-install"));
+                }}
+                className="gap-2 cursor-pointer text-xs rounded-lg py-1.5 px-2 text-blue-600 dark:text-blue-400 font-medium"
+              >
+                <Smartphone className="w-3.5 h-3.5 text-blue-500" />
+                <span>Install Android / PWA App</span>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

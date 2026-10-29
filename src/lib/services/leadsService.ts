@@ -28,6 +28,7 @@ import {
 import { PolicyService } from "@/lib/services/policyService";
 import { TasksService } from "@/lib/services/tasksService";
 import { AuthService } from "@/lib/services/authService";
+import { SyncService } from "@/lib/services/syncService";
 import { ScoringService } from "@/lib/services/scoringService";
 import { maskPhoneNumber, isMaskedPhone } from "@/lib/utils/phoneMasker";
 
@@ -2445,6 +2446,14 @@ export class LeadsService {
       performedBy: counselorName,
     });
 
+    try {
+      SyncService.publish("lead_updated", "DISPOSITION_LOGGED", {
+        entityId: leadId,
+        userId: counselorId,
+        data: { leadCode: currentLead.lead_code, status: targetStatus, disposition: disp?.name },
+      });
+    } catch {}
+
     // Return the updated lead
     const updated = db.prepare(`
       SELECT 
@@ -2508,6 +2517,13 @@ export class LeadsService {
       INSERT INTO activity_logs (action_type, description, affected_count, metadata, performed_by)
       VALUES (?, ?, ?, ?, ?)
     `).run(actionType, description, affectedCount, metadata || null, performedBy);
+
+    try {
+      SyncService.publish("leads_bulk_updated", actionType, {
+        userId: performedBy,
+        data: { description, affectedCount },
+      });
+    } catch {}
   }
 
   /**
@@ -3343,6 +3359,12 @@ export class LeadsService {
     }
 
     this.invalidateCache();
+    try {
+      SyncService.publish("lead_updated", "FIELD_UPDATED", {
+        entityId: leadId,
+        data: { field, value },
+      });
+    } catch {}
     return {
       success: true,
       lead: this.getLeadById(leadId)!,
@@ -3389,6 +3411,12 @@ export class LeadsService {
     }
 
     this.invalidateCache();
+    try {
+      SyncService.publish("lead_updated", "TAGS_UPDATED", {
+        entityId: leadId,
+        data: { tags: cleanTags },
+      });
+    } catch {}
     return this.getLeadById(leadId)!;
   }
 

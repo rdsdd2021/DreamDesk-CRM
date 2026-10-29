@@ -1,4 +1,5 @@
 import { getDatabase } from "@/lib/db/database";
+import { SyncService } from "@/lib/services/syncService";
 import {
   CrmTask,
   TaskPriority,
@@ -143,6 +144,15 @@ export class TasksService {
     });
 
     tx();
+
+    try {
+      SyncService.publish("task_updated", "BULK_TASKS_CREATED", {
+        data: { tasksCreated, sourceAction },
+      });
+      SyncService.publish("notification", "NEW_TASKS_ASSIGNED", {
+        data: { counselorCount: counselorTaskCounts.size },
+      });
+    } catch {}
 
     return {
       tasksCreated,
@@ -346,6 +356,14 @@ export class TasksService {
       `Task finished by ${performedByName}`,
       performedByName
     );
+
+    try {
+      SyncService.publish("task_updated", "TASK_COMPLETED", {
+        entityId: taskId,
+        userId: task.assigned_to,
+        data: { leadId: task.lead_id, leadCode: task.lead_code },
+      });
+    } catch {}
 
     return {
       success: true,
