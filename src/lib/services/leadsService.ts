@@ -598,12 +598,16 @@ export class LeadsService {
         LIMIT 20
       `;
       try {
-        const rows = db.prepare(facetQuery).all(metaParams) as { value: string; count: number }[];
+        const rows = db.prepare(facetQuery).all(metaParams) as { value: any; count: number }[];
         if (rows.length > 0) {
           facetGroups.push({
             key_name: meta.key_name,
             display_label: meta.display_label,
-            options: rows,
+            options: rows.map((r) => ({
+              value: String(r.value),
+              label: String(r.value),
+              count: r.count,
+            })),
           });
         }
       } catch (err) {

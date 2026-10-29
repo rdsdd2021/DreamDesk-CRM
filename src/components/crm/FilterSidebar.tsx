@@ -134,12 +134,12 @@ export function FilterSidebar({
 
     // Filter options by section search and global search
     const filteredOptions = facet.options.filter((opt) => {
-      const label = (opt.label || opt.value || "").toLowerCase();
+      const label = String(opt.label ?? opt.value ?? "").toLowerCase();
       const matchesSection = !sectionSearch || label.includes(sectionSearch);
       const matchesGlobal =
         !globalFacetSearch ||
         label.includes(globalFacetSearch.toLowerCase()) ||
-        facet.display_label.toLowerCase().includes(globalFacetSearch.toLowerCase());
+        String(facet.display_label || "").toLowerCase().includes(globalFacetSearch.toLowerCase());
       return matchesSection && matchesGlobal;
     });
 
@@ -218,14 +218,15 @@ export function FilterSidebar({
             ) : (
               <div className="space-y-0.5">
                 {displayOptions.map((opt) => {
-                  const isChecked = selectedValues.includes(opt.value);
-                  const displayLabel = opt.label || opt.value;
-                  const statusInfo = key === "status" ? STATUS_CONFIG[opt.value] : null;
-                  const counselor = key === "assigned_to" ? userMap.get(opt.value) : null;
+                  const optValStr = String(opt.value ?? "");
+                  const isChecked = selectedValues.map(String).includes(optValStr);
+                  const displayLabel = String(opt.label ?? opt.value ?? "");
+                  const statusInfo = key === "status" ? STATUS_CONFIG[optValStr] : null;
+                  const counselor = key === "assigned_to" ? userMap.get(optValStr) : null;
 
                   return (
                     <label
-                      key={opt.value}
+                      key={optValStr}
                       className={cn(
                         "flex items-center justify-between py-1 px-2 rounded-md cursor-pointer text-xs transition-colors group select-none",
                         isChecked
@@ -236,7 +237,7 @@ export function FilterSidebar({
                       <div className="flex items-center gap-2 truncate pr-2">
                         <Checkbox
                           checked={isChecked}
-                          onCheckedChange={() => onFacetToggle(key, opt.value)}
+                          onCheckedChange={() => onFacetToggle(key, optValStr)}
                           className="h-3.5 w-3.5 rounded"
                         />
 
