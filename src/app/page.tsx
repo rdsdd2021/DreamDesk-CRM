@@ -1510,6 +1510,9 @@ export default function CRMPage() {
                 {currentView === "activity" && "Compliance & Activity Audit Trail"}
                 {currentView === "policies" && "Governance & CRM Policies"}
               </span>
+              <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 shrink-0">
+                v1.1.0
+              </span>
             </h1>
 
             {/* Quick Command Launcher Button */}

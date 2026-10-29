@@ -253,10 +253,15 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          {/* Footer Security Badge */}
-          <div className="pt-2 border-t border-border/60 flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground/80">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span>Encrypted Session • Enterprise RBAC</span>
+          {/* Footer Security Badge & Version */}
+          <div className="pt-2 border-t border-border/60 flex flex-col items-center justify-center gap-1 text-[11px] text-muted-foreground/80">
+            <div className="flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Encrypted Session • Enterprise RBAC</span>
+            </div>
+            <div className="text-[10px] font-mono text-muted-foreground/60">
+              DreamDesk CRM v1.1.0
+            </div>
           </div>
         </div>
       </div>
