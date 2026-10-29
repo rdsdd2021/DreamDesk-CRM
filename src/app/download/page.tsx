@@ -45,7 +45,7 @@ export default function DownloadPage() {
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="font-bold text-base text-white">DreamDesk CRM</span>
                 <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded">
-                  v1.0.0
+                  v1.1.0
                 </span>
               </div>
               <p className="text-xs text-neutral-400 mt-0.5">Lightweight APK · Fast & Tab-Safe</p>
