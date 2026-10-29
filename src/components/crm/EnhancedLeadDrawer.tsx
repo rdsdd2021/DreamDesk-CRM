@@ -963,22 +963,22 @@ export function EnhancedLeadDrawer({
           )}
 
           {/* Quick Communication Actions Bar */}
-          <div className="flex items-center gap-2 mt-4 flex-wrap">
+          <div className="flex items-center gap-2 mt-3 flex-wrap">
             {lead.phone && !isCalling && (
               <Button
                 size="sm"
                 onClick={handleStartCall}
                 disabled={isDialing}
-                className="h-9 px-3.5 text-xs font-semibold gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
+                className="h-8 px-3 text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-2xs"
               >
                 {isDialing ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     <span>Connecting...</span>
                   </>
                 ) : (
                   <>
-                    <PhoneCall className="w-4 h-4" />
+                    <PhoneCall className="w-3.5 h-3.5" />
                     <span>Call Student</span>
                   </>
                 )}
@@ -986,18 +986,18 @@ export function EnhancedLeadDrawer({
             )}
 
             {lead.phone && (
-              <div className="inline-flex rounded-xl shadow-2xs">
+              <div className="inline-flex rounded-lg shadow-2xs">
                 <button
                   type="button"
                   onClick={() => setIsWhatsAppModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-l-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors h-9 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-l-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors h-8 cursor-pointer"
                 >
-                  <MessageSquare className="w-4 h-4" />
+                  <MessageSquare className="w-3.5 h-3.5" />
                   <span>WhatsApp</span>
                 </button>
                 <DropdownMenu>
-                  <DropdownMenuTrigger className="px-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-r-xl border-l border-emerald-500/40 cursor-pointer h-9 flex items-center">
-                    <ChevronDown className="w-3.5 h-3.5" />
+                  <DropdownMenuTrigger className="px-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-r-lg border-l border-emerald-500/40 cursor-pointer h-8 flex items-center">
+                    <ChevronDown className="w-3 h-3" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-72 text-xs">
                     <DropdownMenuItem
@@ -1049,7 +1049,7 @@ export function EnhancedLeadDrawer({
             {lead.email && (
               <a
                 href={`mailto:${lead.email}`}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border border-border/80 bg-background hover:bg-accent transition-colors h-9 shadow-2xs"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-border/80 bg-background hover:bg-accent transition-colors h-8 shadow-2xs"
               >
                 <Mail className="w-3.5 h-3.5 text-muted-foreground" />
                 <span>Email</span>
@@ -1156,15 +1156,15 @@ export function EnhancedLeadDrawer({
                     No active call dispositions configured for this campaign.
                   </div>
                 ) : (
-                  <div className="space-y-3.5">
+                  <div className="space-y-2.5">
                     {/* TRAY 1: Progressing Forward */}
                     {activeReachableDisps.some((d) => d.category === "positive") && (
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
-                          <Flame className="w-3.5 h-3.5" />
-                          <span>🌟 Progressing Forward</span>
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                          <Flame className="w-3 h-3" />
+                          <span>Positive Outcomes</span>
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        <div className="flex flex-wrap gap-1.5">
                           {activeReachableDisps
                             .filter((d) => d.category === "positive")
                             .map((disp) => {
@@ -1186,36 +1186,19 @@ export function EnhancedLeadDrawer({
                                     }
                                   }}
                                   className={cn(
-                                    "p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 min-h-[88px] relative overflow-hidden",
+                                    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer h-8 shadow-2xs select-none",
                                     isSelected
-                                      ? "bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-300 ring-2 ring-emerald-500/30 shadow-xs"
-                                      : "bg-background border-border/80 hover:bg-muted/50 text-foreground"
+                                      ? "bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-500/30"
+                                      : "bg-background border-border/80 hover:bg-emerald-500/10 hover:border-emerald-500/40 text-foreground"
                                   )}
                                 >
-                                  <div className="flex items-center justify-between w-full">
-                                    <div className="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                                      <CheckCircle2 className="w-3.5 h-3.5" />
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                      <Badge
-                                        variant="outline"
-                                        className="text-[10px] px-1.5 py-0 font-mono font-semibold border-0 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
-                                      >
-                                        +{disp.score}
-                                      </Badge>
-                                      {isSelected && <span className="w-2 h-2 rounded-full bg-emerald-500" />}
-                                    </div>
-                                  </div>
-                                  <div className="flex-1 flex flex-col justify-end">
-                                    <div className="text-xs font-bold leading-snug break-words hyphens-auto" title={disp.name}>
-                                      {disp.name}
-                                    </div>
-                                    <div className="text-[10px] text-muted-foreground leading-tight mt-0.5 truncate">
-                                      {disp.sub_dispositions && disp.sub_dispositions.length > 0
-                                        ? `${disp.sub_dispositions.length} sub-options`
-                                        : "High intent step"}
-                                    </div>
-                                  </div>
+                                  <CheckCircle2
+                                    className={cn(
+                                      "w-3.5 h-3.5 shrink-0",
+                                      isSelected ? "text-white" : "text-emerald-600 dark:text-emerald-400"
+                                    )}
+                                  />
+                                  <span>{disp.name}</span>
                                 </button>
                               );
                             })}
@@ -1225,12 +1208,12 @@ export function EnhancedLeadDrawer({
 
                     {/* TRAY 2: Needs Follow-up */}
                     {activeReachableDisps.some((d) => d.category === "neutral" || (d.requires_callback && d.category !== "positive")) && (
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-700 dark:text-amber-400">
-                          <Clock className="w-3.5 h-3.5" />
-                          <span>⏳ Needs Follow-up</span>
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          <span>Follow-up Required</span>
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        <div className="flex flex-wrap gap-1.5">
                           {activeReachableDisps
                             .filter((d) => d.category === "neutral" || (d.requires_callback && d.category !== "positive"))
                             .map((disp) => {
@@ -1252,34 +1235,19 @@ export function EnhancedLeadDrawer({
                                     }
                                   }}
                                   className={cn(
-                                    "p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 min-h-[88px] relative overflow-hidden",
+                                    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer h-8 shadow-2xs select-none",
                                     isSelected
-                                      ? "bg-amber-500/15 border-amber-500 text-amber-800 dark:text-amber-300 ring-2 ring-amber-500/30 shadow-xs"
-                                      : "bg-background border-border/80 hover:bg-muted/50 text-foreground"
+                                      ? "bg-amber-600 text-white border-amber-600 ring-2 ring-amber-500/30"
+                                      : "bg-background border-border/80 hover:bg-amber-500/10 hover:border-amber-500/40 text-foreground"
                                   )}
                                 >
-                                  <div className="flex items-center justify-between w-full">
-                                    <div className="w-6 h-6 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                                      <Clock className="w-3.5 h-3.5" />
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                      <Badge
-                                        variant="outline"
-                                        className="text-[10px] px-1.5 py-0 font-mono font-semibold border-0 bg-amber-500/15 text-amber-700 dark:text-amber-400"
-                                      >
-                                        +{disp.score}
-                                      </Badge>
-                                      {isSelected && <span className="w-2 h-2 rounded-full bg-amber-500" />}
-                                    </div>
-                                  </div>
-                                  <div className="flex-1 flex flex-col justify-end">
-                                    <div className="text-xs font-bold leading-snug break-words hyphens-auto" title={disp.name}>
-                                      {disp.name}
-                                    </div>
-                                    <div className="text-[10px] text-muted-foreground leading-tight mt-0.5 truncate">
-                                      {disp.requires_callback ? "Prompts callback date" : "Warm evaluation"}
-                                    </div>
-                                  </div>
+                                  <Clock
+                                    className={cn(
+                                      "w-3.5 h-3.5 shrink-0",
+                                      isSelected ? "text-white" : "text-amber-600 dark:text-amber-400"
+                                    )}
+                                  />
+                                  <span>{disp.name}</span>
                                 </button>
                               );
                             })}
@@ -1289,12 +1257,12 @@ export function EnhancedLeadDrawer({
 
                     {/* TRAY 3: Closed / Dropped */}
                     {activeReachableDisps.some((d) => d.category === "negative") && (
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-rose-700 dark:text-rose-400">
-                          <XCircle className="w-3.5 h-3.5" />
-                          <span>🛑 Closed / Dropped</span>
+                      <div className="space-y-1">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 flex items-center gap-1">
+                          <XCircle className="w-3 h-3" />
+                          <span>Closed / Disqualified</span>
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        <div className="flex flex-wrap gap-1.5">
                           {activeReachableDisps
                             .filter((d) => d.category === "negative")
                             .map((disp) => {
@@ -1316,36 +1284,19 @@ export function EnhancedLeadDrawer({
                                     }
                                   }}
                                   className={cn(
-                                    "p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 min-h-[88px] relative overflow-hidden",
+                                    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer h-8 shadow-2xs select-none",
                                     isSelected
-                                      ? "bg-rose-500/15 border-rose-500 text-rose-800 dark:text-rose-300 ring-2 ring-rose-500/30 shadow-xs"
-                                      : "bg-background border-border/80 hover:bg-muted/50 text-foreground"
+                                      ? "bg-rose-600 text-white border-rose-600 ring-2 ring-rose-500/30"
+                                      : "bg-background border-border/80 hover:bg-rose-500/10 hover:border-rose-500/40 text-foreground"
                                   )}
                                 >
-                                  <div className="flex items-center justify-between w-full">
-                                    <div className="w-6 h-6 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
-                                      <UserX className="w-3.5 h-3.5" />
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                      <Badge
-                                        variant="outline"
-                                        className="text-[10px] px-1.5 py-0 font-mono font-semibold border-0 bg-rose-500/15 text-rose-700 dark:text-rose-400"
-                                      >
-                                        {disp.score}
-                                      </Badge>
-                                      {isSelected && <span className="w-2 h-2 rounded-full bg-rose-500" />}
-                                    </div>
-                                  </div>
-                                  <div className="flex-1 flex flex-col justify-end">
-                                    <div className="text-xs font-bold leading-snug break-words hyphens-auto" title={disp.name}>
-                                      {disp.name}
-                                    </div>
-                                    <div className="text-[10px] text-muted-foreground leading-tight mt-0.5 truncate">
-                                      {disp.sub_dispositions && disp.sub_dispositions.length > 0
-                                        ? `${disp.sub_dispositions.length} sub-options`
-                                        : "Disqualified lead"}
-                                    </div>
-                                  </div>
+                                  <XCircle
+                                    className={cn(
+                                      "w-3.5 h-3.5 shrink-0",
+                                      isSelected ? "text-white" : "text-rose-600 dark:text-rose-400"
+                                    )}
+                                  />
+                                  <span>{disp.name}</span>
                                 </button>
                               );
                             })}
@@ -1373,21 +1324,8 @@ export function EnhancedLeadDrawer({
                     <div className="flex items-center justify-between pb-1 border-b border-border/40">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-foreground">
-                          {selectedDispObj.name}
+                          Selected: <span className="underline decoration-primary/40">{selectedDispObj.name}</span>
                         </span>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-[10px] px-1.5 py-0 font-medium",
-                            selectedDispObj.score > 0
-                              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
-                              : selectedDispObj.score < 0
-                              ? "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30"
-                              : "bg-muted text-muted-foreground border-border/80"
-                          )}
-                        >
-                          {selectedDispObj.score > 0 ? `+${selectedDispObj.score} pts` : `${selectedDispObj.score} pts`} Lead Score
-                        </Badge>
                       </div>
 
                       <button
@@ -1398,21 +1336,21 @@ export function EnhancedLeadDrawer({
                         }}
                         className="text-[11px] text-muted-foreground hover:text-foreground cursor-pointer underline"
                       >
-                        Cancel selection
+                        Cancel
                       </button>
                     </div>
 
                     {/* Dynamic Sub-dispositions / Reasons */}
                     {selectedDispObj.sub_dispositions && selectedDispObj.sub_dispositions.length > 0 && (
-                      <div className="space-y-1.5">
+                      <div className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                            <Sparkles className="w-3.5 h-3.5 text-primary" />
-                            <span>Specific Reason / Sub-Outcome</span>
+                          <label className="text-[11px] font-semibold text-foreground flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 text-primary" />
+                            <span>Specific Reason</span>
                           </label>
                           <span className="text-[10px] text-muted-foreground">Optional</span>
                         </div>
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="flex flex-wrap gap-1">
                           {selectedDispObj.sub_dispositions.map((sub) => {
                             const isSubActive = selectedSubDispId === sub.id;
                             return (
@@ -1421,23 +1359,13 @@ export function EnhancedLeadDrawer({
                                 type="button"
                                 onClick={() => setSelectedSubDispId(isSubActive ? "" : sub.id)}
                                 className={cn(
-                                  "px-2.5 py-1 text-xs font-medium rounded-lg border transition-all cursor-pointer flex items-center gap-1.5",
+                                  "px-2 py-0.5 text-[11px] font-medium rounded-md border transition-all cursor-pointer select-none",
                                   isSubActive
-                                    ? "bg-primary text-primary-foreground border-primary shadow-xs ring-1 ring-primary/40 font-semibold"
+                                    ? "bg-primary text-primary-foreground border-primary shadow-2xs font-semibold"
                                     : "bg-background border-border/80 hover:bg-muted text-foreground"
                                 )}
                               >
                                 <span>{sub.name}</span>
-                                {sub.score !== undefined && sub.score !== 0 && (
-                                  <span
-                                    className={cn(
-                                      "text-[10px] px-1 py-0.2 rounded font-mono",
-                                      isSubActive ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
-                                    )}
-                                  >
-                                    {sub.score > 0 ? `+${sub.score}` : sub.score}
-                                  </span>
-                                )}
                               </button>
                             );
                           })}
@@ -1447,11 +1375,11 @@ export function EnhancedLeadDrawer({
 
                     {/* Conditional Callback Date & Time (if requires_callback) */}
                     {selectedDispObj.requires_callback === 1 && (
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
-                          <label className="text-xs font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5 text-amber-600" />
-                            <span>Callback Date & Time <span className="text-rose-500">*</span></span>
+                          <label className="text-[11px] font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-amber-600" />
+                            <span>Callback Time <span className="text-rose-500">*</span></span>
                           </label>
                           <span className="text-[10px] text-muted-foreground">Required</span>
                         </div>
@@ -1459,67 +1387,67 @@ export function EnhancedLeadDrawer({
                           type="datetime-local"
                           value={callbackDate}
                           onChange={(e) => setCallbackDate(e.target.value)}
-                          className="h-9 text-xs bg-background border-border/80 font-mono font-medium focus-visible:ring-amber-500"
+                          className="h-8 text-xs bg-background border-border/80 font-mono focus-visible:ring-amber-500"
                         />
                         {/* Fast Callback Time Presets */}
-                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        <div className="flex flex-wrap gap-1 pt-0.5">
                           <button
                             type="button"
                             onClick={() => setCallbackInHours(2)}
-                            className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                            className="px-2 py-0.5 text-[10px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                           >
                             +2 Hours
                           </button>
                           <button
                             type="button"
                             onClick={() => setCallbackInHours(4)}
-                            className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                            className="px-2 py-0.5 text-[10px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                           >
                             +4 Hours
                           </button>
                           <button
                             type="button"
                             onClick={() => setCallbackTomorrow(11)}
-                            className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                            className="px-2 py-0.5 text-[10px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                           >
                             Tomorrow 11 AM
                           </button>
                           <button
                             type="button"
                             onClick={() => setCallbackTomorrow(16)}
-                            className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                            className="px-2 py-0.5 text-[10px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                           >
                             Tomorrow 4 PM
                           </button>
                           <button
                             type="button"
                             onClick={setCallbackNextMonday}
-                            className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                            className="px-2 py-0.5 text-[10px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                           >
-                            Next Monday 11 AM
+                            Next Mon
                           </button>
                         </div>
                       </div>
                     )}
 
                     {/* Notes / Remarks Field */}
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-foreground flex items-center justify-between">
-                        <span>Call Notes / Inquiries / Objections</span>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-foreground flex items-center justify-between">
+                        <span>Call Notes & Remarks</span>
                         <span className="text-[10px] font-normal text-muted-foreground">Optional</span>
                       </label>
                       <Textarea
                         value={callNotes}
                         onChange={(e) => setCallNotes(e.target.value)}
-                        placeholder="e.g. Student inquiring about fees, entrance test scores, campus visit, or parent discussion..."
-                        className="text-xs min-h-[58px] bg-background border-border/80 resize-none focus-visible:ring-primary"
+                        placeholder="e.g. Student inquiring about fees, entrance test, campus visit..."
+                        className="text-xs min-h-[48px] bg-background border-border/80 resize-none focus-visible:ring-primary"
                       />
                     </div>
 
-                    {/* Save Action Row */}
-                    <div className="flex items-center justify-between gap-2 pt-1">
+                    {/* Save Action Row (Desktop view; on mobile handled by docked bottom bar) */}
+                    <div className="hidden sm:flex items-center justify-between gap-2 pt-1">
                       <span className="text-[11px] text-muted-foreground truncate">
-                        Stage will update to{" "}
+                        Stage updates to{" "}
                         <strong className="text-foreground">
                           {selectedDispObj.code === "ADM_SUBMITTED"
                             ? "Admitted"
@@ -1536,32 +1464,32 @@ export function EnhancedLeadDrawer({
                         size="sm"
                         disabled={savingDisp || Boolean(selectedDispObj.requires_callback && !callbackDate)}
                         onClick={() => handleSaveDynamicOutcome()}
-                        className="h-8 px-4 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg shadow-xs cursor-pointer gap-1.5 shrink-0 disabled:opacity-50"
+                        className="h-8 px-3 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg shadow-xs cursor-pointer gap-1.5 shrink-0 disabled:opacity-50"
                       >
                         {savingDisp ? (
                           <RotateCw className="w-3.5 h-3.5 animate-spin" />
                         ) : (
                           <CheckCircle2 className="w-3.5 h-3.5" />
                         )}
-                        <span>{autoAdvanceOnSave && hasNextLead ? "Save & Next Student" : "Save Outcome"}</span>
+                        <span>{autoAdvanceOnSave && hasNextLead ? "Save & Next" : "Save Outcome"}</span>
                       </Button>
                     </div>
                   </div>
                 )}
 
                 {/* Instant 1-Click Unreachable Attempts Section */}
-                <div className="space-y-2 pt-1 border-t border-border/60">
+                <div className="space-y-1.5 pt-1 border-t border-border/60">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                       <PhoneOff className="w-3 h-3 text-orange-600" />
-                      <span>Instant 1-Click Unreachable Loggers</span>
+                      <span>Instant 1-Click Unreachable</span>
                     </span>
                     <span className="text-[10px] text-muted-foreground font-mono">
                       Attempt {lead.attempt_count || 0}/3 • 3h Cooldown
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2">
+                  <div className="flex flex-wrap gap-1.5">
                     {unreachableOptions.map((opt) => (
                       <Button
                         key={opt.code}
@@ -1570,17 +1498,17 @@ export function EnhancedLeadDrawer({
                         disabled={loggingUnreachableId !== null || savingDisp}
                         onClick={() => handleInstantUnreachable(opt)}
                         className={cn(
-                          "h-auto min-h-[38px] py-1.5 px-2.5 text-xs font-semibold justify-start border-border/80 hover:bg-orange-500/10 hover:border-orange-500/40 hover:text-orange-700 dark:hover:text-orange-400 rounded-xl transition-all gap-2 cursor-pointer",
-                          loggingUnreachableId === opt.id && "bg-orange-500/15 border-orange-500"
+                          "h-8 py-1 px-2.5 text-xs font-semibold border-border/80 hover:bg-orange-500/10 hover:border-orange-500/40 hover:text-orange-700 dark:hover:text-orange-400 rounded-lg transition-all gap-1.5 cursor-pointer shadow-2xs select-none",
+                          loggingUnreachableId === opt.id && "bg-orange-500/15 border-orange-500 text-orange-700 dark:text-orange-400"
                         )}
                         title={`Log ${opt.label} and apply 3h retry cooldown`}
                       >
                         {loggingUnreachableId === opt.id ? (
-                          <RotateCw className="w-3.5 h-3.5 animate-spin text-orange-600 shrink-0" />
+                          <RotateCw className="w-3 h-3 animate-spin text-orange-600 shrink-0" />
                         ) : (
-                          <span className="shrink-0 text-sm">{opt.icon}</span>
+                          <span className="shrink-0 text-xs">{opt.icon}</span>
                         )}
-                        <span className="leading-tight text-left line-clamp-2">{opt.label}</span>
+                        <span>{opt.label}</span>
                       </Button>
                     ))}
                   </div>
@@ -2081,22 +2009,22 @@ export function EnhancedLeadDrawer({
     </div>
 
         {/* Tier 3: Docked Mobile Action Bar (Finger-friendly for telecallers & counselors) */}
-        <div className="shrink-0 p-3 bg-card border-t border-border/80 flex items-center gap-2 sm:hidden z-30 shadow-lg safe-area-bottom">
+        <div className="shrink-0 p-2.5 bg-card border-t border-border/80 flex items-center gap-2 sm:hidden z-30 shadow-lg safe-area-bottom">
           {lead.phone ? (
             <Button
               size="sm"
               onClick={handleStartCall}
               disabled={isCalling || isDialing}
-              className="flex-1 h-11 text-xs font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
+              className="flex-1 h-9 text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-2xs"
             >
               {isDialing ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   <span>Connecting...</span>
                 </>
               ) : (
                 <>
-                  <PhoneCall className="w-4 h-4" />
+                  <PhoneCall className="w-3.5 h-3.5" />
                   <span>{isCalling ? "In Call" : "Call"}</span>
                 </>
               )}
@@ -2108,9 +2036,9 @@ export function EnhancedLeadDrawer({
               size="sm"
               variant="outline"
               onClick={() => setIsWhatsAppModalOpen(true)}
-              className="flex-1 h-11 text-xs font-bold gap-1.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl"
+              className="flex-1 h-9 text-xs font-semibold gap-1.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-lg shadow-2xs"
             >
-              <MessageSquare className="w-4 h-4" />
+              <MessageSquare className="w-3.5 h-3.5" />
               <span>WhatsApp</span>
             </Button>
           ) : null}
@@ -2120,9 +2048,9 @@ export function EnhancedLeadDrawer({
               size="sm"
               onClick={() => handleSaveDynamicOutcome()}
               disabled={savingDisp || Boolean(selectedDispObj?.requires_callback && !callbackDate)}
-              className="flex-1 h-11 text-xs font-bold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-xs cursor-pointer"
+              className="flex-1 h-9 text-xs font-bold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg shadow-xs cursor-pointer"
             >
-              <Save className="w-4 h-4" />
+              <Save className="w-3.5 h-3.5" />
               <span>{savingDisp ? "Saving..." : autoAdvanceOnSave && hasNextLead ? "Save & Next" : "Save Outcome"}</span>
             </Button>
           ) : null}
