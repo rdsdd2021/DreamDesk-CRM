@@ -310,6 +310,34 @@ export function AppSidebar({
         )}
 
         {!isCollapsed ? (
+          <a
+            href="/download"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-border/40 transition-colors"
+            title="Download Android APK for low-end phones"
+          >
+            <span className="flex items-center gap-2">
+              <Smartphone className="w-3.5 h-3.5 text-blue-500" />
+              <span>Android App</span>
+            </span>
+            <span className="text-[10px] font-mono font-semibold px-1 py-0.2 bg-blue-500/10 text-blue-500 rounded">
+              APK
+            </span>
+          </a>
+        ) : (
+          <a
+            href="/download"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+            title="Download Android App (APK)"
+          >
+            <Smartphone className="w-3.5 h-3.5 text-blue-500" />
+          </a>
+        )}
+
+        {!isCollapsed ? (
           <div
             onClick={onOpenDiagnostics}
             className="space-y-1.5 cursor-pointer p-1 -m-1 rounded-xl hover:bg-muted/40 transition-colors"
