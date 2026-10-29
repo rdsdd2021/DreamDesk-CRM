@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "DreamDesk CRM",
+    "slug": "dreamdesk-crm",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.assistt.dreamdesk.mobile"
+    },
+    "android": {
+      "package": "com.assistt.dreamdesk.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#09090b",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "READ_PHONE_STATE",
+        "CALL_PHONE",
+        "POST_NOTIFICATIONS",
+        "ACCESS_NETWORK_STATE"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "mobile": "npm --prefix mobile start",
+    "mobile:android": "npm --prefix mobile run android",
     "seed": "node scripts/seed.mjs",
     "seed:reset": "node scripts/seed.mjs --reset"
   },
