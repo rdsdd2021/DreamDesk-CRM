@@ -1091,6 +1091,49 @@ export function EnhancedLeadDrawer({
 
             {/* TAB 1: OVERVIEW */}
             <TabsContent value="overview" className="space-y-4 pt-3 m-0">
+              {/* Quick Academic Snapshot (shown right before Rapid Logger) */}
+              {(lead.raw_attributes?.stream || lead.raw_attributes?.course || lead.raw_attributes?.school || lead.raw_attributes?.city || lead.raw_attributes?.score) && (
+                <div className="bg-card border border-border/80 rounded-2xl p-3.5 sm:p-4 space-y-2.5 shadow-2xs">
+                  <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <BookOpen className="w-3.5 h-3.5 text-primary" />
+                      <span>Academic Highlights</span>
+                    </span>
+                    {lead.raw_attributes?.score && (
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                        Score: {String(lead.raw_attributes.score)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    {lead.raw_attributes?.school && (
+                      <div className="col-span-2 p-2.5 rounded-xl border border-border/60 bg-muted/20">
+                        <div className="text-[10px] text-muted-foreground uppercase font-semibold">School / College</div>
+                        <div className="font-semibold text-foreground mt-0.5 break-words">{String(lead.raw_attributes.school)}</div>
+                      </div>
+                    )}
+                    {lead.raw_attributes?.stream && (
+                      <div className="p-2.5 rounded-xl border border-border/60 bg-muted/20">
+                        <div className="text-[10px] text-muted-foreground uppercase font-semibold">Stream</div>
+                        <div className="font-semibold text-foreground mt-0.5">{String(lead.raw_attributes.stream)}</div>
+                      </div>
+                    )}
+                    {lead.raw_attributes?.course && (
+                      <div className="p-2.5 rounded-xl border border-border/60 bg-muted/20">
+                        <div className="text-[10px] text-muted-foreground uppercase font-semibold">Preferred Course</div>
+                        <div className="font-semibold text-foreground mt-0.5">{String(lead.raw_attributes.course)}</div>
+                      </div>
+                    )}
+                    {lead.raw_attributes?.city && (
+                      <div className="p-2.5 rounded-xl border border-border/60 bg-muted/20">
+                        <div className="text-[10px] text-muted-foreground uppercase font-semibold">City / Location</div>
+                        <div className="font-semibold text-foreground mt-0.5">{String(lead.raw_attributes.city)}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* STREAMLINED 2-STEP CALL OUTCOME & RAPID LOGGER */}
               <div
                 className={cn(
@@ -1869,41 +1912,6 @@ export function EnhancedLeadDrawer({
                 </div>
               </div>
 
-              {/* Quick Academic Snapshot (if present in raw_attributes) */}
-              {(lead.raw_attributes?.stream || lead.raw_attributes?.course || lead.raw_attributes?.school || lead.raw_attributes?.city) && (
-                <div className="bg-card border border-border/80 rounded-2xl p-4 sm:p-5 space-y-3 shadow-2xs">
-                  <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <BookOpen className="w-3.5 h-3.5 text-primary" />
-                    <span>Academic Highlights</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2.5 text-xs">
-                    {lead.raw_attributes?.stream && (
-                      <div className="p-2.5 rounded-xl border border-border/60 bg-muted/20">
-                        <div className="text-[10px] text-muted-foreground uppercase font-semibold">Stream</div>
-                        <div className="font-semibold text-foreground mt-0.5">{String(lead.raw_attributes.stream)}</div>
-                      </div>
-                    )}
-                    {lead.raw_attributes?.course && (
-                      <div className="p-2.5 rounded-xl border border-border/60 bg-muted/20">
-                        <div className="text-[10px] text-muted-foreground uppercase font-semibold">Preferred Course</div>
-                        <div className="font-semibold text-foreground mt-0.5">{String(lead.raw_attributes.course)}</div>
-                      </div>
-                    )}
-                    {lead.raw_attributes?.school && (
-                      <div className="col-span-2 p-2.5 rounded-xl border border-border/60 bg-muted/20">
-                        <div className="text-[10px] text-muted-foreground uppercase font-semibold">School / College</div>
-                        <div className="font-semibold text-foreground mt-0.5 break-words">{String(lead.raw_attributes.school)}</div>
-                      </div>
-                    )}
-                    {lead.raw_attributes?.city && (
-                      <div className="p-2.5 rounded-xl border border-border/60 bg-muted/20">
-                        <div className="text-[10px] text-muted-foreground uppercase font-semibold">City / Location</div>
-                        <div className="font-semibold text-foreground mt-0.5">{String(lead.raw_attributes.city)}</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
 
               {/* Logged Counselor Notes History */}
               {lead.notes && (

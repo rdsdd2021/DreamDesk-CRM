@@ -131,6 +131,7 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  overscroll-behavior-y: contain;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -139,6 +140,7 @@ h1, h2, h3, h4, h5, h6 {
 
 body {
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  overscroll-behavior-y: contain;
 }
 
 /* Custom sleek enterprise scrollbars */

@@ -351,6 +351,58 @@ export default function CRMPage() {
     }
   };
 
+  // Active Lead Drawer Session Persistence:
+  // When making phone calls or launching WhatsApp on mobile, Android WebView can reload
+  // or undergo low-memory activity recreation. Persisting the active lead ID in sessionStorage
+  // guarantees the telecaller or counselor returns directly to their open lead without losing context.
+  useEffect(() => {
+    try {
+      if (selectedLeadForDetail?.id) {
+        sessionStorage.setItem("dreamdesk_active_lead_id", String(selectedLeadForDetail.id));
+      } else {
+        sessionStorage.removeItem("dreamdesk_active_lead_id");
+      }
+    } catch {
+      // sessionStorage unavailable
+    }
+  }, [selectedLeadForDetail]);
+
+  // Restore active lead drawer if returning after a call intent or browser resume
+  useEffect(() => {
+    if (!currentUser || selectedLeadForDetail) return;
+    try {
+      const savedLeadId = sessionStorage.getItem("dreamdesk_active_lead_id");
+      if (!savedLeadId) return;
+
+      const leadIdNum = parseInt(savedLeadId, 10);
+      if (isNaN(leadIdNum)) return;
+
+      // 1. Try finding in current leads in memory
+      const localMatch = leads.find((l) => l.id === leadIdNum);
+      if (localMatch) {
+        setSelectedLeadForDetail(localMatch);
+        return;
+      }
+
+      // 2. Fetch directly from dedicated lead endpoint
+      fetch(`/api/leads/${leadIdNum}`)
+        .then((res) => {
+          if (!res.ok) throw new Error("Lead fetch failed");
+          return res.json();
+        })
+        .then((data) => {
+          if (data?.lead) {
+            setSelectedLeadForDetail(data.lead);
+          }
+        })
+        .catch(() => {
+          sessionStorage.removeItem("dreamdesk_active_lead_id");
+        });
+    } catch {
+      // ignore
+    }
+  }, [currentUser, leads, selectedLeadForDetail]);
+
   // Debounce search
   useEffect(() => {
     const handler = setTimeout(() => {

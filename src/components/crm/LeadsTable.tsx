@@ -747,7 +747,7 @@ export function LeadsTable({
           <TableHeader className="bg-muted/95 sticky top-0 z-10 border-b border-border/80">
             <TableRow className="hover:bg-transparent border-none">
               {!isTelecaller && (
-                <TableHead className="w-10 px-3 text-center">
+                <TableHead className="w-10 px-3 text-center hidden sm:table-cell">
                   <Checkbox
                     checked={isAllPageSelected || isAllFilteredSelected}
                     onCheckedChange={onToggleSelectAllPage}
@@ -757,7 +757,7 @@ export function LeadsTable({
               )}
 
               {visibleColumns.includes("lead_code") && (
-                <TableHead className="w-28 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                <TableHead className="w-28 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80 hidden md:table-cell">
                   <button
                     onClick={() => onSortChange("lead_code")}
                     className="flex items-center gap-1 hover:text-foreground transition-colors"
@@ -769,7 +769,7 @@ export function LeadsTable({
               )}
 
               {visibleColumns.includes("name") && (
-                <TableHead className="min-w-[180px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                <TableHead className="min-w-[150px] sm:min-w-[180px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
                   <button
                     onClick={() => onSortChange("name")}
                     className="flex items-center gap-1 hover:text-foreground transition-colors"
@@ -781,13 +781,13 @@ export function LeadsTable({
               )}
 
               {visibleColumns.includes("phone") && (
-                <TableHead className="min-w-[150px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                <TableHead className="min-w-[130px] sm:min-w-[150px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
                   <span>Contact</span>
                 </TableHead>
               )}
 
               {visibleColumns.includes("status") && (
-                <TableHead className="w-32 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                <TableHead className="w-28 sm:w-32 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
                   <button
                     onClick={() => onSortChange("status")}
                     className="flex items-center gap-1 hover:text-foreground transition-colors"
@@ -799,26 +799,26 @@ export function LeadsTable({
               )}
 
               {visibleColumns.includes("disposition") && (
-                <TableHead className="min-w-[160px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                <TableHead className="min-w-[135px] sm:min-w-[160px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
                   <span>Call Outcome</span>
                 </TableHead>
               )}
 
               {visibleColumns.includes("campaign") && (
-                <TableHead className="min-w-[140px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                <TableHead className="min-w-[140px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80 hidden md:table-cell">
                   <span>Campaign</span>
                 </TableHead>
               )}
 
               {visibleColumns.includes("assigned_to") && (
-                <TableHead className="min-w-[160px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                <TableHead className="min-w-[160px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80 hidden md:table-cell">
                   <span>Counselor</span>
                 </TableHead>
               )}
 
-              {/* Dynamic Columns */}
+              {/* Dynamic Columns - Hidden on mobile by default to preserve compact view */}
               {dynamicColumns.map((col) => (
-                <TableHead key={col.key_name} className="min-w-[140px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                <TableHead key={col.key_name} className="min-w-[140px] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80 hidden md:table-cell">
                   <span className="truncate">{col.display_label}</span>
                 </TableHead>
               ))}
@@ -837,12 +837,12 @@ export function LeadsTable({
                   className={cn("border-b border-border/40", density === "compact" ? "h-8" : "h-9.5")}
                 >
                   {!isTelecaller && (
-                    <TableCell className="px-3 text-center">
+                    <TableCell className="px-3 text-center hidden sm:table-cell">
                       <div className="w-3.5 h-3.5 rounded bg-muted/60 animate-pulse mx-auto" />
                     </TableCell>
                   )}
                   {visibleColumns.includes("lead_code") && (
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <div className="w-16 h-3 rounded bg-muted/60 animate-pulse" />
                     </TableCell>
                   )}
@@ -870,17 +870,17 @@ export function LeadsTable({
                     </TableCell>
                   )}
                   {visibleColumns.includes("campaign") && (
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <div className="w-20 h-4 rounded bg-muted/60 animate-pulse" />
                     </TableCell>
                   )}
                   {visibleColumns.includes("assigned_to") && (
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <div className="w-20 h-3 rounded bg-muted/60 animate-pulse" />
                     </TableCell>
                   )}
                   {dynamicColumns.map((col) => (
-                    <TableCell key={`dyn-skel-${col.key_name}-${i}`}>
+                    <TableCell key={`dyn-skel-${col.key_name}-${i}`} className="hidden md:table-cell">
                       <div className="w-16 h-3 rounded bg-muted/60 animate-pulse" />
                     </TableCell>
                   ))}
@@ -919,7 +919,7 @@ export function LeadsTable({
                   >
                     {/* Selection Checkbox */}
                     {!isTelecaller && (
-                      <TableCell className="px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="px-3 text-center hidden sm:table-cell" onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={isSelected}
                           onCheckedChange={() => onToggleLeadSelection(lead.id)}
@@ -930,7 +930,7 @@ export function LeadsTable({
 
                     {/* Lead Code */}
                     {visibleColumns.includes("lead_code") && (
-                      <TableCell className="font-mono text-muted-foreground text-[11px] tabular-nums font-medium">
+                      <TableCell className="font-mono text-muted-foreground text-[11px] tabular-nums font-medium hidden md:table-cell">
                         {lead.lead_code}
                       </TableCell>
                     )}
@@ -943,9 +943,26 @@ export function LeadsTable({
                             {(lead.name || "S").charAt(0).toUpperCase()}
                           </div>
                           <div className="min-w-0">
-                            <span className="font-bold text-foreground truncate max-w-[160px] tracking-tight hover:text-primary transition-colors block">
-                              {lead.name || "Unnamed Student"}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-foreground truncate max-w-[160px] tracking-tight hover:text-primary transition-colors block">
+                                {lead.name || "Unnamed Student"}
+                              </span>
+                              <span className="md:hidden font-mono text-[9px] font-semibold text-muted-foreground bg-muted/80 px-1 rounded">
+                                {lead.lead_code}
+                              </span>
+                            </div>
+                            {/* Mobile Academic Sub-line: Stream & School */}
+                            {(lead.raw_attributes?.stream || lead.raw_attributes?.school) && (
+                              <div className="md:hidden text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5 truncate max-w-[160px]">
+                                {lead.raw_attributes?.stream && (
+                                  <span className="font-semibold text-foreground/80">{String(lead.raw_attributes.stream)}</span>
+                                )}
+                                {lead.raw_attributes?.stream && lead.raw_attributes?.school && <span>•</span>}
+                                {lead.raw_attributes?.school && (
+                                  <span className="truncate">{String(lead.raw_attributes.school)}</span>
+                                )}
+                              </div>
+                            )}
                             {lead.tags && lead.tags.length > 0 && (
                               <div className="flex flex-wrap items-center gap-1 mt-0.5">
                                 {lead.tags.slice(0, 2).map((t) => (
@@ -1134,7 +1151,7 @@ export function LeadsTable({
 
                     {/* Campaign */}
                     {visibleColumns.includes("campaign") && (
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         {lead.campaign_name ? (
                           <Badge variant="outline" className="text-[10px] bg-muted/40 font-normal border-border/80 truncate max-w-[130px]">
                             {lead.campaign_name}
@@ -1147,7 +1164,7 @@ export function LeadsTable({
 
                     {/* Assigned Counselor (Inline Editable) */}
                     {visibleColumns.includes("assigned_to") && (
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell onClick={(e) => e.stopPropagation()} className="hidden md:table-cell">
                         {!isTelecaller ? (
                           <DropdownMenu>
                             <DropdownMenuTrigger className="focus:outline-none cursor-pointer group">
@@ -1218,7 +1235,7 @@ export function LeadsTable({
                       </TableCell>
                     )}
 
-                    {/* Dynamic Columns */}
+                    {/* Dynamic Columns - Hidden on mobile by default */}
                     {dynamicColumns.map((col) => {
                       const val = lead.raw_attributes[col.key_name];
                       if (col.key_name === "score") {
@@ -1233,7 +1250,7 @@ export function LeadsTable({
                               ? "text-amber-600 bg-amber-500/10 border-amber-500/20"
                               : "text-muted-foreground bg-muted/60 border-border/80";
                           return (
-                            <TableCell key={col.key_name}>
+                            <TableCell key={col.key_name} className="hidden md:table-cell">
                               <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${colorClass}`}>
                                 {scoreNum}
                               </span>
@@ -1241,7 +1258,7 @@ export function LeadsTable({
                           );
                         }
                         return (
-                          <TableCell key={col.key_name} onClick={(e) => e.stopPropagation()}>
+                          <TableCell key={col.key_name} onClick={(e) => e.stopPropagation()} className="hidden md:table-cell">
                             <InlineScoreCell
                               initialScore={Number(val || 0)}
                               onSave={(newScore) => onInlineUpdate?.(lead.id, "score", newScore)}
@@ -1250,7 +1267,7 @@ export function LeadsTable({
                         );
                       }
                       return (
-                        <TableCell key={col.key_name} className="text-muted-foreground text-[11px] tabular-nums">
+                        <TableCell key={col.key_name} className="text-muted-foreground text-[11px] tabular-nums hidden md:table-cell">
                           {val !== undefined && val !== null && String(val) !== "" ? (
                             <span className="truncate block max-w-[130px]" title={String(val)}>
                               {String(val)}
