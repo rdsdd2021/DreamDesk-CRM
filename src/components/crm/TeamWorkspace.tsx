@@ -202,30 +202,30 @@ export function TeamWorkspace({
     activeUsersCount > 0 ? Math.round(assignedCount / activeUsersCount) : 0;
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+    <div className="space-y-3 max-w-7xl mx-auto pb-8">
       {/* Header */}
-      <div className="bg-card border border-border/80 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-card border border-border/80 rounded-xl p-4 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 text-primary font-semibold text-xs tracking-wider uppercase mb-1">
-            <Users className="w-4 h-4" />
+          <div className="flex items-center gap-1.5 text-primary font-semibold text-[11px] tracking-wider uppercase mb-0.5">
+            <Users className="w-3.5 h-3.5" />
             <span>Counselors & Team Workload Command Center</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          <h1 className="text-xl font-bold tracking-tight text-foreground">
             Counselor Directory & Workloads
           </h1>
-          <p className="text-xs text-muted-foreground mt-1 max-w-xl">
+          <p className="text-xs text-muted-foreground mt-0.5 max-w-xl">
             Monitor admissions counselor quotas, lead allocation balances, live session audit telemetry, and manage staff access.
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 self-start md:self-auto">
+        <div className="flex items-center gap-2 self-start md:self-auto">
           {unassignedCount > 0 && (
             <Button
               size="sm"
               variant="outline"
               onClick={onAutoDistribute}
               disabled={isAutoDistributing}
-              className="h-8 text-xs font-semibold gap-1.5 border-primary/30 text-primary hover:bg-primary/10 shadow-2xs"
+              className="h-8 text-xs font-semibold gap-1.5 border-primary/30 text-primary hover:bg-primary/10 shadow-2xs cursor-pointer"
             >
               <Zap className="w-3.5 h-3.5 fill-current" />
               <span>{isAutoDistributing ? "Distributing..." : "Auto-Distribute Leads"}</span>
@@ -236,7 +236,7 @@ export function TeamWorkspace({
             <Button
               size="sm"
               onClick={() => setShowAddForm(!showAddForm)}
-              className="h-8 text-xs font-semibold gap-1.5 bg-primary text-primary-foreground shadow-2xs"
+              className="h-8 text-xs font-semibold gap-1.5 bg-primary text-primary-foreground shadow-2xs cursor-pointer"
             >
               <UserPlus className="w-3.5 h-3.5" />
               <span>{showAddForm ? "Close Form" : "Add Counselor"}</span>
@@ -247,7 +247,7 @@ export function TeamWorkspace({
 
       {/* Success Notification Alert */}
       {successMsg && (
-        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2.5 animate-in fade-in duration-200">
+        <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2 animate-in fade-in duration-150">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span className="font-medium">{successMsg}</span>
         </div>
@@ -255,15 +255,15 @@ export function TeamWorkspace({
 
       {/* Global Error Banner */}
       {error && (
-        <div className="p-3.5 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center gap-2.5 animate-in fade-in duration-200">
+        <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center gap-2 animate-in fade-in duration-150">
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span className="font-medium">{error}</span>
         </div>
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-        <div className="bg-card border border-border/80 rounded-2xl p-4 shadow-2xs">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <div className="bg-card border border-border/80 rounded-xl p-3 shadow-2xs">
           <div className="text-xs font-semibold text-muted-foreground flex items-center justify-between">
             <span>Active Counselors</span>
             {inactiveUsersCount > 0 && (
@@ -272,32 +272,32 @@ export function TeamWorkspace({
               </span>
             )}
           </div>
-          <div className="text-2xl font-bold font-mono text-foreground mt-2">
+          <div className="text-xl font-bold font-mono text-foreground mt-1">
             {activeUsersCount}
             <span className="text-xs font-normal text-muted-foreground ml-1">/ {users.length} total</span>
           </div>
           <p className="text-[10px] text-muted-foreground mt-0.5">Staff with active terminal access</p>
         </div>
 
-        <div className="bg-card border border-border/80 rounded-2xl p-4 shadow-2xs">
+        <div className="bg-card border border-border/80 rounded-xl p-3 shadow-2xs">
           <div className="text-xs font-semibold text-muted-foreground">Assigned Leads</div>
-          <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-2">
+          <div className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-1">
             {assignedCount.toLocaleString()}
           </div>
           <p className="text-[10px] text-muted-foreground mt-0.5">In active counseling queues</p>
         </div>
 
-        <div className="bg-card border border-border/80 rounded-2xl p-4 shadow-2xs">
+        <div className="bg-card border border-border/80 rounded-xl p-3 shadow-2xs">
           <div className="text-xs font-semibold text-muted-foreground">Unassigned Pool</div>
-          <div className="text-2xl font-bold font-mono text-amber-500 mt-2">
+          <div className="text-xl font-bold font-mono text-amber-500 mt-1">
             {unassignedCount.toLocaleString()}
           </div>
           <p className="text-[10px] text-muted-foreground mt-0.5">Awaiting allocation or claim</p>
         </div>
 
-        <div className="bg-card border border-border/80 rounded-2xl p-4 shadow-2xs">
+        <div className="bg-card border border-border/80 rounded-xl p-3 shadow-2xs">
           <div className="text-xs font-semibold text-muted-foreground">Average Workload</div>
-          <div className="text-2xl font-bold font-mono text-primary mt-2">
+          <div className="text-xl font-bold font-mono text-primary mt-1">
             {avgLeadsPerCounselor.toLocaleString()}
           </div>
           <p className="text-[10px] text-muted-foreground mt-0.5">Leads per active counselor</p>
@@ -422,31 +422,31 @@ export function TeamWorkspace({
           return (
             <div
               key={user.id}
-              className={`bg-card border rounded-2xl p-5 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between gap-4 group ${
+              className={`bg-card border rounded-xl p-3.5 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between gap-3 group ${
                 isDeactivated
                   ? "border-destructive/30 bg-destructive/5 opacity-85"
                   : "border-border/80"
               }`}
             >
-              <div className="space-y-3.5">
+              <div className="space-y-2.5">
                 {/* Counselor Info Header */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5">
                   <div
-                    className="w-11 h-11 rounded-xl flex items-center justify-center font-bold text-white text-base shadow-xs shrink-0"
+                    className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-white text-sm shadow-2xs shrink-0"
                     style={{ backgroundColor: isDeactivated ? "#64748b" : user.avatar_color || "#3b82f6" }}
                   >
                     {user.name.charAt(0)}
                   </div>
                   <div className="truncate flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="font-bold text-sm text-foreground truncate">
+                      <div className="font-bold text-xs sm:text-sm text-foreground truncate">
                         {user.name}
                       </div>
                       <Badge variant="outline" className="text-[10px] capitalize font-medium">
                         {user.role.replace("_", " ")}
                       </Badge>
                     </div>
-                    <div className="text-xs text-muted-foreground flex items-center gap-1.5 truncate mt-0.5">
+                    <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 truncate mt-0.5">
                       <Mail className="w-3 h-3 opacity-70 shrink-0" />
                       <span className="truncate">{user.email}</span>
                     </div>

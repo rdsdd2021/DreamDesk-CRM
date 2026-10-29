@@ -228,24 +228,24 @@ export function SpeedDialerWorkspace({
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 min-h-[500px] lg:h-[calc(100vh-210px)] lg:max-h-[850px]">
         {/* LEFT COLUMN (4 Cols / 35%): Interactive Dialing Queue */}
-        <div className={`lg:col-span-5 xl:col-span-4 flex flex-col bg-card rounded-2xl border border-border/80 shadow-2xs overflow-hidden ${
+        <div className={`lg:col-span-5 xl:col-span-4 flex flex-col bg-card rounded-xl border border-border/80 shadow-2xs overflow-hidden ${
           mobileTab === "desk" ? "hidden lg:flex" : "flex"
         }`}>
         {/* Queue Header */}
-        <div className="p-3 bg-muted/30 border-b border-border/60 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="p-2.5 bg-muted/30 border-b border-border/60 flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
               Queue Roster
             </span>
           </div>
-          <Badge variant="outline" className="text-[11px] font-mono font-bold bg-background">
+          <Badge variant="outline" className="text-[10px] font-mono font-bold bg-background px-1.5 py-0">
             {currentIndex + 1} of {leads.length} leads
           </Badge>
         </div>
 
         {/* Scrollable Queue Lead Cards */}
-        <div className="flex-1 overflow-y-auto p-2 space-y-1.5 divide-y divide-border/20">
+        <div className="flex-1 overflow-y-auto p-1.5 space-y-1 divide-y divide-border/20">
           {leads.map((l, idx) => {
             const isSelected = l.id === currentLead.id;
             return (
@@ -255,36 +255,36 @@ export function SpeedDialerWorkspace({
                   onSelectLead(l);
                   setMobileTab("desk");
                 }}
-                className={`p-2.5 rounded-xl transition-all cursor-pointer text-xs relative ${
+                className={`p-2 rounded-lg transition-all cursor-pointer text-xs relative ${
                   isSelected
-                    ? "bg-primary/10 border-2 border-primary shadow-xs"
+                    ? "bg-primary/10 border-2 border-primary shadow-2xs"
                     : "hover:bg-muted/50 border border-transparent"
                 }`}
               >
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start justify-between gap-1.5">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="font-bold text-foreground text-xs truncate">
                         {l.name || "Unnamed Student"}
                       </span>
-                      <span className="text-[10px] font-mono text-muted-foreground">
+                      <span className="text-[9px] font-mono text-muted-foreground">
                         {l.lead_code}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground">
+                    <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-muted-foreground">
                       <span className="font-mono text-foreground font-medium">{l.phone}</span>
                       {l.raw_attributes?.stream && (
-                        <span>• {String(l.raw_attributes.stream)}</span>
+                        <span className="truncate max-w-[120px]">• {String(l.raw_attributes.stream)}</span>
                       )}
                     </div>
                   </div>
 
                   {/* Actions & Status Badge */}
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="flex items-center gap-1 flex-wrap">
                       <span
-                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+                        className="text-[9px] font-bold px-1.5 py-0.2 rounded"
                         style={{
                           backgroundColor: (l.disposition_color || "#3b82f6") + "20",
                           color: l.disposition_color || "#3b82f6",
@@ -293,13 +293,13 @@ export function SpeedDialerWorkspace({
                         {l.disposition_name || l.status}
                       </span>
                       {l.attempt_count !== undefined && l.attempt_count > 0 && (
-                        <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                        <span className="text-[9px] font-mono font-bold px-1 py-0.2 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
                           Att #{l.attempt_count}/3
                         </span>
                       )}
                       {l.cooldown_until && new Date(l.cooldown_until) > new Date() && (
-                        <span className="text-[9px] font-medium px-1.5 py-0.2 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center gap-0.5">
-                          <Timer className="w-2.5 h-2.5" /> Cooldown
+                        <span className="text-[9px] font-medium px-1 py-0.2 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center gap-0.5">
+                          <Timer className="w-2.5 h-2.5" /> Cool
                         </span>
                       )}
                     </div>
@@ -310,13 +310,13 @@ export function SpeedDialerWorkspace({
                         <button
                           onClick={(e) => handleTriggerDial(l.id, e)}
                           disabled={dialingLeadId === l.id}
-                          className="w-7 h-7 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-600 flex items-center justify-center transition-colors cursor-pointer"
+                          className="w-6.5 h-6.5 rounded-md bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-600 flex items-center justify-center transition-colors cursor-pointer"
                           title="Dial softphone via secure intent (C)"
                         >
                           {dialingLeadId === l.id ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <Loader2 className="w-3 h-3 animate-spin" />
                           ) : (
-                            <Phone className="w-3.5 h-3.5" />
+                            <Phone className="w-3 h-3" />
                           )}
                         </button>
                       )}
@@ -326,10 +326,10 @@ export function SpeedDialerWorkspace({
                             e.stopPropagation();
                             onOpenWhatsApp(l);
                           }}
-                          className="w-7 h-7 rounded-lg bg-green-500/10 hover:bg-green-500/25 text-green-600 flex items-center justify-center transition-colors cursor-pointer"
+                          className="w-6.5 h-6.5 rounded-md bg-green-500/10 hover:bg-green-500/25 text-green-600 flex items-center justify-center transition-colors cursor-pointer"
                           title="WhatsApp template (W)"
                         >
-                          <MessageSquare className="w-3.5 h-3.5" />
+                          <MessageSquare className="w-3 h-3" />
                         </button>
                       )}
                     </div>
@@ -338,7 +338,7 @@ export function SpeedDialerWorkspace({
 
                 {/* Scheduled Callback indicator if present */}
                 {l.callback_at && (
-                  <div className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md w-fit">
+                  <div className="mt-1 flex items-center gap-1 text-[10px] font-medium text-amber-700 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.2 rounded w-fit">
                     <Clock className="w-2.5 h-2.5" />
                     <span>Callback: {new Date(l.callback_at).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}</span>
                   </div>
@@ -350,49 +350,49 @@ export function SpeedDialerWorkspace({
       </div>
 
       {/* RIGHT COLUMN (8 Cols / 65%): Active Consultation Desk */}
-      <div className={`lg:col-span-7 xl:col-span-8 flex flex-col bg-card rounded-2xl border border-border/80 shadow-2xs overflow-hidden ${
+      <div className={`lg:col-span-7 xl:col-span-8 flex flex-col bg-card rounded-xl border border-border/80 shadow-2xs overflow-hidden ${
         mobileTab === "queue" ? "hidden lg:flex" : "flex"
       }`}>
         {/* Desk Top Navigation Bar */}
-        <div className="p-3 bg-muted/20 border-b border-border/60 flex items-center justify-between gap-2 sm:gap-3">
+        <div className="p-2.5 bg-muted/20 border-b border-border/60 flex items-center justify-between gap-2 sm:gap-2.5">
           {/* Mobile Back Button to Queue */}
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setMobileTab("queue")}
-            className="lg:hidden h-8 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground gap-1 rounded-lg shrink-0 cursor-pointer"
+            className="lg:hidden h-7 px-2 text-xs font-semibold text-muted-foreground hover:text-foreground gap-1 rounded-md shrink-0 cursor-pointer"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-3.5 h-3.5" />
             <span>Queue</span>
           </Button>
 
           {/* Student Identity */}
-          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold text-xs sm:text-sm shrink-0 border border-primary/20">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs sm:text-sm shrink-0 border border-primary/20">
               {(currentLead.name || "S").charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                <h3 className="font-bold text-sm sm:text-base text-foreground truncate">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h3 className="font-bold text-xs sm:text-sm text-foreground truncate">
                   {currentLead.name || "Unnamed Student"}
                 </h3>
-                <Badge variant="outline" className="font-mono text-[9px] sm:text-[10px] text-muted-foreground px-1 sm:px-1.5">
+                <Badge variant="outline" className="font-mono text-[9px] text-muted-foreground px-1 py-0">
                   {currentLead.lead_code}
                 </Badge>
                 {currentLead.attempt_count !== undefined && currentLead.attempt_count > 0 && (
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
                     Attempt {currentLead.attempt_count}/3
                   </span>
                 )}
                 {currentLead.cooldown_until && new Date(currentLead.cooldown_until) > new Date() && (
-                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center gap-1">
-                    <Timer className="w-3 h-3" /> Cooldown Active
+                  <span className="text-[9px] font-medium px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center gap-0.5">
+                    <Timer className="w-2.5 h-2.5" /> Cooldown Active
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2 text-[11px] sm:text-xs text-muted-foreground">
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <span className="font-mono font-semibold text-foreground">{currentLead.phone}</span>
-                {currentLead.email && <span className="hidden sm:inline">• {currentLead.email}</span>}
+                {currentLead.email && <span className="hidden sm:inline truncate max-w-[150px]">• {currentLead.email}</span>}
               </div>
             </div>
           </div>
@@ -457,41 +457,41 @@ export function SpeedDialerWorkspace({
         </div>
 
         {/* Consultation Desk Body */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-3 space-y-3">
           {/* School / Institution Banner */}
           {currentLead.raw_attributes?.school && (
-            <div className="p-2.5 rounded-xl border border-border/60 bg-muted/20 text-xs flex items-center gap-2">
-              <School className="w-4 h-4 text-primary shrink-0" />
+            <div className="p-2 rounded-lg border border-border/60 bg-muted/20 text-xs flex items-center gap-2">
+              <School className="w-3.5 h-3.5 text-primary shrink-0" />
               <div className="min-w-0">
                 <span className="text-[10px] text-muted-foreground uppercase font-bold block">School / Institution</span>
-                <span className="font-semibold text-foreground break-words">{String(currentLead.raw_attributes.school)}</span>
+                <span className="font-semibold text-foreground break-words text-xs">{String(currentLead.raw_attributes.school)}</span>
               </div>
             </div>
           )}
 
           {/* 4-Card Mini Briefing Strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-            <div className="p-2.5 rounded-xl border border-border/60 bg-muted/20 space-y-0.5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs">
+            <div className="p-2 rounded-lg border border-border/60 bg-muted/20 space-y-0.5">
               <span className="text-[10px] font-bold text-muted-foreground uppercase">Stream & Program</span>
-              <p className="font-semibold text-foreground truncate">
+              <p className="font-semibold text-foreground truncate text-xs">
                 {String(currentLead.raw_attributes?.stream || "Unspecified")}
               </p>
             </div>
-            <div className="p-2.5 rounded-xl border border-border/60 bg-muted/20 space-y-0.5">
+            <div className="p-2 rounded-lg border border-border/60 bg-muted/20 space-y-0.5">
               <span className="text-[10px] font-bold text-muted-foreground uppercase">City / Location</span>
-              <p className="font-semibold text-foreground truncate">
+              <p className="font-semibold text-foreground truncate text-xs">
                 {String(currentLead.raw_attributes?.city || "Unknown")}
               </p>
             </div>
-            <div className="p-2.5 rounded-xl border border-border/60 bg-muted/20 space-y-0.5">
+            <div className="p-2 rounded-lg border border-border/60 bg-muted/20 space-y-0.5">
               <span className="text-[10px] font-bold text-muted-foreground uppercase">Lead Score / Marks</span>
-              <p className="font-bold text-primary tabular-nums">
+              <p className="font-bold text-primary tabular-nums text-xs">
                 {currentLead.raw_attributes?.score || "N/A"}%
               </p>
             </div>
-            <div className="p-2.5 rounded-xl border border-border/60 bg-muted/20 space-y-0.5">
+            <div className="p-2 rounded-lg border border-border/60 bg-muted/20 space-y-0.5">
               <span className="text-[10px] font-bold text-muted-foreground uppercase">Assigned Counselor</span>
-              <p className="font-semibold text-foreground truncate flex items-center gap-1">
+              <p className="font-semibold text-foreground truncate flex items-center gap-1 text-xs">
                 <span
                   className="w-2 h-2 rounded-full inline-block shrink-0"
                   style={{ backgroundColor: currentLead.assigned_user_color || "#3b82f6" }}
@@ -503,7 +503,7 @@ export function SpeedDialerWorkspace({
 
           {/* Pinned Latest Remark Banner */}
           {latestRemark ? (
-            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs space-y-1">
+            <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs space-y-1">
               <div className="flex items-center justify-between text-amber-700 dark:text-amber-400 font-bold text-[11px]">
                 <span className="flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5" />
@@ -513,20 +513,20 @@ export function SpeedDialerWorkspace({
                   {new Date(latestRemark.created_at).toLocaleDateString([], { month: "short", day: "numeric" })}
                 </span>
               </div>
-              <p className="text-foreground leading-relaxed font-medium">
+              <p className="text-foreground leading-relaxed font-medium text-xs">
                 {latestRemark.description}
               </p>
             </div>
           ) : (
-            <div className="p-2.5 rounded-xl bg-muted/30 border border-border/50 text-xs text-muted-foreground text-center">
+            <div className="p-2 rounded-lg bg-muted/30 border border-border/50 text-[11px] text-muted-foreground text-center">
               No previous notes logged. Be the first counselor to log consultation notes below.
             </div>
           )}
 
           {/* 2-ZONE CALL OUTCOME & DISPOSITION CONTROLLER */}
-          <div className="space-y-3.5">
+          <div className="space-y-2.5">
             {/* ZONE 1: UNREACHABLE / MISSED CALL (1-CLICK RETRY LOGGING) */}
-            <div className="p-3 sm:p-3.5 rounded-2xl bg-orange-500/[0.04] border border-orange-500/25 space-y-2">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-orange-500/[0.04] border border-orange-500/25 space-y-1.5">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-orange-700 dark:text-orange-400 uppercase tracking-wider">
                   <PhoneOff className="w-3.5 h-3.5 text-orange-600" />
@@ -546,7 +546,7 @@ export function SpeedDialerWorkspace({
                 Clicking any button logs an outreach attempt, applies a 3h cooldown, and keeps the lead in the retry queue without prematurely marking as &ldquo;Contacted&rdquo;.
               </p>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-0.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-0.5">
                 {(dispositions.filter((d) => d.category === "unreachable" || ["RNR", "BUSY", "SWITCH_OFF", "INVALID_NUM"].includes(d.code)).length > 0
                   ? dispositions.filter((d) => d.category === "unreachable" || ["RNR", "BUSY", "SWITCH_OFF", "INVALID_NUM"].includes(d.code))
                   : [
@@ -565,7 +565,7 @@ export function SpeedDialerWorkspace({
                         setTimeout(() => onNextLead(), 250);
                       }
                     }}
-                    className="p-2.5 rounded-xl text-xs font-semibold bg-background hover:bg-orange-500/10 border border-border/80 hover:border-orange-500/30 text-foreground transition-all cursor-pointer flex items-center justify-between shadow-2xs active:scale-95 text-left"
+                    className="p-2 rounded-lg text-xs font-semibold bg-background hover:bg-orange-500/10 border border-border/80 hover:border-orange-500/30 text-foreground transition-all cursor-pointer flex items-center justify-between shadow-2xs active:scale-95 text-left"
                     title={`Log ${d.name} & advance`}
                   >
                     <span className="truncate">{d.name}</span>
@@ -576,7 +576,7 @@ export function SpeedDialerWorkspace({
             </div>
 
             {/* ZONE 2: CALL CONNECTED (CONVERSATION OUTCOMES & DISPOSITIONS) */}
-            <div className="p-3 sm:p-3.5 rounded-2xl bg-card border border-border/80 space-y-3 shadow-2xs">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-card border border-border/80 space-y-2 shadow-2xs">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-foreground uppercase tracking-wider">
                   <PhoneCall className="w-3.5 h-3.5 text-emerald-600" />
@@ -600,9 +600,9 @@ export function SpeedDialerWorkspace({
                           setSelectedConnectedDispId(selectedConnectedDispId === d.id ? "" : d.id);
                           setSelectedSubDispId("");
                         }}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border cursor-pointer flex items-center gap-1.5 ${
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all border cursor-pointer flex items-center gap-1.5 ${
                           isSelected
-                            ? "border-primary bg-primary text-primary-foreground shadow-xs font-bold ring-2 ring-primary/20"
+                            ? "border-primary bg-primary text-primary-foreground shadow-2xs font-bold ring-2 ring-primary/20"
                             : "border-border/80 bg-muted/30 hover:bg-muted/70 text-foreground"
                         }`}
                       >

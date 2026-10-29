@@ -381,37 +381,37 @@ export function LeadsTable({
             <div
               key={lead.id}
               className={cn(
-                "bg-card border border-border/80 rounded-2xl p-3.5 shadow-2xs hover:shadow-xs transition-all space-y-3 relative text-xs flex flex-col justify-between",
+                "bg-card border border-border/80 rounded-xl p-2.5 sm:p-3 shadow-2xs hover:shadow-xs transition-all space-y-2 relative text-xs flex flex-col justify-between",
                 isSelected ? "border-primary/60 bg-primary/[0.03] ring-1 ring-primary/20" : "",
                 activeLeadId === lead.id ? "ring-2 ring-primary border-transparent" : ""
               )}
             >
               {/* Header: Checkbox, Name, Lead Code, Stage Dropdown */}
-              <div className="space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-start gap-2.5 min-w-0">
+              <div className="space-y-1.5">
+                <div className="flex items-start justify-between gap-1.5">
+                  <div className="flex items-start gap-2 min-w-0">
                     {!isTelecaller && (
                       <Checkbox
                         checked={isSelected}
                         onCheckedChange={() => onToggleLeadSelection(lead.id)}
-                        className="mt-1"
+                        className="mt-0.5"
                         aria-label={`Select ${lead.lead_code}`}
                       />
                     )}
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span
-                          className="font-bold text-sm text-foreground hover:text-primary transition-colors cursor-pointer truncate max-w-[170px]"
+                          className="font-bold text-xs sm:text-sm text-foreground hover:text-primary transition-colors cursor-pointer truncate max-w-[170px]"
                           onClick={() => onViewLeadDetails(lead)}
                         >
                           {lead.name || "Unnamed Student"}
                         </span>
-                        <Badge variant="outline" className="font-mono text-[10px] font-semibold px-1.5 py-0.5 text-muted-foreground rounded-md">
+                        <Badge variant="outline" className="font-mono text-[9px] font-semibold px-1 py-0 text-muted-foreground rounded">
                           {lead.lead_code}
                         </Badge>
                         {renderAttemptPill(lead)}
                       </div>
-                      <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
+                      <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
                         {rawAttrs.stream && <span className="font-medium text-foreground/90">{rawAttrs.stream}</span>}
                         {rawAttrs.city && (
                           <>
@@ -453,7 +453,7 @@ export function LeadsTable({
                 </div>
 
                 {/* Academic & Score Box - Full Width for Mobile Visibility */}
-                <div className="space-y-2 text-xs bg-muted/40 p-2.5 rounded-xl border border-border/70">
+                <div className="space-y-1.5 text-xs bg-muted/40 p-2 rounded-lg border border-border/70">
                   {/* Dedicated Full-Width School Row (No Truncation) */}
                   <div className="space-y-0.5">
                     <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider flex items-center gap-1">
@@ -466,15 +466,15 @@ export function LeadsTable({
                   </div>
 
                   {/* Academic Stream & Score Badges */}
-                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/50 flex-wrap">
-                    <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                  <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-border/50 flex-wrap">
+                    <div className="flex items-center gap-1 flex-wrap min-w-0">
                       {rawAttrs.stream && (
-                        <span className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/70 text-foreground truncate max-w-[150px]">
+                        <span className="px-1.5 py-0.2 text-[10px] font-medium rounded bg-background border border-border/70 text-foreground truncate max-w-[140px]">
                           {rawAttrs.stream}
                         </span>
                       )}
                       {rawAttrs.course && (
-                        <span className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-background border border-border/70 text-muted-foreground truncate max-w-[150px]">
+                        <span className="px-1.5 py-0.2 text-[10px] font-medium rounded bg-background border border-border/70 text-muted-foreground truncate max-w-[140px]">
                           {rawAttrs.course}
                         </span>
                       )}
@@ -482,12 +482,12 @@ export function LeadsTable({
 
                     <div className="flex items-center gap-1 shrink-0">
                       {rawAttrs.score ? (
-                        <span className="px-1.5 py-0.5 text-[11px] font-mono font-bold rounded-md bg-primary/10 text-primary border border-primary/20">
+                        <span className="px-1.5 py-0.2 text-[10px] font-mono font-bold rounded bg-primary/10 text-primary border border-primary/20">
                           {rawAttrs.score}%
                         </span>
                       ) : null}
                       {rawAttrs.jee_percentile && (
-                        <span className="px-1.5 py-0.5 text-[11px] font-mono rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20">
+                        <span className="px-1.5 py-0.2 text-[10px] font-mono rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20">
                           JEE {rawAttrs.jee_percentile}%
                         </span>
                       )}
@@ -595,13 +595,13 @@ export function LeadsTable({
                 </div>
               </div>
 
-              {/* Big Touch Action Buttons for Telecallers & Counselors */}
-              <div className="grid grid-cols-3 gap-2 pt-1">
+              {/* Action Buttons for Telecallers & Counselors */}
+              <div className="grid grid-cols-3 gap-1.5 pt-0.5">
                 {lead.phone ? (
                   <button
                     onClick={(e) => handleTriggerCall(lead.id, e)}
                     disabled={dialingLeadId === lead.id}
-                    className="col-span-1 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer"
+                    className="col-span-1 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer"
                     title="Direct Phone Call"
                   >
                     {dialingLeadId === lead.id ? (
@@ -612,7 +612,7 @@ export function LeadsTable({
                     <span>{dialingLeadId === lead.id ? "Calling..." : "Call"}</span>
                   </button>
                 ) : (
-                  <button disabled className="col-span-1 h-10 rounded-xl bg-muted text-muted-foreground text-xs flex items-center justify-center opacity-50">
+                  <button disabled className="col-span-1 h-8 rounded-lg bg-muted text-muted-foreground text-xs flex items-center justify-center opacity-50">
                     No Phone
                   </button>
                 )}
@@ -620,7 +620,7 @@ export function LeadsTable({
                 {lead.phone ? (
                   <button
                     onClick={(e) => handleTriggerWhatsApp(lead.id, e)}
-                    className="col-span-1 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer hover:bg-emerald-500/20"
+                    className="col-span-1 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer hover:bg-emerald-500/20"
                     title="Message on WhatsApp"
                   >
                     <MessageSquare className="w-3.5 h-3.5" />
@@ -631,7 +631,7 @@ export function LeadsTable({
                 <Button
                   variant="outline"
                   onClick={() => onViewLeadDetails(lead)}
-                  className="col-span-1 h-10 rounded-xl text-xs font-semibold border-border/80 hover:bg-muted text-foreground cursor-pointer"
+                  className="col-span-1 h-8 rounded-lg text-xs font-semibold border-border/80 hover:bg-muted text-foreground cursor-pointer"
                 >
                   <Eye className="w-3.5 h-3.5 mr-1 text-muted-foreground" />
                   <span>Details</span>
@@ -834,7 +834,7 @@ export function LeadsTable({
               Array.from({ length: 8 }).map((_, i) => (
                 <TableRow
                   key={`skeleton-${i}`}
-                  className={cn("border-b border-border/40", density === "compact" ? "h-8.5" : "h-11")}
+                  className={cn("border-b border-border/40", density === "compact" ? "h-8" : "h-9.5")}
                 >
                   {!isTelecaller && (
                     <TableCell className="px-3 text-center">
@@ -910,7 +910,7 @@ export function LeadsTable({
                     data-state={isSelected ? "selected" : undefined}
                     className={cn(
                       "cursor-pointer text-xs transition-colors border-b border-border/60",
-                      density === "compact" ? "h-8.5" : "h-11",
+                      density === "compact" ? "h-8" : "h-9.5",
                       activeLeadId === lead.id
                         ? "bg-primary/10 border-l-2 border-l-primary shadow-xs font-medium"
                         : "hover:bg-muted/40"
@@ -938,8 +938,8 @@ export function LeadsTable({
                     {/* Student Name */}
                     {visibleColumns.includes("name") && (
                       <TableCell className="font-medium">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0 shadow-2xs border border-primary/20">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[11px] font-bold shrink-0 shadow-2xs border border-primary/20">
                             {(lead.name || "S").charAt(0).toUpperCase()}
                           </div>
                           <div className="min-w-0">
@@ -1268,7 +1268,7 @@ export function LeadsTable({
                         <DropdownMenuTrigger
                           className={cn(
                             buttonVariants({ variant: "ghost", size: "icon" }),
-                            "h-7 w-7 cursor-pointer hover:bg-muted text-muted-foreground hover:text-foreground"
+                            "h-6.5 w-6.5 cursor-pointer hover:bg-muted text-muted-foreground hover:text-foreground"
                           )}
                         >
                           <MoreHorizontal className="w-3.5 h-3.5" />

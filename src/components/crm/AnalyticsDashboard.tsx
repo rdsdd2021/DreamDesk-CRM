@@ -374,19 +374,19 @@ export function AnalyticsDashboard({
   const dailyTrend = reportData?.dailyIntakeTrend || [];
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-4 pb-8">
       {/* Header & Comprehensive Filter Control Center */}
-      <div className="bg-card border border-border/80 rounded-2xl p-5 sm:p-6 shadow-sm space-y-5">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-card border border-border/80 rounded-xl p-3.5 sm:p-4 shadow-2xs space-y-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2 text-primary font-semibold text-xs tracking-wider uppercase mb-1">
-              <BarChart3 className="w-4 h-4" />
+            <div className="flex items-center gap-1.5 text-primary font-semibold text-[11px] tracking-wider uppercase mb-0.5">
+              <BarChart3 className="w-3.5 h-3.5" />
               <span>Admissions Intelligence & Reporting Suite</span>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
+            <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
               <span>Executive Analytics & Performance</span>
               {loading && (
-                <span className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                <span className="w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
               )}
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5 max-w-xl">
@@ -394,7 +394,7 @@ export function AnalyticsDashboard({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+          <div className="flex flex-wrap items-center gap-1.5 self-start md:self-auto">
             {activeFiltersCount > 0 && (
               <Button
                 size="sm"
@@ -416,7 +416,7 @@ export function AnalyticsDashboard({
               title={`Last updated at ${lastRefreshedAt.toLocaleTimeString()}`}
             >
               <RotateCcw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-primary" : ""}`} />
-              <span>{loading ? "Refreshing..." : "Refresh Metrics"}</span>
+              <span>{loading ? "Refreshing..." : "Refresh"}</span>
             </Button>
 
             <Button
@@ -426,13 +426,13 @@ export function AnalyticsDashboard({
               className="h-8 text-xs font-semibold gap-1.5 bg-primary text-primary-foreground shadow-2xs cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Export Report (CSV)</span>
+              <span>Export CSV</span>
             </Button>
           </div>
         </div>
 
         {/* INTERACTIVE FILTER CONTROL BAR */}
-        <div className="pt-4 border-t border-border/60 space-y-4">
+        <div className="pt-3 border-t border-border/60 space-y-3">
           {/* Row 1: Date & Time Quick Presets */}
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-xs font-bold text-muted-foreground mr-1.5 flex items-center gap-1">
@@ -702,19 +702,19 @@ export function AnalyticsDashboard({
       )}
 
       {/* TOP FILTERED KPI CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
         {/* Total Ingested in Range */}
-        <Card className="shadow-2xs hover:border-primary/40 transition-colors">
-          <CardHeader className="p-4 pb-2 space-y-0 flex flex-row items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+        <Card className="rounded-xl shadow-2xs hover:border-primary/40 transition-colors">
+          <CardHeader className="p-3 pb-1 space-y-0 flex flex-row items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               Filtered Leads
             </span>
-            <div className="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-600 flex items-center justify-center">
-              <GraduationCap className="w-3.5 h-3.5" />
+            <div className="w-6 h-6 rounded-md bg-blue-500/10 text-blue-600 flex items-center justify-center">
+              <GraduationCap className="w-3 h-3" />
             </div>
           </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-black text-foreground">
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-black text-foreground">
               {summary.totalLeads.toLocaleString()}
             </div>
             <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -724,17 +724,17 @@ export function AnalyticsDashboard({
         </Card>
 
         {/* Assigned in Pipeline */}
-        <Card className="shadow-2xs hover:border-emerald-500/40 transition-colors">
-          <CardHeader className="p-4 pb-2 space-y-0 flex flex-row items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+        <Card className="rounded-xl shadow-2xs hover:border-emerald-500/40 transition-colors">
+          <CardHeader className="p-3 pb-1 space-y-0 flex flex-row items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               Active Pipeline
             </span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-              <UserCheck className="w-3.5 h-3.5" />
+            <div className="w-6 h-6 rounded-md bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+              <UserCheck className="w-3 h-3" />
             </div>
           </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">
               {summary.assignedCount.toLocaleString()}
             </div>
             <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -744,17 +744,17 @@ export function AnalyticsDashboard({
         </Card>
 
         {/* Unassigned Pool */}
-        <Card className="shadow-2xs hover:border-amber-500/40 transition-colors">
-          <CardHeader className="p-4 pb-2 space-y-0 flex flex-row items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+        <Card className="rounded-xl shadow-2xs hover:border-amber-500/40 transition-colors">
+          <CardHeader className="p-3 pb-1 space-y-0 flex flex-row items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               Unassigned Pool
             </span>
-            <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center">
-              <UserX className="w-3.5 h-3.5" />
+            <div className="w-6 h-6 rounded-md bg-amber-500/10 text-amber-600 flex items-center justify-center">
+              <UserX className="w-3 h-3" />
             </div>
           </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-black text-amber-600">
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-black text-amber-600">
               {summary.unassignedCount.toLocaleString()}
             </div>
             <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -764,17 +764,17 @@ export function AnalyticsDashboard({
         </Card>
 
         {/* Conversion Rate */}
-        <Card className="shadow-2xs hover:border-purple-500/40 transition-colors">
-          <CardHeader className="p-4 pb-2 space-y-0 flex flex-row items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+        <Card className="rounded-xl shadow-2xs hover:border-purple-500/40 transition-colors">
+          <CardHeader className="p-3 pb-1 space-y-0 flex flex-row items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               Positive Ratio
             </span>
-            <div className="w-7 h-7 rounded-lg bg-purple-500/10 text-purple-600 flex items-center justify-center">
-              <TrendingUp className="w-3.5 h-3.5" />
+            <div className="w-6 h-6 rounded-md bg-purple-500/10 text-purple-600 flex items-center justify-center">
+              <TrendingUp className="w-3 h-3" />
             </div>
           </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-black text-purple-600 dark:text-purple-400">
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-black text-purple-600 dark:text-purple-400">
               {summary.conversionRate}%
             </div>
             <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -784,17 +784,17 @@ export function AnalyticsDashboard({
         </Card>
 
         {/* Calls Logged */}
-        <Card className="shadow-2xs hover:border-violet-500/40 transition-colors">
-          <CardHeader className="p-4 pb-2 space-y-0 flex flex-row items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+        <Card className="rounded-xl shadow-2xs hover:border-violet-500/40 transition-colors">
+          <CardHeader className="p-3 pb-1 space-y-0 flex flex-row items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               Calls Logged
             </span>
-            <div className="w-7 h-7 rounded-lg bg-violet-500/10 text-violet-600 flex items-center justify-center">
-              <PhoneCall className="w-3.5 h-3.5" />
+            <div className="w-6 h-6 rounded-md bg-violet-500/10 text-violet-600 flex items-center justify-center">
+              <PhoneCall className="w-3 h-3" />
             </div>
           </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-black text-violet-600 dark:text-violet-400">
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-black text-violet-600 dark:text-violet-400">
               {summary.callsLogged.toLocaleString()}
             </div>
             <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
@@ -810,17 +810,17 @@ export function AnalyticsDashboard({
         </Card>
 
         {/* Avg Lead Quality Score */}
-        <Card className="shadow-2xs hover:border-amber-500/40 transition-colors">
-          <CardHeader className="p-4 pb-2 space-y-0 flex flex-row items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+        <Card className="rounded-xl shadow-2xs hover:border-amber-500/40 transition-colors">
+          <CardHeader className="p-3 pb-1 space-y-0 flex flex-row items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               Avg Quality
             </span>
-            <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center">
-              <Sparkles className="w-3.5 h-3.5" />
+            <div className="w-6 h-6 rounded-md bg-amber-500/10 text-amber-600 flex items-center justify-center">
+              <Sparkles className="w-3 h-3" />
             </div>
           </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-black text-foreground">
+          <CardContent className="p-3 pt-0">
+            <div className="text-xl font-black text-foreground">
               {summary.avgScore} <span className="text-xs font-normal text-muted-foreground">/ 100</span>
             </div>
             <p className="text-[10px] text-muted-foreground mt-0.5">

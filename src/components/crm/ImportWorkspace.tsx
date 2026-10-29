@@ -323,46 +323,46 @@ export function ImportWorkspace({
   };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-12">
+    <div className="space-y-3 max-w-6xl mx-auto pb-8">
       {/* Workspace Header */}
-      <div className="bg-card border border-border/80 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-card border border-border/80 rounded-xl p-4 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 text-primary font-semibold text-xs tracking-wider uppercase mb-1">
-            <Upload className="w-4 h-4" />
+          <div className="flex items-center gap-1.5 text-primary font-semibold text-[11px] tracking-wider uppercase mb-0.5">
+            <Upload className="w-3.5 h-3.5" />
             <span>Enterprise Data Ingestion & Field Mapping Center</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          <h1 className="text-xl font-bold tracking-tight text-foreground">
             Batch CSV Lead Ingestion
           </h1>
-          <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
+          <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">
             Stream student spreadsheets into SQLite WAL with intelligent column auto-matching,
             phone deduplication, and dynamic schema auto-registration.
           </p>
         </div>
 
         {/* Stepper Indicator */}
-        <div className="flex items-center gap-2 self-start md:self-auto bg-muted/40 p-1.5 rounded-xl border border-border/60 text-xs">
+        <div className="flex items-center gap-1.5 self-start md:self-auto bg-muted/40 p-1 rounded-lg border border-border/60 text-xs">
           <div
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-colors ${
-              currentStep === 1 ? "bg-primary text-primary-foreground font-semibold shadow-xs" : "text-muted-foreground"
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium transition-colors ${
+              currentStep === 1 ? "bg-primary text-primary-foreground font-semibold shadow-2xs" : "text-muted-foreground"
             }`}
           >
             <span>1</span>
             <span className="hidden sm:inline">Upload</span>
           </div>
-          <div className="w-3 h-0.5 bg-border" />
+          <div className="w-2.5 h-0.5 bg-border" />
           <div
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-colors ${
-              currentStep === 2 ? "bg-primary text-primary-foreground font-semibold shadow-xs" : "text-muted-foreground"
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium transition-colors ${
+              currentStep === 2 ? "bg-primary text-primary-foreground font-semibold shadow-2xs" : "text-muted-foreground"
             }`}
           >
             <span>2</span>
             <span className="hidden sm:inline">Field Mapping</span>
           </div>
-          <div className="w-3 h-0.5 bg-border" />
+          <div className="w-2.5 h-0.5 bg-border" />
           <div
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-colors ${
-              currentStep === 3 ? "bg-emerald-600 text-white font-semibold shadow-xs" : "text-muted-foreground"
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium transition-colors ${
+              currentStep === 3 ? "bg-emerald-600 text-white font-semibold shadow-2xs" : "text-muted-foreground"
             }`}
           >
             <span>3</span>
@@ -372,7 +372,7 @@ export function ImportWorkspace({
       </div>
 
       {error && (
-        <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive flex items-center gap-3 text-xs">
+        <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive flex items-center gap-2.5 text-xs animate-in fade-in duration-150">
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span className="font-semibold">{error}</span>
         </div>
@@ -380,7 +380,7 @@ export function ImportWorkspace({
 
       {/* STEP 1: UPLOAD CSV FILE */}
       {currentStep === 1 && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div
             onClick={() => fileInputRef.current?.click()}
             onDragOver={handleDragOver}
@@ -388,9 +388,9 @@ export function ImportWorkspace({
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             className={cn(
-              "border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all bg-card group shadow-sm",
+              "border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all bg-card group shadow-2xs",
               isDragging
-                ? "border-primary bg-primary/10 ring-4 ring-primary/20 scale-[1.01]"
+                ? "border-primary bg-primary/10 ring-2 ring-primary/20 scale-[1.005]"
                 : "border-border/80 hover:border-primary/60 hover:bg-muted/30"
             )}
           >
@@ -403,18 +403,18 @@ export function ImportWorkspace({
             />
             <div
               className={cn(
-                "w-16 h-16 rounded-2xl text-primary flex items-center justify-center mx-auto mb-4 transition-transform",
+                "w-12 h-12 rounded-xl text-primary flex items-center justify-center mx-auto mb-3 transition-transform",
                 isDragging
                   ? "bg-primary text-primary-foreground scale-110 shadow-md animate-bounce"
                   : "bg-primary/10 group-hover:scale-105"
               )}
             >
-              <FileSpreadsheet className="w-8 h-8" />
+              <FileSpreadsheet className="w-6 h-6" />
             </div>
-            <h3 className="text-base font-bold text-foreground">
+            <h3 className="text-sm font-bold text-foreground">
               {isDragging ? "Drop your CSV file here to start parsing!" : "Click to select or drag and drop your CSV spreadsheet"}
             </h3>
-            <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+            <p className="text-xs text-muted-foreground mt-0.5 max-w-md mx-auto">
               {isDragging
                 ? "Release file now to auto-detect columns and start field mapping."
                 : "Supports files with 50,000+ rows. Any custom column names are supported and can be mapped in the next step."}

@@ -197,11 +197,11 @@ export function UnifiedCommandBar({
   ];
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       {/* Unified Command Panel Card */}
-      <div className="p-2 sm:p-2.5 rounded-xl bg-card border border-border/80 shadow-2xs space-y-2">
+      <div className="p-2 sm:p-2.5 rounded-xl bg-card border border-border/80 shadow-2xs space-y-1.5">
         {/* Tier 1: Work Queues Navigation & View Mode Switcher */}
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2 pb-1.5 border-b border-border/50">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-1.5 pb-1.5 border-b border-border/50">
           {/* Left: Queue Segment Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto min-w-0 flex-1 py-0.5 scrollbar-thin scrollbar-thumb-border/60">
             {queues.map((q) => {
@@ -212,7 +212,7 @@ export function UnifiedCommandBar({
                   key={q.id}
                   type="button"
                   onClick={() => onSelectQueue(q.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer shrink-0 ${
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer shrink-0 ${
                     isActive
                       ? "bg-primary text-primary-foreground shadow-2xs"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
@@ -243,7 +243,7 @@ export function UnifiedCommandBar({
               <button
                 type="button"
                 onClick={() => onToggleViewMode("table")}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
                   viewMode === "table"
                     ? "bg-background text-foreground shadow-2xs font-semibold"
                     : "text-muted-foreground hover:text-foreground"
@@ -256,7 +256,7 @@ export function UnifiedCommandBar({
               <button
                 type="button"
                 onClick={() => onToggleViewMode("grid")}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
                   viewMode === "grid"
                     ? "bg-background text-primary shadow-2xs font-semibold"
                     : "text-muted-foreground hover:text-foreground"
@@ -269,7 +269,7 @@ export function UnifiedCommandBar({
               <button
                 type="button"
                 onClick={() => onToggleViewMode("dialer")}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
                   viewMode === "dialer"
                     ? "bg-background text-primary shadow-2xs font-semibold"
                     : "text-muted-foreground hover:text-foreground"
@@ -284,16 +284,16 @@ export function UnifiedCommandBar({
         </div>
 
         {/* Tier 2: Search, Filters & Action Tools */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1.5">
           {/* Universal Search Input + Filters Button */}
-          <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
             <div className="relative flex-1 max-w-md min-w-[140px]">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <Input
                 placeholder="Search leads by name, phone, school (/)..."
                 value={search}
                 onChange={(e) => onSearchChange(e.target.value)}
-                className="pl-8 pr-7 h-8.5 text-xs rounded-lg bg-background border-border/80 focus-visible:ring-1"
+                className="pl-8 pr-7 h-8 text-xs rounded-lg bg-background border-border/80 focus-visible:ring-1"
               />
               {search ? (
                 <button
@@ -316,7 +316,7 @@ export function UnifiedCommandBar({
               variant={filterDrawerOpen || activeFiltersCount > 0 ? "secondary" : "outline"}
               size="sm"
               onClick={onToggleFilterDrawer}
-              className={`h-8.5 text-xs gap-1.5 rounded-lg font-medium cursor-pointer shrink-0 ${
+              className={`h-8 text-xs gap-1.5 rounded-lg font-medium cursor-pointer shrink-0 ${
                 activeFiltersCount > 0
                   ? "border-primary/40 bg-primary/10 text-primary font-semibold"
                   : ""
@@ -537,13 +537,13 @@ export function UnifiedCommandBar({
 
       {/* Active Filters Pill Bar (renders only when filters or search are active) */}
       {(activeFiltersCount > 0 || search) && (
-        <div className="flex flex-wrap items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-muted/30 border border-border/50 text-xs animate-in fade-in duration-150">
+        <div className="flex flex-wrap items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/30 border border-border/50 text-xs animate-in fade-in duration-150">
           <span className="text-[11px] font-semibold text-muted-foreground mr-1">Active:</span>
 
           {search && (
             <Badge
               variant="secondary"
-              className="h-6 gap-1.5 pl-2 pr-1 rounded-md text-[11px] bg-background border border-border/80 shadow-2xs font-normal"
+              className="h-5 gap-1.5 pl-2 pr-1 rounded-md text-[10px] bg-background border border-border/80 shadow-2xs font-normal"
             >
               <span>Search: &ldquo;{search}&rdquo;</span>
               <button
@@ -562,7 +562,7 @@ export function UnifiedCommandBar({
               <Badge
                 key={`${key}-${val}`}
                 variant="secondary"
-                className="h-6 gap-1.5 pl-2 pr-1 rounded-md text-[11px] bg-background border border-border/80 shadow-2xs font-normal"
+                className="h-5 gap-1.5 pl-2 pr-1 rounded-md text-[10px] bg-background border border-border/80 shadow-2xs font-normal"
               >
                 <span className="text-muted-foreground">{label}:</span>
                 <span className="font-semibold text-foreground">{val}</span>
@@ -580,7 +580,7 @@ export function UnifiedCommandBar({
             variant="ghost"
             size="sm"
             onClick={onClearAllFilters}
-            className="h-6 px-2 text-[11px] text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-md cursor-pointer ml-auto"
+            className="h-5 px-2 text-[10px] text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-md cursor-pointer ml-auto"
           >
             <RotateCcw className="w-3 h-3 mr-1" />
             Clear all

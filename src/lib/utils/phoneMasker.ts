@@ -46,9 +46,14 @@ export function maskPhoneNumber(phone?: string | null): string {
 
   const cleanDigits = digitsPart.replace(/[^0-9]/g, "");
 
-  if (cleanDigits.length <= 3) {
-    // Too short to mask cleanly, return bullets
-    return prefix + "•••";
+  // If no digits exist (e.g. "N/A", "None", empty), return empty string
+  if (cleanDigits.length === 0) {
+    return "";
+  }
+
+  // If number is shorter than 5 digits, it's not a valid phone number to mask
+  if (cleanDigits.length < 5) {
+    return prefix + cleanDigits;
   }
 
   const lastThree = cleanDigits.slice(-3);

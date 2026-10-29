@@ -117,15 +117,15 @@ export function DuplicatesModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-4xl max-w-[95vw] p-0 overflow-hidden max-h-[85vh] flex flex-col border border-border/80 shadow-2xl rounded-2xl">
-        <DialogHeader className="p-5 pb-4 bg-muted/40 border-b border-border/60 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-500/20">
-              <GitMerge className="w-4 h-4" />
+      <DialogContent className="sm:max-w-4xl max-w-[95vw] p-0 overflow-hidden max-h-[85vh] flex flex-col border border-border/80 shadow-2xl rounded-xl">
+        <DialogHeader className="p-3.5 pb-2.5 bg-muted/40 border-b border-border/60 shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-500/20">
+              <GitMerge className="w-3.5 h-3.5" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
-                <DialogTitle className="text-lg font-bold tracking-tight text-foreground">
+                <DialogTitle className="text-base font-bold tracking-tight text-foreground">
                   Duplicate Records Scanner
                 </DialogTitle>
                 <Badge variant="outline" className="font-mono text-xs font-semibold px-2 py-0.5">

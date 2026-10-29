@@ -26,6 +26,7 @@ import {
   MessageSquare,
   User,
   ArrowRight,
+  Loader2,
 } from "lucide-react";
 
 interface TasksModalProps {
@@ -58,6 +59,36 @@ export function TasksModal({
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"today" | "overdue" | "upcoming">("today");
+  const [dialingTaskId, setDialingTaskId] = useState<number | null>(null);
+
+  const handleTaskCall = async (leadId: number) => {
+    try {
+      setDialingTaskId(leadId);
+      const res = await fetch(`/api/leads/${leadId}/call-intent`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to trigger call");
+      if (data.dialUri) {
+        window.location.href = data.dialUri;
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to initiate call");
+    } finally {
+      setDialingTaskId(null);
+    }
+  };
+
+  const handleTaskWhatsApp = async (leadId: number) => {
+    try {
+      const res = await fetch(`/api/leads/${leadId}/whatsapp-intent`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to launch WhatsApp");
+      if (data.whatsappUri) {
+        window.open(data.whatsappUri, "_blank");
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to launch WhatsApp");
+    }
+  };
 
   const loadTasks = async () => {
     setLoading(true);
@@ -102,14 +133,14 @@ export function TasksModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0 gap-0">
-        <DialogHeader className="p-6 pb-4 border-b bg-muted/30">
+        <DialogHeader className="p-4 pb-3 border-b bg-muted/30">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-                <Clock className="w-5 h-5" />
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                <Clock className="w-4 h-4" />
               </div>
               <div>
-                <DialogTitle className="text-lg font-bold">Scheduled Callbacks & Follow-up Tasks</DialogTitle>
+                <DialogTitle className="text-base font-bold">Scheduled Callbacks & Follow-up Tasks</DialogTitle>
                 <DialogDescription className="text-xs text-muted-foreground">
                   {roleMode === "counselor" ? "Your personal queued callbacks" : "All counselors' scheduled follow-ups"}
                 </DialogDescription>
@@ -121,21 +152,21 @@ export function TasksModal({
           </div>
 
           {/* Search within tasks */}
-          <div className="relative mt-3">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <div className="relative mt-2">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
             <Input
               placeholder="Search tasks by student name, phone, or notes..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-8 pl-8 text-xs bg-background"
+              className="h-8 pl-8 text-xs bg-background rounded-lg"
             />
           </div>
         </DialogHeader>
 
         {/* Tab Buckets: Today, Overdue, Upcoming */}
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-1 flex flex-col overflow-hidden">
-          <div className="px-6 pt-3 border-b bg-muted/10">
-            <TabsList className="grid grid-cols-3 h-9">
+          <div className="px-4 pt-2 border-b bg-muted/10">
+            <TabsList className="grid grid-cols-3 h-8">
               <TabsTrigger value="today" className="text-xs gap-1.5 font-medium">
                 <Clock className="w-3.5 h-3.5 text-amber-500" />
                 <span>Today</span>
@@ -160,21 +191,21 @@ export function TasksModal({
             </TabsList>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6 space-y-2.5">
+          <div className="flex-1 overflow-y-auto p-4 space-y-2">
             {activeTab === "today" && renderTaskList(todayList, "today")}
             {activeTab === "overdue" && renderTaskList(overdueList, "overdue")}
             {activeTab === "upcoming" && renderTaskList(upcomingList, "upcoming")}
           </div>
         </Tabs>
 
-        <DialogFooter className="p-4 bg-muted/30 border-t border-border/60 flex items-center justify-between sm:justify-between">
+        <DialogFooter className="p-3 px-4 bg-muted/30 border-t border-border/60 flex items-center justify-between sm:justify-between">
           <div className="text-xs text-muted-foreground">
             Showing <span className="font-semibold text-foreground">{tasksData.totalCount}</span> scheduled follow-up tasks
           </div>
           <Button
             type="button"
             onClick={onClose}
-            className="text-xs font-semibold h-9 px-5 rounded-lg shadow-2xs bg-primary text-primary-foreground"
+            className="text-xs font-semibold h-8 px-4 rounded-lg shadow-2xs bg-primary text-primary-foreground cursor-pointer"
           >
             Close
           </Button>
@@ -274,23 +305,27 @@ export function TasksModal({
                       size="sm"
                       variant="outline"
                       className="h-7 text-xs gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                      onClick={() => {
-                        window.location.href = `tel:${task.phone}`;
-                      }}
+                      disabled={dialingTaskId === task.lead_id}
+                      onClick={() => handleTaskCall(task.lead_id)}
+                      title="Direct Phone Call via secure dialer"
                     >
-                      <Phone className="w-3 h-3" />
-                      <span>Call</span>
+                      {dialingTaskId === task.lead_id ? (
+                        <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
+                      ) : (
+                        <Phone className="w-3 h-3" />
+                      )}
+                      <span>{dialingTaskId === task.lead_id ? "Calling..." : "Call"}</span>
                     </Button>
                   )}
-                  {cleanPhone.length >= 10 && (
+                  {task.phone && (
                     <Button
                       size="sm"
                       variant="ghost"
                       className="h-7 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                      onClick={() => {
-                        window.open(`https://wa.me/${cleanPhone}`, "_blank");
-                      }}
+                      onClick={() => handleTaskWhatsApp(task.lead_id)}
+                      title="Direct WhatsApp Message"
                     >
+                      <MessageSquare className="w-3 h-3 text-emerald-600" />
                       <span>WhatsApp</span>
                     </Button>
                   )}

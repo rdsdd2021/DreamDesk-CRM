@@ -320,14 +320,14 @@ export function BulkAssignModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleModalClose()}>
-      <DialogContent className="sm:max-w-xl p-0 overflow-hidden border border-border/80 shadow-2xl rounded-2xl">
+      <DialogContent className="sm:max-w-xl p-0 overflow-hidden border border-border/80 shadow-2xl rounded-xl">
         {/* ========================================================================= */}
         {/* VIEW 1: LIVE ALLOCATION COCKPIT (PROGRESS & TELEMETRY)                    */}
         {/* ========================================================================= */}
         {viewMode === "cockpit" ? (
           <div className="flex flex-col">
             {/* Header */}
-            <div className="p-5 pb-4 bg-muted/40 border-b border-border/60">
+            <div className="p-3.5 pb-2.5 bg-muted/40 border-b border-border/60">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-primary font-semibold text-xs tracking-wider uppercase">
                   <Zap className="w-4 h-4" />
@@ -554,13 +554,13 @@ export function BulkAssignModal({
           /* VIEW 2: ALLOCATION CONFIGURATION FORM                                     */
           /* ========================================================================= */
           <>
-            <DialogHeader className="p-5 pb-4 bg-muted/40 border-b border-border/60">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20">
-                  <Users className="w-4 h-4" />
+            <DialogHeader className="p-3.5 pb-2.5 bg-muted/40 border-b border-border/60">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20">
+                  <Users className="w-3.5 h-3.5" />
                 </div>
                 <div>
-                  <DialogTitle className="text-lg font-bold tracking-tight text-foreground">
+                  <DialogTitle className="text-base font-bold tracking-tight text-foreground">
                     Bulk Lead Allocation
                   </DialogTitle>
                   <DialogDescription className="text-xs text-muted-foreground mt-0.5">
@@ -572,14 +572,14 @@ export function BulkAssignModal({
             </DialogHeader>
 
             {errorMessage && (
-              <div className="mx-5 mt-4 p-3 rounded-xl bg-destructive/10 text-destructive border border-destructive/20 text-xs flex items-center gap-2">
+              <div className="mx-4 mt-3 p-2.5 rounded-lg bg-destructive/10 text-destructive border border-destructive/20 text-xs flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span className="font-medium">{errorMessage}</span>
               </div>
             )}
 
             {/* 7-Day Counselor Ownership Protection Notice */}
-            <div className="mx-5 mt-3.5 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs space-y-1.5">
+            <div className="mx-4 mt-2.5 p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs space-y-1">
               <div className="flex items-center gap-1.5 font-semibold text-blue-700 dark:text-blue-300">
                 <ShieldCheck className="w-3.5 h-3.5" />
                 <span>7-Day Counselor Ownership Policy Protection Active</span>

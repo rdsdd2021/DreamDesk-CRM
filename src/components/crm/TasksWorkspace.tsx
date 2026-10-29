@@ -97,6 +97,23 @@ export function TasksWorkspace({
   const [selectedPriority, setSelectedPriority] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"today" | "overdue" | "upcoming" | "completed" | "all">("today");
   const [completingTaskId, setCompletingTaskId] = useState<number | null>(null);
+  const [dialingTaskId, setDialingTaskId] = useState<number | null>(null);
+
+  const handleTaskCall = async (leadId: number, taskId: number) => {
+    try {
+      setDialingTaskId(taskId);
+      const res = await fetch(`/api/leads/${leadId}/call-intent`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to trigger call");
+      if (data.dialUri) {
+        window.location.href = data.dialUri;
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to initiate call");
+    } finally {
+      setDialingTaskId(null);
+    }
+  };
 
   const loadTasks = async () => {
     setLoading(true);
@@ -321,18 +338,18 @@ export function TasksWorkspace({
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+    <div className="space-y-3 max-w-7xl mx-auto pb-8">
       {/* Header */}
-      <div className="bg-card border border-border/80 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-card border border-border/80 rounded-xl p-4 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 text-primary font-semibold text-xs tracking-wider uppercase mb-1">
-            <Clock className="w-4 h-4 text-amber-500" />
+          <div className="flex items-center gap-1.5 text-primary font-semibold text-[11px] tracking-wider uppercase mb-0.5">
+            <Clock className="w-3.5 h-3.5 text-amber-500" />
             <span>Prioritized Follow-Up & Callbacks Command Center</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          <h1 className="text-xl font-bold tracking-tight text-foreground">
             Tasks, Callbacks & Counselor Priorities
           </h1>
-          <p className="text-xs text-muted-foreground mt-1 max-w-xl">
+          <p className="text-xs text-muted-foreground mt-0.5 max-w-xl">
             Never drop a lead. Follow-up tasks auto-generated from bulk assignments, campaign switches,
             and tag updates are routed here sorted by TL priority and SLA.
           </p>
@@ -343,7 +360,7 @@ export function TasksWorkspace({
           size="sm"
           onClick={loadTasks}
           disabled={loading}
-          className="h-8 text-xs gap-1.5 self-start md:self-auto"
+          className="h-8 text-xs gap-1.5 self-start md:self-auto cursor-pointer"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
           <span>Refresh Tasks</span>
@@ -351,20 +368,20 @@ export function TasksWorkspace({
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <div
           onClick={() => setActiveTab("overdue")}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+          className={`p-3 rounded-xl border transition-all cursor-pointer ${
             activeTab === "overdue"
-              ? "bg-red-500/10 border-red-500/40 shadow-xs ring-1 ring-red-500/30"
+              ? "bg-red-500/10 border-red-500/40 shadow-2xs ring-1 ring-red-500/30"
               : "bg-card border-border/80 hover:bg-muted/30"
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-muted-foreground">Overdue SLA</span>
-            <AlertTriangle className="w-4 h-4 text-red-500" />
+            <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
           </div>
-          <div className="text-2xl font-bold font-mono text-red-600 dark:text-red-400 mt-2">
+          <div className="text-xl font-bold font-mono text-red-600 dark:text-red-400 mt-1">
             {tasksData.overdue.length}
           </div>
           <p className="text-[10px] text-muted-foreground mt-0.5">Missed SLA: needs immediate attention</p>
@@ -372,17 +389,17 @@ export function TasksWorkspace({
 
         <div
           onClick={() => setActiveTab("today")}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+          className={`p-3 rounded-xl border transition-all cursor-pointer ${
             activeTab === "today"
-              ? "bg-amber-500/10 border-amber-500/40 shadow-xs ring-1 ring-amber-500/30"
+              ? "bg-amber-500/10 border-amber-500/40 shadow-2xs ring-1 ring-amber-500/30"
               : "bg-card border-border/80 hover:bg-muted/30"
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-muted-foreground">Due Today</span>
-            <Clock className="w-4 h-4 text-amber-500" />
+            <Clock className="w-3.5 h-3.5 text-amber-500" />
           </div>
-          <div className="text-2xl font-bold font-mono text-amber-600 dark:text-amber-400 mt-2">
+          <div className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400 mt-1">
             {tasksData.today.length}
           </div>
           <p className="text-[10px] text-muted-foreground mt-0.5">Today&apos;s active calling queue</p>
@@ -390,17 +407,17 @@ export function TasksWorkspace({
 
         <div
           onClick={() => setActiveTab("upcoming")}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+          className={`p-3 rounded-xl border transition-all cursor-pointer ${
             activeTab === "upcoming"
-              ? "bg-blue-500/10 border-blue-500/40 shadow-xs ring-1 ring-blue-500/30"
+              ? "bg-blue-500/10 border-blue-500/40 shadow-2xs ring-1 ring-blue-500/30"
               : "bg-card border-border/80 hover:bg-muted/30"
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-muted-foreground">Upcoming</span>
-            <Calendar className="w-4 h-4 text-blue-500" />
+            <Calendar className="w-3.5 h-3.5 text-blue-500" />
           </div>
-          <div className="text-2xl font-bold font-mono text-blue-600 dark:text-blue-400 mt-2">
+          <div className="text-xl font-bold font-mono text-blue-600 dark:text-blue-400 mt-1">
             {tasksData.upcoming.length}
           </div>
           <p className="text-[10px] text-muted-foreground mt-0.5">Future booked consultations & tasks</p>
@@ -408,17 +425,17 @@ export function TasksWorkspace({
 
         <div
           onClick={() => setActiveTab("completed")}
-          className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+          className={`p-3 rounded-xl border transition-all cursor-pointer ${
             activeTab === "completed"
-              ? "bg-emerald-500/10 border-emerald-500/40 shadow-xs ring-1 ring-emerald-500/30"
+              ? "bg-emerald-500/10 border-emerald-500/40 shadow-2xs ring-1 ring-emerald-500/30"
               : "bg-card border-border/80 hover:bg-muted/30"
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-muted-foreground">Completed Tasks</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
           </div>
-          <div className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-2">
+          <div className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-1">
             {tasksData.completed.length}
           </div>
           <p className="text-[10px] text-muted-foreground mt-0.5">Resolved follow-up items</p>
@@ -565,7 +582,7 @@ export function TasksWorkspace({
             return (
               <div
                 key={task.id}
-                className={`bg-card border rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-shadow flex flex-col justify-between gap-3 group ${
+                className={`bg-card border rounded-xl p-3 shadow-2xs hover:shadow-xs transition-shadow flex flex-col justify-between gap-2.5 group ${
                   isCompleted
                     ? "opacity-60 bg-muted/20 border-border/50"
                     : task.priority === "urgent"
@@ -657,12 +674,17 @@ export function TasksWorkspace({
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => (window.location.href = `tel:${studentPhone}`)}
+                        onClick={() => handleTaskCall(task.lead_id, task.id)}
+                        disabled={dialingTaskId === task.id}
                         className="h-7 text-xs px-2.5 gap-1 border-emerald-500/30 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                        title="Direct Phone Call"
+                        title="Direct Phone Call via secure dialer"
                       >
-                        <PhoneCall className="w-3 h-3 text-emerald-500" />
-                        <span>Call</span>
+                        {dialingTaskId === task.id ? (
+                          <Loader2 className="w-3 h-3 animate-spin text-emerald-500" />
+                        ) : (
+                          <PhoneCall className="w-3 h-3 text-emerald-500" />
+                        )}
+                        <span>{dialingTaskId === task.id ? "Calling..." : "Call"}</span>
                       </Button>
                     )}
 

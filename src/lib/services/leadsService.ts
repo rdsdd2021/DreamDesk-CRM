@@ -184,17 +184,36 @@ export class LeadsService {
 
     // Global Search
     if (params.search && params.search.trim()) {
-      conditions.push(`(
-        leads.name LIKE @search 
-        OR leads.phone LIKE @search 
-        OR leads.email LIKE @search 
-        OR leads.lead_code LIKE @search 
-        OR campaigns.name LIKE @search
-        OR dispositions.name LIKE @search
-        OR leads.tags LIKE @search
-        OR leads.raw_attributes LIKE @search
-      )`);
-      queryParams.search = `%${params.search.trim()}%`;
+      const searchTrimmed = params.search.trim();
+      const cleanDigits = searchTrimmed.replace(/[^0-9]/g, "");
+      
+      if (cleanDigits.length >= 3) {
+        conditions.push(`(
+          leads.name LIKE @search 
+          OR leads.phone LIKE @search 
+          OR REPLACE(REPLACE(REPLACE(REPLACE(leads.phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE @search_digits
+          OR leads.email LIKE @search 
+          OR leads.lead_code LIKE @search 
+          OR campaigns.name LIKE @search
+          OR dispositions.name LIKE @search
+          OR leads.tags LIKE @search
+          OR leads.raw_attributes LIKE @search
+        )`);
+        queryParams.search = `%${searchTrimmed}%`;
+        queryParams.search_digits = `%${cleanDigits}%`;
+      } else {
+        conditions.push(`(
+          leads.name LIKE @search 
+          OR leads.phone LIKE @search 
+          OR leads.email LIKE @search 
+          OR leads.lead_code LIKE @search 
+          OR campaigns.name LIKE @search
+          OR dispositions.name LIKE @search
+          OR leads.tags LIKE @search
+          OR leads.raw_attributes LIKE @search
+        )`);
+        queryParams.search = `%${searchTrimmed}%`;
+      }
     }
 
     // Status filter
@@ -2475,11 +2494,13 @@ export class LeadsService {
 
     this.invalidateCache();
 
+    const shouldMaskPhone = !currentUser || (currentUser.role !== "admin" && currentUser.role !== "team_lead");
+
     return {
       id: updated.id,
       lead_code: updated.lead_code,
       name: updated.name,
-      phone: updated.phone,
+      phone: shouldMaskPhone ? maskPhoneNumber(updated.phone) : updated.phone,
       email: updated.email,
       status: updated.status,
       assigned_to: updated.assigned_to,
@@ -3365,9 +3386,17 @@ export class LeadsService {
         data: { field, value },
       });
     } catch {}
+    const userScope = options?.currentUser
+      ? {
+          userId: options.currentUser.id,
+          role: options.currentUser.role,
+          canViewAllLeads: options.currentUser.role === "admin" || options.currentUser.role === "team_lead",
+          name: options.currentUser.name,
+        }
+      : null;
     return {
       success: true,
-      lead: this.getLeadById(leadId)!,
+      lead: this.getLeadById(leadId, userScope)!,
     };
   }
 

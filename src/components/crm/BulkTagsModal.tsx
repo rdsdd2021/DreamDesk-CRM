@@ -125,11 +125,11 @@ export function BulkTagsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md rounded-2xl p-5 sm:p-6 gap-4">
-        <DialogHeader className="space-y-1.5">
+      <DialogContent className="sm:max-w-md rounded-xl p-4 sm:p-4.5 gap-3">
+        <DialogHeader className="space-y-1">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
-              <Bookmark className="w-4 h-4" />
+            <div className="w-7 h-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+              <Bookmark className="w-3.5 h-3.5" />
             </div>
             <DialogTitle className="text-base font-bold text-foreground">
               Manage Tags in Bulk
@@ -339,14 +339,14 @@ export function BulkTagsModal({
           )}
         </div>
 
-        <DialogFooter className="pt-2 sm:pt-3 border-t border-border/70 flex sm:justify-between items-center gap-2">
+        <DialogFooter className="pt-2 sm:pt-2.5 border-t border-border/70 flex sm:justify-between items-center gap-2">
           <Button
             type="button"
             variant="ghost"
             size="sm"
             onClick={onClose}
             disabled={submitting}
-            className="text-xs h-9 rounded-xl"
+            className="text-xs h-8 rounded-lg cursor-pointer"
           >
             Cancel
           </Button>
@@ -355,7 +355,7 @@ export function BulkTagsModal({
             size="sm"
             onClick={handleSubmit}
             disabled={submitting || selectedTags.length === 0}
-            className="text-xs font-bold h-9 px-4 rounded-xl gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+            className="text-xs font-bold h-8 px-3 rounded-lg gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-2xs cursor-pointer"
           >
             <Bookmark className="w-3.5 h-3.5" />
             <span>
