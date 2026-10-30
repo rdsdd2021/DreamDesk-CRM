@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { User, BulkAssignRequest, FilterParams, TaskPriority } from "@/types/crm";
 import {
   Dialog,
@@ -99,6 +99,21 @@ export function BulkAssignModal({
     Math.min(1000, availableCount)
   );
 
+  // Synchronize counselor selection whenever modal opens or users list loads
+  useEffect(() => {
+    if (isOpen) {
+      setErrorMessage(null);
+      if (users.length > 0) {
+        setSingleUserId((prev) => (prev && users.some((u) => u.id === prev) ? prev : users[0].id));
+        setSelectedCounselorIds((prev) => {
+          if (prev.length === 0) return users.map((u) => u.id);
+          const valid = prev.filter((id) => users.some((u) => u.id === id));
+          return valid.length > 0 ? valid : users.map((u) => u.id);
+        });
+      }
+    }
+  }, [isOpen, users]);
+
   // Live Batch Processing State
   const batchControllerRef = useRef<BatchController | null>(null);
   const [isPaused, setIsPaused] = useState(false);
@@ -174,16 +189,28 @@ export function BulkAssignModal({
 
     // Validation
     if (activeTab === "auto" && selectedCounselorIds.length === 0) {
-      setErrorMessage("Please select at least one counselor to distribute leads.");
-      return;
+      if (users.length > 0) {
+        setSelectedCounselorIds(users.map((u) => u.id));
+      } else {
+        setErrorMessage("Please select at least one counselor to distribute leads.");
+        return;
+      }
     }
     if (activeTab === "quota" && totalQuotaAllocated === 0) {
       setErrorMessage("Please specify a quota greater than 0 for at least one counselor.");
       return;
     }
-    if (activeTab === "single" && !singleUserId) {
-      setErrorMessage("Please select a counselor to assign leads to.");
-      return;
+
+    let effectiveSingleUserId = singleUserId;
+    if (activeTab === "single") {
+      if (!effectiveSingleUserId && users.length > 0) {
+        effectiveSingleUserId = users[0].id;
+        setSingleUserId(users[0].id);
+      }
+      if (!effectiveSingleUserId) {
+        setErrorMessage("Please select a counselor to assign leads to.");
+        return;
+      }
     }
 
     setLoading(true);
@@ -249,7 +276,7 @@ export function BulkAssignModal({
               mode: activeTab,
               selected_user_ids: activeTab === "auto" ? selectedCounselorIds : undefined,
               user_quotas: activeTab === "quota" ? quotas : undefined,
-              single_user_id: activeTab === "single" ? singleUserId : undefined,
+              single_user_id: activeTab === "single" ? (singleUserId || effectiveSingleUserId) : undefined,
               lead_ids: chunkIds,
               apply_to_all_filtered: false,
               override_policy: overridePolicy,
@@ -791,10 +818,16 @@ export function BulkAssignModal({
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-foreground">Target Counselor</label>
                     <select
-                      value={singleUserId}
-                      onChange={(e) => setSingleUserId(e.target.value)}
-                      className="w-full h-9 rounded-lg border border-border bg-background px-3 text-xs font-medium focus:ring-1 focus:ring-primary"
+                      value={singleUserId || (users[0]?.id ?? "")}
+                      onChange={(e) => {
+                        setSingleUserId(e.target.value);
+                        setErrorMessage(null);
+                      }}
+                      className="w-full h-9 rounded-lg border border-border bg-background px-3 text-xs font-medium focus:ring-1 focus:ring-primary cursor-pointer"
                     >
+                      {users.length === 0 && (
+                        <option value="">No counselors found</option>
+                      )}
                       {users.map((u) => (
                         <option key={u.id} value={u.id}>
                           {u.name} ({u.role})
