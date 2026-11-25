@@ -8,14 +8,13 @@ import { useAuth } from "../context/AuthContext";
 
 // Screens
 import { LoginScreen } from "../screens/LoginScreen";
-import { QueueScreen } from "../screens/QueueScreen";
 import { LeadsScreen } from "../screens/LeadsScreen";
 import { TasksScreen } from "../screens/TasksScreen";
 import { ProfileScreen } from "../screens/ProfileScreen";
 import { LeadDetailScreen } from "../screens/LeadDetailScreen";
 
 // Icons
-import { PhoneCall, Users, CalendarCheck, User } from "lucide-react-native";
+import { Users, CalendarCheck, User } from "lucide-react-native";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -23,6 +22,7 @@ const Tab = createBottomTabNavigator();
 function MainTabNavigator() {
   return (
     <Tab.Navigator
+      initialRouteName="Leads"
       screenOptions={{
         headerStyle: {
           backgroundColor: Colors.backgroundDark,
@@ -52,18 +52,10 @@ function MainTabNavigator() {
       }}
     >
       <Tab.Screen
-        name="Queue"
-        component={QueueScreen}
-        options={{
-          title: "Dial Queue",
-          tabBarIcon: ({ color, size }) => <PhoneCall size={size - 2} color={color} />,
-        }}
-      />
-      <Tab.Screen
         name="Leads"
         component={LeadsScreen}
         options={{
-          title: "Leads",
+          title: "My Leads",
           tabBarIcon: ({ color, size }) => <Users size={size - 2} color={color} />,
         }}
       />
