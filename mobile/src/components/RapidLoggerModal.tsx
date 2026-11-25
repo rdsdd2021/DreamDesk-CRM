@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Modal,
   View,
@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { Colors } from "../theme/colors";
 import { MobileApiClient } from "../api/mobileApiClient";
-import { X, Clock, Check, PhoneOff, PhoneCall, Sparkles } from "lucide-react-native";
+import { X, Clock, Check, PhoneOff, PhoneCall, Sparkles, Calendar } from "lucide-react-native";
 
 interface DispositionOption {
   id: string;
@@ -32,6 +32,24 @@ interface RapidLoggerModalProps {
   initialDurationSeconds?: number;
 }
 
+type CallbackPreset = "none" | "15m" | "1h" | "tom_10am" | "tom_4pm";
+
+function computeCallbackIso(preset: CallbackPreset): string | undefined {
+  if (preset === "none") return undefined;
+  const now = new Date();
+  if (preset === "15m") {
+    return new Date(now.getTime() + 15 * 60 * 1000).toISOString();
+  }
+  if (preset === "1h") {
+    return new Date(now.getTime() + 60 * 60 * 1000).toISOString();
+  }
+  const tom = new Date(now);
+  tom.setDate(tom.getDate() + 1);
+  tom.setMinutes(0, 0, 0);
+  tom.setHours(preset === "tom_10am" ? 10 : 16);
+  return tom.toISOString();
+}
+
 export function RapidLoggerModal({
   visible,
   leadId,
@@ -43,8 +61,19 @@ export function RapidLoggerModal({
 }: RapidLoggerModalProps) {
   const [outcomeType, setOutcomeType] = useState<"connected" | "unreachable">("connected");
   const [selectedDispId, setSelectedDispId] = useState<string>("");
+  const [callbackPreset, setCallbackPreset] = useState<CallbackPreset>("none");
   const [notes, setNotes] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Reset form cleanly whenever opened for a lead
+  useEffect(() => {
+    if (visible) {
+      setOutcomeType("connected");
+      setSelectedDispId("");
+      setCallbackPreset("none");
+      setNotes("");
+    }
+  }, [visible, leadId]);
 
   const formatDuration = (secs: number) => {
     const mins = Math.floor(secs / 60);
@@ -60,7 +89,8 @@ export function RapidLoggerModal({
 
     try {
       setSubmitting(true);
-      const { data, error } = await MobileApiClient.fetchJson<{ success: boolean }>(
+      const callbackAt = computeCallbackIso(callbackPreset);
+      const { error } = await MobileApiClient.fetchJson<{ success: boolean }>(
         `/api/leads/${leadId}/disposition`,
         {
           method: "POST",
@@ -68,6 +98,7 @@ export function RapidLoggerModal({
             disposition_id: selectedDispId,
             call_outcome: outcomeType,
             notes: notes.trim(),
+            callback_at: callbackAt,
             call_duration_seconds: initialDurationSeconds,
           }),
         }
@@ -95,13 +126,21 @@ export function RapidLoggerModal({
     return outcomeType === "unreachable" ? isUnreach : !isUnreach;
   });
 
+  const presets: { id: CallbackPreset; label: string }[] = [
+    { id: "none", label: "No Callback" },
+    { id: "15m", label: "+15 min" },
+    { id: "1h", label: "+1 hour" },
+    { id: "tom_10am", label: "Tom 10 AM" },
+    { id: "tom_4pm", label: "Tom 4 PM" },
+  ];
+
   return (
     <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.sheetContainer}>
           {/* Header */}
           <View style={styles.header}>
-            <View>
+            <View style={{ flex: 1, marginRight: 10 }}>
               <View style={styles.titleRow}>
                 <Sparkles size={16} color={Colors.primaryLight} />
                 <Text style={styles.sheetTitle}>Log Call Outcome</Text>
@@ -115,13 +154,13 @@ export function RapidLoggerModal({
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             {/* Duration Pill */}
             {initialDurationSeconds > 0 && (
               <View style={styles.durationPill}>
                 <Clock size={14} color={Colors.warning} />
                 <Text style={styles.durationText}>
-                  Detected Call Duration: <Text style={styles.bold}>{formatDuration(initialDurationSeconds)}</Text>
+                  Call Duration: <Text style={styles.bold}>{formatDuration(initialDurationSeconds)}</Text>
                 </Text>
               </View>
             )}
@@ -130,7 +169,10 @@ export function RapidLoggerModal({
             <Text style={styles.sectionLabel}>STEP 1: CALL STATUS</Text>
             <View style={styles.outcomeToggleContainer}>
               <TouchableOpacity
-                onPress={() => setOutcomeType("connected")}
+                onPress={() => {
+                  setOutcomeType("connected");
+                  setSelectedDispId("");
+                }}
                 style={[
                   styles.outcomeBtn,
                   outcomeType === "connected" && styles.outcomeBtnConnectedActive,
@@ -151,7 +193,10 @@ export function RapidLoggerModal({
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={() => setOutcomeType("unreachable")}
+                onPress={() => {
+                  setOutcomeType("unreachable");
+                  setSelectedDispId("");
+                }}
                 style={[
                   styles.outcomeBtn,
                   outcomeType === "unreachable" && styles.outcomeBtnUnreachableActive,
@@ -206,13 +251,41 @@ export function RapidLoggerModal({
               })}
             </View>
 
+            {/* Quick Callback Presets */}
+            <View style={styles.callbackHeaderRow}>
+              <Calendar size={12} color={Colors.textMuted} />
+              <Text style={[styles.sectionLabel, { marginBottom: 0, marginTop: 0 }]}>
+                SCHEDULE FOLLOW-UP CALLBACK
+              </Text>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.presetRow}
+            >
+              {presets.map((p) => {
+                const active = callbackPreset === p.id;
+                return (
+                  <TouchableOpacity
+                    key={p.id}
+                    onPress={() => setCallbackPreset(p.id)}
+                    style={[styles.presetChip, active && styles.presetChipActive]}
+                  >
+                    <Text style={[styles.presetChipText, active && styles.presetChipTextActive]}>
+                      {p.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
             {/* Quick Notes */}
             <Text style={styles.sectionLabel}>COUNSELOR CALL NOTES</Text>
             <TextInput
               style={styles.notesInput}
               multiline
               numberOfLines={3}
-              placeholder="Record details of conversation, course preference, budget, objections..."
+              placeholder="Record conversation summary, preferred course, budget..."
               placeholderTextColor={Colors.textMuted}
               value={notes}
               onChangeText={setNotes}
@@ -245,7 +318,7 @@ export function RapidLoggerModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    backgroundColor: "rgba(0, 0, 0, 0.78)",
     justifyContent: "flex-end",
   },
   sheetContainer: {
@@ -255,7 +328,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 24,
     paddingHorizontal: 20,
-    maxHeight: "85%",
+    maxHeight: "88%",
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
@@ -287,8 +360,8 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   closeBtn: {
-    padding: 4,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    padding: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
     borderRadius: 20,
   },
   body: {
@@ -333,7 +406,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    paddingVertical: 10,
+    paddingVertical: 11,
     borderRadius: 12,
     backgroundColor: Colors.cardDark,
     borderWidth: 1,
@@ -366,7 +439,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 9,
     borderRadius: 10,
     backgroundColor: Colors.cardDark,
     borderWidth: 1,
@@ -385,6 +458,38 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     flex: 1,
   },
+  callbackHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  presetRow: {
+    gap: 8,
+    paddingBottom: 12,
+  },
+  presetChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    backgroundColor: Colors.cardDark,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  presetChipActive: {
+    backgroundColor: Colors.primaryMuted,
+    borderColor: Colors.primaryLight,
+  },
+  presetChipText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+  },
+  presetChipTextActive: {
+    color: Colors.primaryLight,
+    fontWeight: "700",
+  },
   notesInput: {
     backgroundColor: Colors.cardDark,
     borderRadius: 12,
@@ -394,7 +499,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textPrimary,
     textAlignVertical: "top",
-    minHeight: 70,
+    minHeight: 74,
   },
   footer: {
     paddingTop: 10,
@@ -402,7 +507,7 @@ const styles = StyleSheet.create({
   saveButton: {
     backgroundColor: Colors.primary,
     borderRadius: 14,
-    paddingVertical: 13,
+    paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
   },

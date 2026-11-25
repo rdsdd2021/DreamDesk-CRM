@@ -8,28 +8,37 @@ import {
   ScrollView,
   Linking,
   Alert,
+  RefreshControl,
 } from "react-native";
 import { Colors } from "../theme/colors";
 import { MobileApiClient } from "../api/mobileApiClient";
 import { MobileLead } from "../components/LeadCard";
 import { AcademicHighlightsCard } from "../components/AcademicHighlightsCard";
 import { RapidLoggerModal } from "../components/RapidLoggerModal";
-import { PhoneCall, Sparkles, CheckCircle2, ChevronRight, MessageSquare, Clock } from "lucide-react-native";
+import { useCallTracker } from "../hooks/useCallTracker";
+import { MobileCache } from "../utils/cache";
+import { PhoneCall, Sparkles, CheckCircle2, ChevronRight, MessageSquare, Eye } from "lucide-react-native";
 
 export function QueueScreen({ navigation }: any) {
   const [queueLeads, setQueueLeads] = useState<MobileLead[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [completedCount, setCompletedCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [dispositions, setDispositions] = useState<any[]>([]);
 
   // Rapid Logger Modal
   const [isRapidLoggerOpen, setIsRapidLoggerOpen] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
-  const [callStartTime, setCallStartTime] = useState<number | null>(null);
 
-  const loadQueue = useCallback(async () => {
+  const { startCall } = useCallTracker((_leadId, _leadName, durationSec) => {
+    setCallDuration(durationSec);
+    setIsRapidLoggerOpen(true);
+  });
+
+  const loadQueue = useCallback(async (isPull = false) => {
     try {
-      setLoading(true);
+      if (!isPull && queueLeads.length === 0) setLoading(true);
       const [leadsRes, dispRes] = await Promise.all([
         MobileApiClient.fetchJson<{ leads: MobileLead[] }>("/api/leads?calling_recency=uncalled_today&limit=50"),
         MobileApiClient.fetchJson<any[]>("/api/dispositions"),
@@ -38,59 +47,58 @@ export function QueueScreen({ navigation }: any) {
       if (leadsRes.data?.leads) {
         setQueueLeads(leadsRes.data.leads);
         setCurrentIndex(0);
+        MobileCache.set("queue_leads", leadsRes.data.leads);
       }
       if (Array.isArray(dispRes.data)) {
         setDispositions(dispRes.data);
+        MobileCache.set("dispositions", dispRes.data);
       }
     } catch {
       // ignore
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
+    MobileCache.get<MobileLead[]>("queue_leads").then((cached) => {
+      if (cached && cached.length > 0) {
+        setQueueLeads(cached);
+        setLoading(false);
+      }
+    });
     loadQueue();
   }, [loadQueue]);
 
   const currentLead = queueLeads[currentIndex];
 
-  const handleDialCurrentLead = async () => {
+  const handleTriggerWhatsApp = async () => {
     if (!currentLead) return;
     try {
-      setCallStartTime(Date.now());
-      const { data } = await MobileApiClient.fetchJson<{ dialUri: string }>(
-        `/api/leads/${currentLead.id}/call-intent`,
+      const { data } = await MobileApiClient.fetchJson<{ launchUrl: string }>(
+        `/api/leads/${currentLead.id}/whatsapp-intent`,
         { method: "POST" }
       );
-
-      const dialTarget = data?.dialUri || (currentLead.phone ? `tel:${currentLead.phone}` : null);
-      if (dialTarget) {
-        await Linking.openURL(dialTarget);
-        setTimeout(() => {
-          if (callStartTime) {
-            const secs = Math.max(1, Math.round((Date.now() - callStartTime) / 1000));
-            setCallDuration(secs);
-          } else {
-            setCallDuration(45);
-          }
-          setIsRapidLoggerOpen(true);
-        }, 1500);
+      if (data?.launchUrl) {
+        await Linking.openURL(data.launchUrl);
       }
     } catch {
-      Alert.alert("Dial Error", "Could not trigger phone dialer");
+      Alert.alert("WhatsApp Error", "Could not launch WhatsApp");
     }
   };
 
-  const handleNextLead = () => {
+  const handleNextLead = (logged = false) => {
+    if (logged) setCompletedCount((c) => c + 1);
     if (currentIndex < queueLeads.length - 1) {
       setCurrentIndex((prev) => prev + 1);
     } else {
       Alert.alert("Queue Finished", "You have reviewed all uncalled leads in today's queue!");
+      setCurrentIndex(queueLeads.length);
     }
   };
 
-  if (loading) {
+  if (loading && queueLeads.length === 0) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={Colors.primary} />
@@ -109,15 +117,46 @@ export function QueueScreen({ navigation }: any) {
         <Text style={styles.emptySubtitle}>
           You have contacted all leads assigned for today. Excellent outreach velocity!
         </Text>
-        <TouchableOpacity onPress={loadQueue} style={styles.reloadBtn}>
+        <TouchableOpacity onPress={() => loadQueue()} style={styles.reloadBtn}>
           <Text style={styles.reloadBtnText}>Check for New Leads</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
+  const remainingCount = Math.max(0, queueLeads.length - currentIndex);
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            loadQueue(true);
+          }}
+          tintColor={Colors.primary}
+        />
+      }
+    >
+      {/* KPI Summary Strip */}
+      <View style={styles.kpiRow}>
+        <View style={styles.kpiCard}>
+          <Text style={styles.kpiValue}>{remainingCount}</Text>
+          <Text style={styles.kpiLabel}>REMAINING</Text>
+        </View>
+        <View style={styles.kpiCard}>
+          <Text style={[styles.kpiValue, { color: Colors.success }]}>{completedCount}</Text>
+          <Text style={styles.kpiLabel}>LOGGED</Text>
+        </View>
+        <View style={styles.kpiCard}>
+          <Text style={[styles.kpiValue, { color: Colors.primaryLight }]}>{queueLeads.length}</Text>
+          <Text style={styles.kpiLabel}>TODAY QUEUE</Text>
+        </View>
+      </View>
+
       {/* Queue Progress Header */}
       <View style={styles.progressHeader}>
         <View style={styles.badgeRow}>
@@ -160,33 +199,56 @@ export function QueueScreen({ navigation }: any) {
         {/* Academic Highlights */}
         <AcademicHighlightsCard rawAttributes={currentLead.raw_attributes} />
 
-        {/* Huge Call Now Action Button */}
+        {/* Call + WhatsApp Action Row */}
         {currentLead.phone ? (
-          <TouchableOpacity
-            onPress={handleDialCurrentLead}
-            style={styles.bigCallBtn}
-            activeOpacity={0.8}
-          >
-            <PhoneCall size={20} color="#fff" />
-            <Text style={styles.bigCallBtnText}>Call Now ({currentLead.phone})</Text>
-          </TouchableOpacity>
+          <View style={styles.primaryActionsRow}>
+            <TouchableOpacity
+              onPress={() => startCall(currentLead.id, currentLead.name, currentLead.phone)}
+              style={styles.bigCallBtn}
+              activeOpacity={0.8}
+            >
+              <PhoneCall size={18} color="#fff" />
+              <Text style={styles.bigCallBtnText}>Call ({currentLead.phone})</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleTriggerWhatsApp}
+              style={styles.waBtn}
+              activeOpacity={0.8}
+            >
+              <MessageSquare size={20} color="#10b981" />
+            </TouchableOpacity>
+          </View>
         ) : (
           <View style={styles.noPhoneBox}>
             <Text style={styles.noPhoneText}>No phone number available for this student</Text>
           </View>
         )}
 
-        {/* Skip / Next Actions */}
+        {/* Secondary Actions */}
         <View style={styles.skipRow}>
           <TouchableOpacity
-            onPress={() => setIsRapidLoggerOpen(true)}
+            onPress={() => {
+              setCallDuration(0);
+              setIsRapidLoggerOpen(true);
+            }}
             style={styles.logWithoutCallBtn}
           >
-            <Text style={styles.logWithoutCallText}>Manual Outcome</Text>
+            <Text style={styles.logWithoutCallText}>Log Outcome</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleNextLead} style={styles.nextLeadBtn}>
-            <Text style={styles.nextLeadBtnText}>Skip / Next</Text>
+          <TouchableOpacity
+            onPress={() => navigation.navigate("LeadDetail", { leadId: currentLead.id })}
+            style={styles.logWithoutCallBtn}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Eye size={13} color={Colors.textSecondary} />
+              <Text style={styles.logWithoutCallText}>Profile</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => handleNextLead(false)} style={styles.nextLeadBtn}>
+            <Text style={styles.nextLeadBtnText}>Skip</Text>
             <ChevronRight size={16} color={Colors.textSecondary} />
           </TouchableOpacity>
         </View>
@@ -204,7 +266,7 @@ export function QueueScreen({ navigation }: any) {
           setCallDuration(0);
         }}
         onSuccess={() => {
-          handleNextLead();
+          handleNextLead(true);
         }}
       />
     </ScrollView>
@@ -230,8 +292,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textSecondary,
   },
-  progressHeader: {
+  kpiRow: {
+    flexDirection: "row",
+    gap: 10,
     marginBottom: 16,
+  },
+  kpiCard: {
+    flex: 1,
+    backgroundColor: Colors.cardDark,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  kpiValue: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: Colors.textPrimary,
+  },
+  kpiLabel: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: Colors.textMuted,
+    marginTop: 2,
+    letterSpacing: 0.6,
+  },
+  progressHeader: {
+    marginBottom: 14,
   },
   badgeRow: {
     flexDirection: "row",
@@ -321,7 +409,13 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Colors.primaryLight,
   },
+  primaryActionsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 6,
+  },
   bigCallBtn: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -329,17 +423,20 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingVertical: 14,
     gap: 8,
-    marginTop: 6,
-    shadowColor: Colors.success,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
   },
   bigCallBtnText: {
     color: "#fff",
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "800",
+  },
+  waBtn: {
+    width: 52,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.successMuted,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.35)",
+    borderRadius: 16,
   },
   noPhoneBox: {
     backgroundColor: "rgba(255, 255, 255, 0.04)",
@@ -357,9 +454,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginTop: 14,
+    gap: 8,
   },
   logWithoutCallBtn: {
-    paddingVertical: 8,
+    paddingVertical: 9,
     paddingHorizontal: 12,
     borderRadius: 10,
     borderWidth: 1,
@@ -374,8 +472,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingVertical: 8,
+    paddingVertical: 9,
     paddingHorizontal: 12,
+    marginLeft: "auto",
   },
   nextLeadBtnText: {
     fontSize: 12,

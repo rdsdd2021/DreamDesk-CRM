@@ -10,88 +10,136 @@ import {
   RefreshControl,
   Linking,
   Alert,
+  ScrollView,
 } from "react-native";
 import { Colors } from "../theme/colors";
 import { MobileApiClient } from "../api/mobileApiClient";
 import { LeadCard, MobileLead } from "../components/LeadCard";
 import { FilterModal, MobileFilterState } from "../components/FilterModal";
 import { RapidLoggerModal } from "../components/RapidLoggerModal";
-import { Search, Filter, PhoneCall, RefreshCw, X } from "lucide-react-native";
+import { useCallTracker } from "../hooks/useCallTracker";
+import { MobileCache } from "../utils/cache";
+import { Search, Filter, X } from "lucide-react-native";
+
+const QUICK_CHIPS: { id: string; label: string; apply: Partial<MobileFilterState> }[] = [
+  { id: "all", label: "All Leads", apply: {} },
+  { id: "uncalled", label: "Uncalled Today", apply: { calling_recency: "uncalled_today" } },
+  { id: "new", label: "New", apply: { status: "New" } },
+  { id: "interested", label: "Interested", apply: { status: "Interested" } },
+  { id: "followup", label: "Follow-up", apply: { status: "Follow-up" } },
+];
 
 export function LeadsScreen({ navigation }: any) {
   const [leads, setLeads] = useState<MobileLead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
 
-  // Filters State
   const [filters, setFilters] = useState<MobileFilterState>({});
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
 
   // Rapid Logger State
-  const [activeCallLead, setActiveCallLead] = useState<MobileLead | null>(null);
+  const [activeCallLead, setActiveCallLead] = useState<{ id: number; name: string } | null>(null);
   const [isRapidLoggerOpen, setIsRapidLoggerOpen] = useState(false);
-  const [callStartTime, setCallStartTime] = useState<number | null>(null);
   const [callDuration, setCallDuration] = useState(0);
   const [dispositions, setDispositions] = useState<any[]>([]);
 
-  const fetchDispositions = async () => {
-    try {
-      const { data } = await MobileApiClient.fetchJson<any[]>("/api/dispositions");
+  const { startCall } = useCallTracker((leadId, leadName, durationSec) => {
+    setActiveCallLead({ id: leadId, name: leadName });
+    setCallDuration(durationSec);
+    setIsRapidLoggerOpen(true);
+  });
+
+  // Debounce search input (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Hydrate cached leads & dispositions on initial mount for 0ms startup
+  useEffect(() => {
+    MobileCache.get<MobileLead[]>("leads_default").then((cached) => {
+      if (cached && cached.length > 0 && leads.length === 0) {
+        setLeads(cached);
+        setLoading(false);
+      }
+    });
+    MobileCache.get<any[]>("dispositions").then((cachedDisp) => {
+      if (cachedDisp && cachedDisp.length > 0) {
+        setDispositions(cachedDisp);
+      }
+    });
+    MobileApiClient.fetchJson<any[]>("/api/dispositions").then(({ data }) => {
       if (Array.isArray(data)) {
         setDispositions(data);
+        MobileCache.set("dispositions", data);
       }
-    } catch {
-      // ignore
-    }
-  };
+    });
+  }, []);
 
   const fetchLeads = useCallback(
     async (pageToLoad = 1, isPullRefresh = false) => {
       try {
-        if (!isPullRefresh) setLoading(true);
+        if (pageToLoad === 1 && !isPullRefresh && leads.length === 0) {
+          setLoading(true);
+        } else if (pageToLoad > 1) {
+          setLoadingMore(true);
+        }
+
         const params = new URLSearchParams();
         params.append("page", String(pageToLoad));
         params.append("limit", "25");
 
-        if (search.trim()) params.append("search", search.trim());
+        if (debouncedSearch) params.append("search", debouncedSearch);
         if (filters.status) params.append("status", filters.status);
         if (filters.calling_recency) params.append("calling_recency", filters.calling_recency);
         if (filters.stream) params.append("facet_stream", filters.stream);
         if (filters.school) params.append("facet_school", filters.school);
         if (filters.city) params.append("facet_city", filters.city);
 
-        const { data, error } = await MobileApiClient.fetchJson<{
+        const { data } = await MobileApiClient.fetchJson<{
           leads: MobileLead[];
           total: number;
+          totalPages?: number;
         }>(`/api/leads?${params.toString()}`);
 
         if (data?.leads) {
           if (pageToLoad === 1) {
             setLeads(data.leads);
+            if (!debouncedSearch && Object.keys(filters).length === 0) {
+              MobileCache.set("leads_default", data.leads);
+            }
           } else {
-            setLeads((prev) => [...prev, ...data.leads]);
+            setLeads((prev) => {
+              const existingIds = new Set(prev.map((l) => l.id));
+              const next = data.leads.filter((l) => !existingIds.has(l.id));
+              return [...prev, ...next];
+            });
           }
           setTotalCount(data.total || 0);
+          setHasMore(data.leads.length >= 25);
         }
       } catch (err) {
         console.error("Failed to load leads:", err);
       } finally {
         setLoading(false);
+        setLoadingMore(false);
         setRefreshing(false);
       }
     },
-    [search, filters]
+    [debouncedSearch, filters]
   );
 
   useEffect(() => {
-    fetchDispositions();
-  }, []);
-
-  useEffect(() => {
     setPage(1);
+    setHasMore(true);
     fetchLeads(1);
   }, [fetchLeads]);
 
@@ -101,34 +149,11 @@ export function LeadsScreen({ navigation }: any) {
     fetchLeads(1, true);
   };
 
-  const handleTriggerCall = async (lead: MobileLead) => {
-    try {
-      setActiveCallLead(lead);
-      setCallStartTime(Date.now());
-
-      const { data } = await MobileApiClient.fetchJson<{ dialUri: string }>(
-        `/api/leads/${lead.id}/call-intent`,
-        { method: "POST" }
-      );
-
-      const dialTarget = data?.dialUri || (lead.phone ? `tel:${lead.phone}` : null);
-      if (dialTarget) {
-        await Linking.openURL(dialTarget);
-
-        // Auto open rapid outcome logger
-        setTimeout(() => {
-          if (callStartTime) {
-            const secs = Math.max(1, Math.round((Date.now() - callStartTime) / 1000));
-            setCallDuration(secs);
-          } else {
-            setCallDuration(30);
-          }
-          setIsRapidLoggerOpen(true);
-        }, 1500);
-      }
-    } catch {
-      Alert.alert("Dialer Error", "Could not trigger phone dialer");
-    }
+  const handleLoadMore = () => {
+    if (loading || loadingMore || !hasMore) return;
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchLeads(nextPage);
   };
 
   const handleTriggerWhatsApp = async (lead: MobileLead) => {
@@ -147,6 +172,27 @@ export function LeadsScreen({ navigation }: any) {
 
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
 
+  const isChipActive = (chipId: string) => {
+    if (chipId === "all") return activeFilterCount === 0;
+    if (chipId === "uncalled") return filters.calling_recency === "uncalled_today";
+    if (chipId === "new") return filters.status === "New";
+    if (chipId === "interested") return filters.status === "Interested";
+    if (chipId === "followup") return filters.status === "Follow-up";
+    return false;
+  };
+
+  const renderLead = useCallback(
+    ({ item }: { item: MobileLead }) => (
+      <LeadCard
+        lead={item}
+        onPress={() => navigation.navigate("LeadDetail", { leadId: item.id })}
+        onPressCall={(l) => startCall(l.id, l.name, l.phone)}
+        onPressWhatsApp={handleTriggerWhatsApp}
+      />
+    ),
+    [navigation, startCall]
+  );
+
   return (
     <View style={styles.container}>
       {/* Top Search & Filter Bar */}
@@ -161,7 +207,7 @@ export function LeadsScreen({ navigation }: any) {
             onChangeText={setSearch}
           />
           {search ? (
-            <TouchableOpacity onPress={() => setSearch("")}>
+            <TouchableOpacity onPress={() => setSearch("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <X size={15} color={Colors.textMuted} />
             </TouchableOpacity>
           ) : null}
@@ -180,20 +226,45 @@ export function LeadsScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
 
+      {/* 1-Tap Quick Filter Chips */}
+      <View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipsScroll}
+        >
+          {QUICK_CHIPS.map((chip) => {
+            const active = isChipActive(chip.id);
+            return (
+              <TouchableOpacity
+                key={chip.id}
+                onPress={() => setFilters(chip.apply)}
+                style={[styles.quickChip, active && styles.quickChipActive]}
+              >
+                <Text style={[styles.quickChipText, active && styles.quickChipTextActive]}>
+                  {chip.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+
       {/* Leads Counter */}
       <View style={styles.countRow}>
         <Text style={styles.countText}>
-          Found <Text style={styles.countBold}>{totalCount.toLocaleString()}</Text> students
+          Showing <Text style={styles.countBold}>{leads.length}</Text> of{" "}
+          <Text style={styles.countBold}>{totalCount.toLocaleString()}</Text> students
         </Text>
         {activeFilterCount > 0 && (
           <TouchableOpacity onPress={() => setFilters({})} style={styles.clearFiltersBtn}>
-            <Text style={styles.clearFiltersText}>Clear Filters</Text>
+            <Text style={styles.clearFiltersText}>Reset All</Text>
           </TouchableOpacity>
         )}
       </View>
 
       {/* Virtualized Leads List */}
-      {loading && page === 1 ? (
+      {loading && leads.length === 0 ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Fetching student database...</Text>
@@ -202,14 +273,13 @@ export function LeadsScreen({ navigation }: any) {
         <FlatList
           data={leads}
           keyExtractor={(item) => String(item.id)}
-          renderItem={({ item }) => (
-            <LeadCard
-              lead={item}
-              onPress={() => navigation.navigate("LeadDetail", { leadId: item.id })}
-              onPressCall={handleTriggerCall}
-              onPressWhatsApp={handleTriggerWhatsApp}
-            />
-          )}
+          renderItem={renderLead}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.4}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
@@ -218,6 +288,14 @@ export function LeadsScreen({ navigation }: any) {
               tintColor={Colors.primary}
               colors={[Colors.primary]}
             />
+          }
+          ListFooterComponent={
+            loadingMore ? (
+              <View style={styles.footerLoader}>
+                <ActivityIndicator size="small" color={Colors.primary} />
+                <Text style={styles.footerLoaderText}>Loading more leads...</Text>
+              </View>
+            ) : undefined
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
@@ -250,7 +328,7 @@ export function LeadsScreen({ navigation }: any) {
             setActiveCallLead(null);
           }}
           onSuccess={() => {
-            fetchLeads(1);
+            fetchLeads(1, true);
           }}
         />
       )}
@@ -280,7 +358,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     paddingHorizontal: 12,
-    height: 42,
+    height: 44,
     gap: 8,
   },
   searchInput: {
@@ -289,8 +367,8 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   filterButton: {
-    width: 42,
-    height: 42,
+    width: 44,
+    height: 44,
     borderRadius: 14,
     backgroundColor: Colors.cardDark,
     borderWidth: 1,
@@ -317,6 +395,32 @@ const styles = StyleSheet.create({
   filterBadgeText: {
     color: "#fff",
     fontSize: 10,
+    fontWeight: "700",
+  },
+  chipsScroll: {
+    paddingHorizontal: 16,
+    paddingBottom: 6,
+    gap: 8,
+  },
+  quickChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: Colors.cardDark,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  quickChipActive: {
+    backgroundColor: Colors.primaryMuted,
+    borderColor: Colors.primaryLight,
+  },
+  quickChipText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+  },
+  quickChipTextActive: {
+    color: Colors.primaryLight,
     fontWeight: "700",
   },
   countRow: {
@@ -355,6 +459,17 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 13,
     color: Colors.textSecondary,
+  },
+  footerLoader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    gap: 8,
+  },
+  footerLoaderText: {
+    fontSize: 12,
+    color: Colors.textMuted,
   },
   emptyContainer: {
     padding: 40,

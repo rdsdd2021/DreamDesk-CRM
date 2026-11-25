@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,30 +8,50 @@ import {
   ActivityIndicator,
   Linking,
   Alert,
+  RefreshControl,
 } from "react-native";
 import { Colors } from "../theme/colors";
 import { MobileApiClient } from "../api/mobileApiClient";
 import { MobileLead } from "../components/LeadCard";
 import { AcademicHighlightsCard } from "../components/AcademicHighlightsCard";
 import { RapidLoggerModal } from "../components/RapidLoggerModal";
-import { PhoneCall, MessageSquare, Mail, MapPin, Sparkles, Clock } from "lucide-react-native";
+import { useCallTracker } from "../hooks/useCallTracker";
+import { PhoneCall, MessageSquare, Mail, MapPin, Sparkles, History } from "lucide-react-native";
 
-export function LeadDetailScreen({ route, navigation }: any) {
+interface ActivityItem {
+  id: number;
+  title: string;
+  description?: string;
+  performed_by_name?: string;
+  created_at: string;
+}
+
+const STAGES = ["New", "Contacted", "Interested", "Follow-up", "Admitted", "Unreachable"];
+
+export function LeadDetailScreen({ route }: any) {
   const { leadId } = route.params;
   const [lead, setLead] = useState<MobileLead | null>(null);
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [dispositions, setDispositions] = useState<any[]>([]);
 
   // Rapid Logger
   const [isRapidLoggerOpen, setIsRapidLoggerOpen] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
 
-  const fetchLeadDetails = async () => {
+  const { startCall } = useCallTracker((_id, _name, durationSec) => {
+    setCallDuration(durationSec);
+    setIsRapidLoggerOpen(true);
+  });
+
+  const fetchLeadDetails = useCallback(async (isPull = false) => {
     try {
-      setLoading(true);
-      const [leadRes, dispRes] = await Promise.all([
+      if (!isPull && !lead) setLoading(true);
+      const [leadRes, dispRes, actRes] = await Promise.all([
         MobileApiClient.fetchJson<{ lead: MobileLead }>(`/api/leads/${leadId}`),
         MobileApiClient.fetchJson<any[]>("/api/dispositions"),
+        MobileApiClient.fetchJson<{ activities: ActivityItem[] }>(`/api/leads/${leadId}/activities`),
       ]);
 
       if (leadRes.data?.lead) {
@@ -40,32 +60,34 @@ export function LeadDetailScreen({ route, navigation }: any) {
       if (Array.isArray(dispRes.data)) {
         setDispositions(dispRes.data);
       }
+      if (Array.isArray(actRes.data?.activities)) {
+        setActivities(actRes.data.activities);
+      }
     } catch {
       Alert.alert("Error", "Could not load student profile");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, [leadId]);
 
   useEffect(() => {
     fetchLeadDetails();
-  }, [leadId]);
+  }, [fetchLeadDetails]);
 
-  const handleCall = async () => {
-    if (!lead?.phone) return;
-    try {
-      const { data } = await MobileApiClient.fetchJson<{ dialUri: string }>(
-        `/api/leads/${lead.id}/call-intent`,
-        { method: "POST" }
-      );
-      const uri = data?.dialUri || `tel:${lead.phone}`;
-      await Linking.openURL(uri);
-      setTimeout(() => {
-        setCallDuration(60);
-        setIsRapidLoggerOpen(true);
-      }, 1500);
-    } catch {
-      Alert.alert("Dial Error", "Could not trigger dialer");
+  const handleStageChange = async (newStage: string) => {
+    if (!lead || lead.status === newStage) return;
+    const prevStage = lead.status;
+    setLead({ ...lead, status: newStage });
+    const { error } = await MobileApiClient.fetchJson(`/api/leads/${lead.id}/field`, {
+      method: "PATCH",
+      body: JSON.stringify({ field: "status", value: newStage }),
+    });
+    if (error) {
+      setLead((curr) => (curr ? { ...curr, status: prevStage } : curr));
+      Alert.alert("Update Failed", error.message);
+    } else {
+      fetchLeadDetails(true);
     }
   };
 
@@ -95,7 +117,19 @@ export function LeadDetailScreen({ route, navigation }: any) {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              fetchLeadDetails(true);
+            }}
+            tintColor={Colors.primary}
+          />
+        }
+      >
         {/* Profile Card */}
         <View style={styles.profileCard}>
           <View style={styles.avatar}>
@@ -128,11 +162,44 @@ export function LeadDetailScreen({ route, navigation }: any) {
           </View>
         </View>
 
-        {/* Academic Highlights */}
+        {/* Inline Stage Switcher */}
+        <View style={styles.infoCard}>
+          <Text style={styles.infoCardTitle}>LEAD STAGE</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.stageChipsRow}>
+            {STAGES.map((st) => {
+              const active = lead.status === st;
+              return (
+                <TouchableOpacity
+                  key={st}
+                  onPress={() => handleStageChange(st)}
+                  style={[styles.stageChip, active && styles.stageChipActive]}
+                >
+                  <Text style={[styles.stageChipText, active && styles.stageChipTextActive]}>
+                    {st}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* Academic Highlights right before Call Outcome & Rapid Logger */}
         <AcademicHighlightsCard rawAttributes={lead.raw_attributes} />
 
+        {/* Call Outcome & Rapid Logger Trigger */}
+        <TouchableOpacity
+          onPress={() => {
+            setCallDuration(0);
+            setIsRapidLoggerOpen(true);
+          }}
+          style={styles.openLoggerBtn}
+        >
+          <Sparkles size={16} color="#fff" />
+          <Text style={styles.openLoggerBtnText}>Call Outcome & Rapid Logger</Text>
+        </TouchableOpacity>
+
         {/* Contact Information */}
-        <View style={styles.infoCard}>
+        <View style={[styles.infoCard, { marginTop: 12 }]}>
           <Text style={styles.infoCardTitle}>CONTACT DETAILS</Text>
 
           {lead.phone && (
@@ -157,20 +224,47 @@ export function LeadDetailScreen({ route, navigation }: any) {
           )}
         </View>
 
-        {/* Action Logger Button */}
-        <TouchableOpacity
-          onPress={() => setIsRapidLoggerOpen(true)}
-          style={styles.openLoggerBtn}
-        >
-          <Sparkles size={16} color="#fff" />
-          <Text style={styles.openLoggerBtnText}>Log Call Outcome & Notes</Text>
-        </TouchableOpacity>
+        {/* Interaction Timeline */}
+        <View style={styles.infoCard}>
+          <View style={styles.timelineHeader}>
+            <History size={14} color={Colors.primaryLight} />
+            <Text style={[styles.infoCardTitle, { marginBottom: 0 }]}>
+              INTERACTION TIMELINE ({activities.length})
+            </Text>
+          </View>
+
+          {activities.length === 0 ? (
+            <Text style={styles.emptyTimelineText}>No recorded calls or activities yet.</Text>
+          ) : (
+            activities.slice(0, 15).map((act) => (
+              <View key={act.id} style={styles.timelineItem}>
+                <View style={styles.timelineDot} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.timelineTitle}>{act.title}</Text>
+                  {act.description ? (
+                    <Text style={styles.timelineDesc}>{act.description}</Text>
+                  ) : null}
+                  <Text style={styles.timelineMeta}>
+                    {act.performed_by_name ? `${act.performed_by_name} • ` : ""}
+                    {new Date(act.created_at).toLocaleString([], {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    })}
+                  </Text>
+                </View>
+              </View>
+            ))
+          )}
+        </View>
       </ScrollView>
 
       {/* Fixed Sticky Footer for Calling */}
       <View style={styles.stickyFooter}>
         {lead.phone ? (
-          <TouchableOpacity onPress={handleCall} style={styles.callActionBtn}>
+          <TouchableOpacity
+            onPress={() => startCall(lead.id, lead.name, lead.phone)}
+            style={styles.callActionBtn}
+          >
             <PhoneCall size={16} color="#fff" />
             <Text style={styles.callActionBtnText}>Call Student</Text>
           </TouchableOpacity>
@@ -196,7 +290,7 @@ export function LeadDetailScreen({ route, navigation }: any) {
           setCallDuration(0);
         }}
         onSuccess={() => {
-          fetchLeadDetails();
+          fetchLeadDetails(true);
         }}
       />
     </View>
@@ -210,7 +304,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 90,
+    paddingBottom: 96,
   },
   center: {
     flex: 1,
@@ -299,6 +393,30 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     marginBottom: 10,
   },
+  stageChipsRow: {
+    gap: 8,
+  },
+  stageChip: {
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  stageChipActive: {
+    backgroundColor: Colors.primaryMuted,
+    borderColor: Colors.primaryLight,
+  },
+  stageChipText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Colors.textSecondary,
+  },
+  stageChipTextActive: {
+    color: Colors.primaryLight,
+    fontWeight: "700",
+  },
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -315,14 +433,56 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: Colors.primary,
     borderRadius: 14,
-    paddingVertical: 13,
+    paddingVertical: 14,
     gap: 8,
-    marginTop: 4,
+    marginTop: 2,
   },
   openLoggerBtnText: {
     fontSize: 14,
     fontWeight: "700",
     color: "#fff",
+  },
+  timelineHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 12,
+  },
+  emptyTimelineText: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    fontStyle: "italic",
+  },
+  timelineItem: {
+    flexDirection: "row",
+    gap: 10,
+    paddingBottom: 12,
+    marginBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.05)",
+  },
+  timelineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.primaryLight,
+    marginTop: 5,
+  },
+  timelineTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  timelineDesc: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  timelineMeta: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    marginTop: 4,
   },
   stickyFooter: {
     position: "absolute",

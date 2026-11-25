@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { Colors } from "../theme/colors";
 import { MobileApiClient } from "../api/mobileApiClient";
+import { MobileCache } from "../utils/cache";
 import { Clock, CheckCircle2, PhoneCall, AlertTriangle, Calendar } from "lucide-react-native";
 
 export interface MobileTask {
@@ -35,10 +36,11 @@ export function TasksScreen({ navigation }: any) {
 
   const loadTasks = useCallback(async (isPull = false) => {
     try {
-      if (!isPull) setLoading(true);
+      if (!isPull && tasks.length === 0) setLoading(true);
       const { data } = await MobileApiClient.fetchJson<{ tasks: MobileTask[] }>("/api/tasks");
       if (Array.isArray(data?.tasks)) {
         setTasks(data.tasks);
+        MobileCache.set("tasks_list", data.tasks);
       }
     } catch {
       // ignore
@@ -49,6 +51,12 @@ export function TasksScreen({ navigation }: any) {
   }, []);
 
   useEffect(() => {
+    MobileCache.get<MobileTask[]>("tasks_list").then((cached) => {
+      if (cached && cached.length > 0) {
+        setTasks(cached);
+        setLoading(false);
+      }
+    });
     loadTasks();
   }, [loadTasks]);
 
@@ -98,7 +106,7 @@ export function TasksScreen({ navigation }: any) {
         >
           <Clock size={13} color={activeTab === "today" ? "#fff" : Colors.textSecondary} />
           <Text style={[styles.tabText, activeTab === "today" && styles.tabTextActive]}>
-            Today's Callbacks
+            Today
           </Text>
         </TouchableOpacity>
 
@@ -124,13 +132,13 @@ export function TasksScreen({ navigation }: any) {
             color={activeTab === "completed" ? "#fff" : Colors.textSecondary}
           />
           <Text style={[styles.tabText, activeTab === "completed" && styles.tabTextActive]}>
-            Completed
+            Done
           </Text>
         </TouchableOpacity>
       </View>
 
       {/* Task List */}
-      {loading ? (
+      {loading && tasks.length === 0 ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Loading task schedule...</Text>
@@ -158,11 +166,18 @@ export function TasksScreen({ navigation }: any) {
             </View>
           }
           renderItem={({ item }) => (
-            <View style={styles.taskCard}>
+            <TouchableOpacity
+              activeOpacity={0.75}
+              onPress={() => {
+                if (item.lead_id) navigation.navigate("LeadDetail", { leadId: item.lead_id });
+              }}
+              style={styles.taskCard}
+            >
               <View style={styles.cardHeader}>
                 <TouchableOpacity
                   onPress={() => handleToggleComplete(item)}
                   style={styles.checkCircle}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   {item.is_completed ? (
                     <CheckCircle2 size={20} color={Colors.success} />
@@ -218,7 +233,7 @@ export function TasksScreen({ navigation }: any) {
                   </TouchableOpacity>
                 )}
               </View>
-            </View>
+            </TouchableOpacity>
           )}
         />
       )}
@@ -245,7 +260,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: Colors.cardDark,
     borderRadius: 12,
-    paddingVertical: 9,
+    paddingVertical: 10,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     gap: 5,
@@ -255,7 +270,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.primaryLight,
   },
   tabText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: Colors.textSecondary,
   },
@@ -357,8 +372,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     backgroundColor: Colors.success,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 8,
   },
   quickCallText: {
