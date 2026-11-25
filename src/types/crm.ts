@@ -199,6 +199,69 @@ export interface BulkTaskConfig {
   due_in_hours?: number;
 }
 
+export type WorkTaskType = 'one_time' | 'recurring' | 'timed';
+export type WorkTaskRecurrence = 'daily' | 'weekdays' | 'weekly' | 'monthly';
+export type WorkTaskStatus = 'todo' | 'in_progress' | 'done';
+
+export interface WorkTaskChecklistItem {
+  id: number;
+  task_id: number;
+  label: string;
+  is_done: boolean;
+  sort_order: number;
+}
+
+export interface WorkTaskDependencySummary {
+  id: number;
+  title: string;
+  status: WorkTaskStatus;
+  assigned_to: string;
+  assigned_user_name?: string | null;
+}
+
+export interface WorkTask {
+  id: number;
+  title: string;
+  description: string | null;
+  task_type: WorkTaskType;
+  recurrence_rule: WorkTaskRecurrence | null;
+  time_limit_minutes: number | null;
+  started_at: string | null;
+  due_at: string | null;
+  status: WorkTaskStatus;
+  progress_pct: number;
+  priority: TaskPriority;
+  assigned_to: string;
+  assigned_user_name?: string | null;
+  assigned_user_color?: string | null;
+  created_by: string;
+  created_by_name?: string | null;
+  depends_on_task_id: number | null;
+  depends_on?: WorkTaskDependencySummary | null;
+  is_blocked?: boolean;
+  last_completed_at: string | null;
+  is_archived: boolean;
+  checklist?: WorkTaskChecklistItem[];
+  completion_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkTaskLog {
+  id: number;
+  task_id: number;
+  task_title?: string;
+  task_type?: WorkTaskType;
+  user_id: string;
+  user_name: string;
+  action: string;
+  cycle_date: string | null;
+  progress_pct: number | null;
+  duration_seconds: number | null;
+  notes: string | null;
+  created_at: string;
+}
+
 export interface FacetOption {
   value: string;
   label?: string;

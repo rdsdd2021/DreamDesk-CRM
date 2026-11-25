@@ -370,6 +370,57 @@ function initializeSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_user_notif_user_time ON user_notifications(user_id, created_at DESC);
   `);
 
+  // 12. Operational & Team Work Tasks (One-time, Recurring, Timed, Linked)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS work_tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      task_type TEXT NOT NULL DEFAULT 'one_time', -- 'one_time' | 'recurring' | 'timed'
+      recurrence_rule TEXT,                       -- 'daily' | 'weekdays' | 'weekly' | 'monthly' | NULL
+      time_limit_minutes INTEGER,                 -- Duration limit in minutes
+      started_at DATETIME,                        -- When timer / doing started
+      due_at DATETIME,                            -- Hard deadline
+      status TEXT NOT NULL DEFAULT 'todo',        -- 'todo' | 'in_progress' | 'done'
+      progress_pct INTEGER NOT NULL DEFAULT 0,    -- 0..100
+      priority TEXT NOT NULL DEFAULT 'normal',    -- 'urgent' | 'high' | 'normal' | 'low'
+      assigned_to TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_by TEXT NOT NULL,
+      depends_on_task_id INTEGER REFERENCES work_tasks(id) ON DELETE SET NULL,
+      last_completed_at DATETIME,
+      is_archived INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_work_tasks_assigned ON work_tasks(assigned_to, is_archived, status);
+    CREATE INDEX IF NOT EXISTS idx_work_tasks_dep ON work_tasks(depends_on_task_id);
+    CREATE INDEX IF NOT EXISTS idx_work_tasks_due ON work_tasks(due_at);
+
+    CREATE TABLE IF NOT EXISTS work_task_checklist (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL REFERENCES work_tasks(id) ON DELETE CASCADE,
+      label TEXT NOT NULL,
+      is_done INTEGER NOT NULL DEFAULT 0,
+      sort_order INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_work_checklist_task ON work_task_checklist(task_id);
+
+    CREATE TABLE IF NOT EXISTS work_task_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL REFERENCES work_tasks(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL,
+      user_name TEXT NOT NULL,
+      action TEXT NOT NULL,           -- 'created' | 'started' | 'progress' | 'completed' | 'note' | 'unblocked' | 'reminded'
+      cycle_date TEXT,                -- 'YYYY-MM-DD'
+      progress_pct INTEGER,
+      duration_seconds INTEGER,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_work_logs_task ON work_task_logs(task_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_work_logs_date ON work_task_logs(cycle_date, user_id);
+  `);
+
   seedInitialData(db);
   initPolicies(db);
 }

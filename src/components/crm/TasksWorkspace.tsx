@@ -24,7 +24,11 @@ import {
   Tag,
   Target,
   UserCheck,
+  ListChecks,
+  Printer,
 } from "lucide-react";
+import { WorkTasksBoard } from "@/components/crm/WorkTasksBoard";
+import { WorkTasksPrintReport } from "@/components/crm/WorkTasksPrintReport";
 
 export interface UnifiedTaskItem {
   id: number;
@@ -96,6 +100,7 @@ export function TasksWorkspace({
   );
   const [selectedPriority, setSelectedPriority] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"today" | "overdue" | "upcoming" | "completed" | "all">("today");
+  const [taskMode, setTaskMode] = useState<"calling" | "work" | "report">("calling");
   const [completingTaskId, setCompletingTaskId] = useState<number | null>(null);
   const [dialingTaskId, setDialingTaskId] = useState<number | null>(null);
 
@@ -339,6 +344,52 @@ export function TasksWorkspace({
 
   return (
     <div className="space-y-3 max-w-7xl mx-auto pb-8">
+      {/* Top Mode Switcher: Calling Tasks vs Daily & Team Tasks vs Track & Print */}
+      <div className="print:hidden flex items-center gap-1.5 bg-card border border-border/80 rounded-xl p-1.5 w-full sm:w-fit overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => setTaskMode("calling")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+            taskMode === "calling"
+              ? "bg-primary text-primary-foreground shadow-2xs"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <PhoneCall className="w-3.5 h-3.5" />
+          <span>Calling Tasks</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setTaskMode("work")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+            taskMode === "work"
+              ? "bg-primary text-primary-foreground shadow-2xs"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <ListChecks className="w-3.5 h-3.5" />
+          <span>Daily & Team Tasks</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setTaskMode("report")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+            taskMode === "report"
+              ? "bg-primary text-primary-foreground shadow-2xs"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Printer className="w-3.5 h-3.5" />
+          <span>Track & Print</span>
+        </button>
+      </div>
+
+      {taskMode === "work" ? (
+        <WorkTasksBoard roleMode={roleMode} users={users} />
+      ) : taskMode === "report" ? (
+        <WorkTasksPrintReport roleMode={roleMode} users={users} />
+      ) : (
+        <>
       {/* Header */}
       <div className="bg-card border border-border/80 rounded-xl p-4 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
@@ -736,6 +787,8 @@ export function TasksWorkspace({
             );
           })}
         </div>
+      )}
+        </>
       )}
     </div>
   );
