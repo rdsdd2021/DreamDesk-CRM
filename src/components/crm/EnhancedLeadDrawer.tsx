@@ -520,6 +520,18 @@ export function EnhancedLeadDrawer({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, hasPrevLead, hasNextLead, onPrevLead, onNextLead, isNavigationLocked]);
 
+  // Auto-scroll to sub-dispositions and input fields when a main disposition is tapped
+  useEffect(() => {
+    if (!selectedDispId) return;
+    const timer = setTimeout(() => {
+      selectedDispPanelRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [selectedDispId]);
+
   if (!lead) return null;
 
   const dynamicAttributes = Object.entries(lead.raw_attributes || {});
@@ -539,18 +551,6 @@ export function EnhancedLeadDrawer({
   const isMissingMandatoryOutcomeFields = Boolean(
     (requiresSubDisp && !selectedSubDispId) || (requiresCallback && !callbackDate)
   );
-
-  // Auto-scroll to sub-dispositions and input fields when a main disposition is tapped
-  useEffect(() => {
-    if (!selectedDispId) return;
-    const timer = setTimeout(() => {
-      selectedDispPanelRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 60);
-    return () => clearTimeout(timer);
-  }, [selectedDispId]);
 
   // Preset callback helpers
   const setCallbackInHours = (hours: number) => {
