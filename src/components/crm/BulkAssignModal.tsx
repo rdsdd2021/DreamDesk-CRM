@@ -71,6 +71,9 @@ export function BulkAssignModal({
   const isPrivileged = currentUser?.role === "admin" || currentUser?.role === "team_lead";
   const [overridePolicy, setOverridePolicy] = useState<boolean>(true);
 
+  // Named Assignment Batch State
+  const [assignmentName, setAssignmentName] = useState<string>("");
+
   // Task & Notification Engine State
   const [createFollowupTask, setCreateFollowupTask] = useState<boolean>(true);
   const [taskPriority, setTaskPriority] = useState<TaskPriority>("normal");
@@ -103,6 +106,9 @@ export function BulkAssignModal({
   useEffect(() => {
     if (isOpen) {
       setErrorMessage(null);
+      setAssignmentName(
+        `Batch — ${new Date().toLocaleString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`
+      );
       if (users.length > 0) {
         setSingleUserId((prev) => (prev && users.some((u) => u.id === prev) ? prev : users[0].id));
         setSelectedCounselorIds((prev) => {
@@ -264,6 +270,11 @@ export function BulkAssignModal({
       batchControllerRef.current = controller;
       setIsPaused(false);
 
+      const batchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const finalAssignmentName =
+        assignmentName.trim() ||
+        `Batch — ${new Date().toLocaleString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`;
+
       // Execute Chunked Assignment (350 leads per batch for optimal 40ms SQLite WAL transactions)
       const batchResult = await runBatchOperation(
         {
@@ -274,6 +285,9 @@ export function BulkAssignModal({
           processChunk: async (chunkIds) => {
             const payload: BulkAssignRequest = {
               mode: activeTab,
+              assignment_batch_id: batchId,
+              assignment_name: finalAssignmentName,
+              filter_params: currentFilterParams,
               selected_user_ids: activeTab === "auto" ? selectedCounselorIds : undefined,
               user_quotas: activeTab === "quota" ? quotas : undefined,
               single_user_id: activeTab === "single" ? (singleUserId || effectiveSingleUserId) : undefined,
@@ -604,6 +618,48 @@ export function BulkAssignModal({
                 <span className="font-medium">{errorMessage}</span>
               </div>
             )}
+
+            {/* Named Assignment & Saved Filter Snapshot */}
+            <div className="mx-4 mt-3 p-3 rounded-xl border border-border/80 bg-muted/30 space-y-2">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-foreground">
+                  Assignment Name <span className="text-muted-foreground font-normal">(tracked for Team Lead reports &amp; caller claiming)</span>
+                </label>
+                <Input
+                  value={assignmentName}
+                  onChange={(e) => setAssignmentName(e.target.value)}
+                  placeholder="e.g. Delhi NEET Morning Batch..."
+                  className="h-9 text-xs bg-background border-border/80 font-medium"
+                />
+              </div>
+              <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-1.5">
+                <span className="font-semibold text-foreground">Saved Filter:</span>
+                {currentFilterParams.search && (
+                  <Badge variant="outline" className="text-[10px]">Search: &ldquo;{currentFilterParams.search}&rdquo;</Badge>
+                )}
+                {currentFilterParams.status?.map((s) => (
+                  <Badge key={s} variant="outline" className="text-[10px]">Stage: {s}</Badge>
+                ))}
+                {currentFilterParams.campaign_id?.map((c) => (
+                  <Badge key={c} variant="outline" className="text-[10px]">Campaign: {c}</Badge>
+                ))}
+                {currentFilterParams.disposition_id?.map((d) => (
+                  <Badge key={d} variant="outline" className="text-[10px]">Disp: {d}</Badge>
+                ))}
+                {Object.entries(currentFilterParams.facets || {}).flatMap(([k, vals]) =>
+                  (vals || []).map((v) => (
+                    <Badge key={`${k}-${v}`} variant="outline" className="text-[10px]">{k}: {v}</Badge>
+                  ))
+                )}
+                {!currentFilterParams.search &&
+                  !currentFilterParams.status?.length &&
+                  !currentFilterParams.campaign_id?.length &&
+                  !currentFilterParams.disposition_id?.length &&
+                  !Object.values(currentFilterParams.facets || {}).some((v) => v?.length) && (
+                    <span className="italic">All matching leads (no extra filter)</span>
+                  )}
+              </div>
+            </div>
 
             {/* 7-Day Counselor Ownership Protection Notice */}
             <div className="mx-4 mt-2.5 p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs space-y-1">

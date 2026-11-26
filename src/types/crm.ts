@@ -326,6 +326,8 @@ export type WorkQueueId = "all" | "uncalled_today" | "callbacks" | "unassigned" 
 
 export interface BulkAssignRequest {
   mode: 'auto' | 'quota' | 'single';
+  assignment_batch_id?: string;
+  assignment_name?: string;
   lead_ids?: number[];
   apply_to_all_filtered?: boolean;
   filter_params?: FilterParams;
@@ -335,6 +337,37 @@ export interface BulkAssignRequest {
   user_quotas?: Record<string, number>; // userId -> count
   override_policy?: boolean;
   task_config?: BulkTaskConfig;
+}
+
+export interface AssignmentBatchCallerStat {
+  user_id: string;
+  user_name: string;
+  avatar_color?: string;
+  assigned_count: number;
+  initial_count: number;
+  claimed_count: number;
+  dialled_count: number;
+  pending_new_count: number;
+  followup_count: number;
+  positive_count: number;
+  admitted_count: number;
+  conversion_rate: number;
+}
+
+export interface AssignmentBatchSummary {
+  id: string;
+  name: string;
+  filter_params: FilterParams;
+  filter_summary: string;
+  mode: string;
+  created_by?: string | null;
+  created_by_name?: string | null;
+  created_at: string;
+  total_assigned: number;
+  initial_assigned: number;
+  claimed_assigned: number;
+  remaining_unassigned_in_filter: number;
+  callers: AssignmentBatchCallerStat[];
 }
 
 export interface ActivityLog {

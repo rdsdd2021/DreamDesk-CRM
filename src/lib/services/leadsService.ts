@@ -25,6 +25,8 @@ import {
   AnalyticsReportParams,
   AnalyticsReportData,
   BulkTaskConfig,
+  AssignmentBatchSummary,
+  AssignmentBatchCallerStat,
 } from "@/types/crm";
 import { PolicyService } from "@/lib/services/policyService";
 import { TasksService } from "@/lib/services/tasksService";
@@ -717,9 +719,18 @@ export class LeadsService {
 
     const updateLead = db.prepare(`
       UPDATE leads 
-      SET assigned_to = @userId, assigned_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
+      SET assigned_to = @userId, assignment_batch_id = @batchId, assigned_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
       WHERE id = @id
     `);
+
+    const batchId =
+      (request.assignment_batch_id && request.assignment_batch_id.trim()) ||
+      `batch_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const filterObj = request.filter_params || {};
+    const filterSummary = this.buildFilterSummary(filterObj);
+    const batchName =
+      (request.assignment_name && request.assignment_name.trim()) ||
+      `Assignment — ${new Date().toLocaleString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`;
 
     let affectedCount = 0;
     const counselorTally: Record<string, number> = {};
@@ -731,24 +742,45 @@ export class LeadsService {
       VALUES (@lead_id, 'assigned', @title, @description, 'Unassigned', @new_value, @metadata, @performed_by)
     `);
 
+    const insertBatchMember = db.prepare(`
+      INSERT INTO assignment_batch_members (batch_id, lead_id, assigned_to, source)
+      VALUES (@batchId, @leadId, @userId, 'initial')
+    `);
+
     const performerName = currentUser?.name || "Admin";
 
     withDbRetry(() => {
       const assignTransaction = db.transaction(() => {
+        db.prepare(`
+          INSERT OR IGNORE INTO assignment_batches (id, name, filter_params, filter_summary, mode, created_by, created_by_name)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          batchId,
+          batchName,
+          JSON.stringify(filterObj),
+          filterSummary,
+          request.mode,
+          currentUser?.id || null,
+          performerName
+        );
+
         if (request.mode === "single") {
           const userId = request.single_user_id || null;
           const cName = userId ? counselorMap.get(userId) || "Counselor" : "Unassigned";
           for (const id of finalLeadIds) {
             const isOverride = lockedSet.has(id);
-            updateLead.run({ id, userId });
+            updateLead.run({ id, userId, batchId: userId ? batchId : null });
+            if (userId) {
+              insertBatchMember.run({ batchId, leadId: id, userId });
+            }
             insertAssignActivity.run({
               lead_id: id,
               title: isOverride ? `Assigned to Counselor: ${cName} (Lock Overridden)` : `Assigned to Counselor: ${cName}`,
               description: isOverride
-                ? `Allocated via bulk assignment (Admin/Team Leader override of 7-day lock)`
-                : `Allocated via bulk assignment (${request.mode})`,
+                ? `Allocated via "${batchName}" (Admin/Team Leader override of 7-day lock)`
+                : `Allocated via "${batchName}" (${request.mode})`,
               new_value: cName,
-              metadata: JSON.stringify({ assigned_to: userId, mode: request.mode, is_override: isOverride }),
+              metadata: JSON.stringify({ assigned_to: userId, batchId, batchName, mode: request.mode, is_override: isOverride }),
               performed_by: performerName,
             });
             affectedCount++;
@@ -765,15 +797,16 @@ export class LeadsService {
             const userId = userIds[index % userIds.length];
             const cName = counselorMap.get(userId) || "Counselor";
             const isOverride = lockedSet.has(id);
-            updateLead.run({ id, userId });
+            updateLead.run({ id, userId, batchId });
+            insertBatchMember.run({ batchId, leadId: id, userId });
             insertAssignActivity.run({
               lead_id: id,
               title: isOverride ? `Assigned to Counselor: ${cName} (Lock Overridden)` : `Assigned to Counselor: ${cName}`,
               description: isOverride
-                ? `Auto-balanced distribution (Admin/Team Leader override of 7-day lock)`
-                : `Auto-balanced round-robin distribution`,
+                ? `Allocated via "${batchName}" (Admin/Team Leader override of 7-day lock)`
+                : `Allocated via "${batchName}" (round-robin)`,
               new_value: cName,
-              metadata: JSON.stringify({ assigned_to: userId, mode: request.mode, is_override: isOverride }),
+              metadata: JSON.stringify({ assigned_to: userId, batchId, batchName, mode: request.mode, is_override: isOverride }),
               performed_by: performerName,
             });
             affectedCount++;
@@ -789,15 +822,16 @@ export class LeadsService {
             for (let i = 0; i < countToGive; i++) {
               const id = finalLeadIds[currentIndex++];
               const isOverride = lockedSet.has(id);
-              updateLead.run({ id, userId });
+              updateLead.run({ id, userId, batchId });
+              insertBatchMember.run({ batchId, leadId: id, userId });
               insertAssignActivity.run({
                 lead_id: id,
                 title: isOverride ? `Assigned to Counselor: ${cName} (Lock Overridden)` : `Assigned to Counselor: ${cName}`,
                 description: isOverride
-                  ? `Quota-allocated assignment (Admin/Team Leader override of 7-day lock)`
-                  : `Quota-allocated assignment (${countToGive} capacity target)`,
+                  ? `Allocated via "${batchName}" (Admin/Team Leader override of 7-day lock)`
+                  : `Allocated via "${batchName}" (${countToGive} quota target)`,
                 new_value: cName,
-                metadata: JSON.stringify({ assigned_to: userId, mode: request.mode, quota, is_override: isOverride }),
+                metadata: JSON.stringify({ assigned_to: userId, batchId, batchName, mode: request.mode, quota, is_override: isOverride }),
                 performed_by: performerName,
               });
               affectedCount++;
@@ -812,9 +846,11 @@ export class LeadsService {
           INSERT INTO activity_logs (action_type, description, affected_count, metadata, performed_by)
           VALUES ('bulk_assign', @description, @affectedCount, @metadata, @performed_by)
         `).run({
-          description: `Bulk assigned ${affectedCount} leads using mode: ${request.mode}`,
+          description: `Bulk assigned ${affectedCount} leads in "${batchName}" (${request.mode})`,
           affectedCount,
           metadata: JSON.stringify({
+            batchId,
+            batchName,
             mode: request.mode,
             finalLeadIdsCount: finalLeadIds.length,
             skippedLockedCount,
@@ -856,30 +892,122 @@ export class LeadsService {
     };
   }
 
+  static buildFilterSummary(filterParams?: FilterParams): string {
+    if (!filterParams) return "All Unfiltered Leads";
+    const parts: string[] = [];
+    if (filterParams.search?.trim()) parts.push(`Search: "${filterParams.search.trim()}"`);
+    if (filterParams.status && filterParams.status.length > 0) parts.push(`Stage: ${filterParams.status.join(", ")}`);
+    if (filterParams.campaign_id && filterParams.campaign_id.length > 0) parts.push(`Campaign: ${filterParams.campaign_id.join(", ")}`);
+    if (filterParams.disposition_id && filterParams.disposition_id.length > 0) parts.push(`Disposition: ${filterParams.disposition_id.join(", ")}`);
+    if (filterParams.tags && filterParams.tags.length > 0) parts.push(`Tags: ${filterParams.tags.join(", ")}`);
+    if (filterParams.facets) {
+      for (const [k, vals] of Object.entries(filterParams.facets)) {
+        if (vals && vals.length > 0) parts.push(`${k}: ${vals.join(", ")}`);
+      }
+    }
+    if (filterParams.date_from || filterParams.date_to) {
+      parts.push(`Date: ${filterParams.date_from || "..."} → ${filterParams.date_to || "..."}`);
+    }
+    return parts.length > 0 ? parts.join(" · ") : "All Matching Leads";
+  }
+
   /**
-   * Fast 1-click self-allocation for counselors: claims N fresh unassigned leads.
+   * Smart Filter Claim:
+   * - Requires 0 pending 'New' (uncalled) leads AND 0 'Follow-up' leads for the caller.
+   * - Pulls unassigned leads strictly from the caller's most recent named assignment batch filter.
+   * - Respects 7-day counselor ownership lock, retry cooldowns, and active claim cap.
    */
   static claimUnassignedLeads(
     userId: string,
     count: number = 25,
     currentUser?: User | null
-  ): { claimedCount: number; message: string } {
+  ): { claimedCount: number; batchName?: string; remainingInFilter?: number; message: string } {
     const db = getDatabase();
     const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as User | undefined;
     if (!user) throw new Error("Counselor not found");
 
-    // Fetch candidate unassigned leads (buffer up to count * 3 to account for policy-locked leads)
-    const unassignedRows = db.prepare(
-      "SELECT id FROM leads WHERE assigned_to IS NULL ORDER BY id ASC LIMIT ?"
-    ).all(count * 3) as { id: number }[];
+    // 1. Check caller eligibility: 0 New (uncalled) AND 0 Follow-up leads
+    const pendingCounts = db.prepare(`
+      SELECT
+        SUM(CASE WHEN status = 'New' THEN 1 ELSE 0 END) as new_cnt,
+        SUM(CASE WHEN status = 'Follow-up' THEN 1 ELSE 0 END) as followup_cnt
+      FROM leads
+      WHERE assigned_to = ?
+    `).get(userId) as { new_cnt: number | null; followup_cnt: number | null };
+
+    const newCnt = Number(pendingCounts?.new_cnt || 0);
+    const followupCnt = Number(pendingCounts?.followup_cnt || 0);
+
+    if (newCnt > 0) {
+      return {
+        claimedCount: 0,
+        message: `Cannot claim yet: you still have ${newCnt} uncalled (New) lead${newCnt === 1 ? "" : "s"}. Dial all assigned leads first.`,
+      };
+    }
+
+    if (followupCnt > 0) {
+      return {
+        claimedCount: 0,
+        message: `Cannot claim yet: you have ${followupCnt} pending Follow-up lead${followupCnt === 1 ? "" : "s"}. Clear follow-ups before claiming more.`,
+      };
+    }
+
+    // 2. Find the caller's single most recent named assignment batch
+    const latestBatch = db.prepare(`
+      SELECT ab.*
+      FROM assignment_batch_members abm
+      JOIN assignment_batches ab ON abm.batch_id = ab.id
+      WHERE abm.assigned_to = ?
+      ORDER BY abm.assigned_at DESC, ab.created_at DESC
+      LIMIT 1
+    `).get(userId) as any;
+
+    if (!latestBatch) {
+      return {
+        claimedCount: 0,
+        message: "No named assignment batch found for your account yet. Ask your Team Lead to assign a batch first.",
+      };
+    }
+
+    const batchFilter: FilterParams = this.safeParseJson(latestBatch.filter_params) as FilterParams;
+    const poolFilter: FilterParams = {
+      ...batchFilter,
+      assigned_to: ["unassigned"],
+    };
+
+    const { whereClause, queryParams } = this.buildWhereClause(poolFilter);
+    const cap = Math.min(25, Math.max(1, count));
+
+    // 3. Query unassigned leads from that exact batch filter, skipping leads in retry cooldown
+    const candidateSql = `
+      SELECT leads.id
+      FROM leads
+      LEFT JOIN users ON leads.assigned_to = users.id
+      LEFT JOIN campaigns ON leads.campaign_id = campaigns.id
+      LEFT JOIN dispositions ON leads.disposition_id = dispositions.id
+      ${whereClause}
+      AND (leads.cooldown_until IS NULL OR leads.cooldown_until <= CURRENT_TIMESTAMP)
+      ORDER BY leads.id ASC
+      LIMIT @limit
+    `;
+
+    const unassignedRows = db.prepare(candidateSql).all({
+      ...queryParams,
+      limit: cap * 3,
+    }) as { id: number }[];
 
     if (unassignedRows.length === 0) {
-      return { claimedCount: 0, message: "No unassigned leads available in the pool." };
+      return {
+        claimedCount: 0,
+        batchName: latestBatch.name,
+        remainingInFilter: 0,
+        message: `No unassigned leads remaining in "${latestBatch.name}" (or matching leads are in retry cooldown).`,
+      };
     }
 
     const candidateIds = unassignedRows.map((r) => r.id);
 
-    // Validate candidates against 7-day counselor ownership policy
+    // 4. Validate candidates against 7-day counselor ownership lock policy
     const policyResult = PolicyService.validateBulkReassignment({
       leadIds: candidateIds,
       newUserId: userId,
@@ -887,12 +1015,13 @@ export class LeadsService {
       overridePolicy: false,
     });
 
-    const allowedIds = policyResult.allowedIds.slice(0, count);
+    const allowedIds = policyResult.allowedIds.slice(0, cap);
 
     if (allowedIds.length === 0) {
       return {
         claimedCount: 0,
-        message: "All candidate unassigned leads are currently protected under counselor ownership locks.",
+        batchName: latestBatch.name,
+        message: `All candidate leads in "${latestBatch.name}" are currently protected under counselor ownership locks.`,
       };
     }
 
@@ -901,9 +1030,14 @@ export class LeadsService {
     const claimTx = db.transaction(() => {
       db.prepare(`
         UPDATE leads 
-        SET assigned_to = ?, assigned_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
+        SET assigned_to = ?, assignment_batch_id = ?, assigned_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
         WHERE id IN (${placeholders})
-      `).run(userId, ...allowedIds);
+      `).run(userId, latestBatch.id, ...allowedIds);
+
+      const insertMember = db.prepare(`
+        INSERT INTO assignment_batch_members (batch_id, lead_id, assigned_to, source)
+        VALUES (?, ?, ?, 'claimed')
+      `);
 
       const insertClaimActivity = db.prepare(`
         INSERT INTO lead_activities (lead_id, activity_type, title, description, old_value, new_value, metadata, performed_by_id, performed_by_name)
@@ -911,12 +1045,13 @@ export class LeadsService {
       `);
 
       for (const id of allowedIds) {
+        insertMember.run(latestBatch.id, id, userId);
         insertClaimActivity.run(
           id,
           `Claimed by Counselor: ${user.name}`,
-          `Counselor self-allocated lead from the unassigned pool`,
+          `Self-claimed from batch "${latestBatch.name}"`,
           user.name,
-          JSON.stringify({ userId: user.id }),
+          JSON.stringify({ userId: user.id, batchId: latestBatch.id, batchName: latestBatch.name }),
           user.id,
           user.name
         );
@@ -926,9 +1061,9 @@ export class LeadsService {
         INSERT INTO activity_logs (action_type, description, affected_count, metadata, performed_by)
         VALUES ('lead_claim', ?, ?, ?, ?)
       `).run(
-        `Counselor ${user.name} claimed ${allowedIds.length} unassigned leads`,
+        `Counselor ${user.name} claimed ${allowedIds.length} leads from "${latestBatch.name}"`,
         allowedIds.length,
-        JSON.stringify({ userId, claimedIds: allowedIds }),
+        JSON.stringify({ userId: user.id, batchId: latestBatch.id, batchName: latestBatch.name, claimedIds: allowedIds }),
         user.name
       );
     });
@@ -936,10 +1071,109 @@ export class LeadsService {
     claimTx();
     this.invalidateCache();
 
+    // Compute remaining unassigned leads in this filter
+    const remRow = db.prepare(`
+      SELECT COUNT(*) as cnt
+      FROM leads
+      LEFT JOIN users ON leads.assigned_to = users.id
+      LEFT JOIN campaigns ON leads.campaign_id = campaigns.id
+      LEFT JOIN dispositions ON leads.disposition_id = dispositions.id
+      ${whereClause}
+    `).get(queryParams) as { cnt: number };
+
+    const remainingInFilter = Number(remRow?.cnt || 0);
+
     return {
       claimedCount: allowedIds.length,
-      message: `Successfully assigned ${allowedIds.length} fresh leads to ${user.name}!`,
+      batchName: latestBatch.name,
+      remainingInFilter,
+      message: `Claimed ${allowedIds.length} leads from "${latestBatch.name}" (${remainingInFilter} remaining in filter).`,
     };
+  }
+
+  /**
+   * Generates Team Lead Assignment Reports with batch filter snapshots, remaining unassigned pool counts, and caller-wise breakdown.
+   */
+  static getAssignmentReports(): AssignmentBatchSummary[] {
+    const db = getDatabase();
+    const batches = db
+      .prepare("SELECT * FROM assignment_batches ORDER BY created_at DESC LIMIT 100")
+      .all() as any[];
+
+    const callerStmt = db.prepare(`
+      SELECT
+        abm.assigned_to as user_id,
+        COALESCE(u.name, 'Unknown') as user_name,
+        u.avatar_color as avatar_color,
+        COUNT(DISTINCT abm.lead_id) as assigned_count,
+        COUNT(DISTINCT CASE WHEN abm.source = 'initial' THEN abm.lead_id END) as initial_count,
+        COUNT(DISTINCT CASE WHEN abm.source = 'claimed' THEN abm.lead_id END) as claimed_count,
+        COUNT(DISTINCT CASE WHEN l.status != 'New' OR l.attempt_count > 0 THEN abm.lead_id END) as dialled_count,
+        COUNT(DISTINCT CASE WHEN l.status = 'New' THEN abm.lead_id END) as pending_new_count,
+        COUNT(DISTINCT CASE WHEN l.status = 'Follow-up' THEN abm.lead_id END) as followup_count,
+        COUNT(DISTINCT CASE WHEN l.status IN ('Interested', 'Admitted') THEN abm.lead_id END) as positive_count,
+        COUNT(DISTINCT CASE WHEN l.status = 'Admitted' THEN abm.lead_id END) as admitted_count
+      FROM assignment_batch_members abm
+      JOIN leads l ON abm.lead_id = l.id
+      LEFT JOIN users u ON abm.assigned_to = u.id
+      WHERE abm.batch_id = ?
+      GROUP BY abm.assigned_to
+      ORDER BY assigned_count DESC
+    `);
+
+    return batches.map((b) => {
+      const filterObj: FilterParams = this.safeParseJson(b.filter_params) as FilterParams;
+      const poolFilter: FilterParams = { ...filterObj, assigned_to: ["unassigned"] };
+      const { whereClause, queryParams } = this.buildWhereClause(poolFilter);
+      const remRow = db.prepare(`
+        SELECT COUNT(*) as cnt
+        FROM leads
+        LEFT JOIN users ON leads.assigned_to = users.id
+        LEFT JOIN campaigns ON leads.campaign_id = campaigns.id
+        LEFT JOIN dispositions ON leads.disposition_id = dispositions.id
+        ${whereClause}
+      `).get(queryParams) as { cnt: number };
+
+      const rawCallers = callerStmt.all(b.id) as any[];
+      const callers: AssignmentBatchCallerStat[] = rawCallers.map((c) => {
+        const assigned = Number(c.assigned_count || 0);
+        const positive = Number(c.positive_count || 0);
+        return {
+          user_id: String(c.user_id),
+          user_name: String(c.user_name || "Unknown"),
+          avatar_color: c.avatar_color || undefined,
+          assigned_count: assigned,
+          initial_count: Number(c.initial_count || 0),
+          claimed_count: Number(c.claimed_count || 0),
+          dialled_count: Number(c.dialled_count || 0),
+          pending_new_count: Number(c.pending_new_count || 0),
+          followup_count: Number(c.followup_count || 0),
+          positive_count: positive,
+          admitted_count: Number(c.admitted_count || 0),
+          conversion_rate: assigned > 0 ? Math.round((positive / assigned) * 1000) / 10 : 0,
+        };
+      });
+
+      const totalAssigned = callers.reduce((acc, c) => acc + c.assigned_count, 0);
+      const initialAssigned = callers.reduce((acc, c) => acc + c.initial_count, 0);
+      const claimedAssigned = callers.reduce((acc, c) => acc + c.claimed_count, 0);
+
+      return {
+        id: b.id,
+        name: b.name,
+        filter_params: filterObj,
+        filter_summary: b.filter_summary || this.buildFilterSummary(filterObj),
+        mode: b.mode || "auto",
+        created_by: b.created_by,
+        created_by_name: b.created_by_name,
+        created_at: b.created_at,
+        total_assigned: totalAssigned,
+        initial_assigned: initialAssigned,
+        claimed_assigned: claimedAssigned,
+        remaining_unassigned_in_filter: Number(remRow?.cnt || 0),
+        callers,
+      };
+    });
   }
 
   /**

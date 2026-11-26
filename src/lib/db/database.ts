@@ -275,6 +275,34 @@ function initializeSchema(db: Database.Database) {
   if (!existingColNames.has("alternate_contacts")) {
     db.exec("ALTER TABLE leads ADD COLUMN alternate_contacts TEXT DEFAULT '[]';");
   }
+  if (!existingColNames.has("assignment_batch_id")) {
+    db.exec("ALTER TABLE leads ADD COLUMN assignment_batch_id TEXT;");
+  }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS assignment_batches (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      filter_params TEXT NOT NULL DEFAULT '{}',
+      filter_summary TEXT,
+      mode TEXT NOT NULL DEFAULT 'auto',
+      created_by TEXT,
+      created_by_name TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS assignment_batch_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      batch_id TEXT NOT NULL REFERENCES assignment_batches(id) ON DELETE CASCADE,
+      lead_id INTEGER NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+      assigned_to TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'initial',
+      assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_leads_assignment_batch ON leads(assignment_batch_id);
+    CREATE INDEX IF NOT EXISTS idx_abm_batch ON assignment_batch_members(batch_id);
+    CREATE INDEX IF NOT EXISTS idx_abm_user ON assignment_batch_members(assigned_to, assigned_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_abm_lead ON assignment_batch_members(lead_id);
+  `);
 
 
   // Optimize indices for high-volume 500k lead queries

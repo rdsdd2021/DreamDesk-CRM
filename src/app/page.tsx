@@ -45,6 +45,7 @@ import { TeamModal } from "@/components/crm/TeamModal";
 import { ActivityLogsModal } from "@/components/crm/ActivityLogsModal";
 import { TasksWorkspace } from "@/components/crm/TasksWorkspace";
 import { TeamWorkspace } from "@/components/crm/TeamWorkspace";
+import { AssignmentReportsWorkspace } from "@/components/crm/AssignmentReportsWorkspace";
 import { ImportWorkspace } from "@/components/crm/ImportWorkspace";
 import { ActivityWorkspace } from "@/components/crm/ActivityWorkspace";
 import { PoliciesWorkspace } from "@/components/crm/PoliciesWorkspace";
@@ -718,9 +719,11 @@ export default function CRMPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to claim leads");
-      showToast(data.message, "success");
-      fetchLeads();
-      loadMetaAndUsers();
+      showToast(data.message, data.claimedCount > 0 ? "success" : "error");
+      if (data.claimedCount > 0) {
+        fetchLeads();
+        loadMetaAndUsers();
+      }
     } catch (err: any) {
       showToast(err.message || "Failed to claim leads", "error");
     } finally {
@@ -1545,6 +1548,7 @@ export default function CRMPage() {
                 {currentView === "fields" && "Dynamic Schema & Fields Studio"}
                 {currentView === "tasks" && "Scheduled Tasks & Callbacks"}
                 {currentView === "team" && "Counselors & Team Directory"}
+                {currentView === "assignments" && "Assignment Batches & Caller Reports"}
                 {currentView === "import" && "Batch CSV Ingestion & Field Mapping Studio"}
                 {currentView === "activity" && "Compliance & Activity Audit Trail"}
                 {currentView === "policies" && "Governance & CRM Policies"}
@@ -2072,6 +2076,15 @@ export default function CRMPage() {
                   onAutoDistribute={() => handleAutoDistribute(250)}
                   isAutoDistributing={isAutoDistributing}
                 />
+              </div>
+            </WorkspaceErrorBoundary>
+          )}
+
+          {/* VIEW 6B: TEAM LEAD ASSIGNMENT BATCH REPORTS */}
+          {currentView === "assignments" && canAccessView("assignments") && (
+            <WorkspaceErrorBoundary workspaceName="Assignment Batch Reports">
+              <div className="max-w-7xl mx-auto">
+                <AssignmentReportsWorkspace />
               </div>
             </WorkspaceErrorBoundary>
           )}

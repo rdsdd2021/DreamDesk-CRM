@@ -116,6 +116,11 @@ export function AppSidebar({
       badge: counselorsCount > 0 ? String(counselorsCount) : undefined,
     },
     {
+      id: "assignments",
+      label: "Assignment Reports",
+      icon: Layers,
+    },
+    {
       id: "import",
       label: "Batch CSV Import",
       icon: Upload,
