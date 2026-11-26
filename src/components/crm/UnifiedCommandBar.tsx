@@ -57,6 +57,8 @@ interface UnifiedCommandBarProps {
   // Search state
   search: string;
   onSearchChange: (val: string) => void;
+  reassignedOnly?: boolean;
+  onToggleReassignedOnly?: () => void;
 
   // Filter Flyout Drawer toggle
   filterDrawerOpen: boolean;
@@ -101,6 +103,8 @@ export function UnifiedCommandBar({
   roleMode,
   search,
   onSearchChange,
+  reassignedOnly = false,
+  onToggleReassignedOnly,
   filterDrawerOpen,
   onToggleFilterDrawer,
   selectedFacets,
@@ -283,6 +287,23 @@ export function UnifiedCommandBar({
                 </Badge>
               )}
             </Button>
+
+            {onToggleReassignedOnly && (
+              <Button
+                type="button"
+                variant={reassignedOnly ? "secondary" : "outline"}
+                size="sm"
+                onClick={onToggleReassignedOnly}
+                className={`h-8 text-xs gap-1.5 rounded-lg font-medium cursor-pointer shrink-0 ${
+                  reassignedOnly
+                    ? "border-amber-500/50 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold"
+                    : ""
+                }`}
+                title="Show only leads reassigned from another caller"
+              >
+                <span>Reassigned</span>
+              </Button>
+            )}
           </div>
 
           {/* Action Tools & Dropdowns Row */}

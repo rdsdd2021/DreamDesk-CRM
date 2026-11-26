@@ -891,6 +891,14 @@ export function LeadsTable({
                               <span className="md:hidden font-mono text-[9px] font-semibold text-muted-foreground bg-muted/80 px-1 rounded">
                                 {lead.lead_code}
                               </span>
+                              {lead.is_reassigned && (
+                                <span
+                                  className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 shrink-0"
+                                  title={`Reassigned · Prev: ${lead.previous_disposition_name || "Contacted"}${lead.previous_counselor_name ? ` by ${lead.previous_counselor_name}` : ""}`}
+                                >
+                                  Reassigned
+                                </span>
+                              )}
                             </div>
                             {/* Mobile Academic Sub-line: Stream & School */}
                             {(lead.raw_attributes?.stream || lead.raw_attributes?.school) && (

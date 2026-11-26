@@ -1121,6 +1121,29 @@ export function EnhancedLeadDrawer({
             </div>
           </div>
 
+          {/* Previous Caller Reassignment Handoff Banner */}
+          {lead.is_reassigned && (
+            <div className="mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs space-y-1 shadow-2xs">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="font-bold flex items-center gap-1.5">
+                  <RotateCw className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>Reassigned to You (Uncalled)</span>
+                </span>
+                {lead.previous_disposition_name && (
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/30">
+                    Prev: {lead.previous_disposition_name}
+                    {lead.previous_counselor_name ? ` · ${lead.previous_counselor_name}` : ""}
+                  </span>
+                )}
+              </div>
+              {lead.previous_notes && (
+                <p className="text-[11px] text-amber-900/85 dark:text-amber-200/85 line-clamp-2 leading-snug">
+                  Last note: {lead.previous_notes}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Callback Scheduled Alert Banner */}
           {lead.callback_at && (
             <div className="mt-3.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs flex items-center justify-between shadow-2xs">

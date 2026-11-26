@@ -313,6 +313,7 @@ export default function CRMPage() {
   const [activeLeadIndex, setActiveLeadIndex] = useState<number | null>(null);
   const [claimingLeads, setClaimingLeads] = useState(false);
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [reassignedOnly, setReassignedOnly] = useState(false);
 
   // Live Uncalled Today Count for Dialing Queue
   const uncalledTodayCount = useMemo(() => {
@@ -563,6 +564,9 @@ export default function CRMPage() {
       if (debouncedSearch.trim()) {
         params.set("search", debouncedSearch.trim());
       }
+      if (reassignedOnly) {
+        params.set("reassigned_only", "1");
+      }
 
       // If in counselor mode, force assigned_to = activeCounselorId
       const facetsToApply = { ...selectedFacets };
@@ -591,7 +595,7 @@ export default function CRMPage() {
 
       return params;
     },
-    [pageSize, sortBy, sortOrder, debouncedSearch, selectedFacets, roleMode, activeCounselorId]
+    [pageSize, sortBy, sortOrder, debouncedSearch, reassignedOnly, selectedFacets, roleMode, activeCounselorId]
   );
 
   // Load Leads with Filters (silent=true avoids flashing loading skeletons during background sync)
@@ -1817,6 +1821,11 @@ export default function CRMPage() {
                 roleMode={isRestrictedCounselor ? "counselor" : roleMode}
                 search={search}
                 onSearchChange={setSearch}
+                reassignedOnly={reassignedOnly}
+                onToggleReassignedOnly={() => {
+                  setReassignedOnly((prev) => !prev);
+                  setPage(1);
+                }}
                 filterDrawerOpen={filterDrawerOpen}
                 onToggleFilterDrawer={() => setFilterDrawerOpen((prev) => !prev)}
                 selectedFacets={selectedFacets}

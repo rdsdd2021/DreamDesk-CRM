@@ -278,6 +278,21 @@ function initializeSchema(db: Database.Database) {
   if (!existingColNames.has("assignment_batch_id")) {
     db.exec("ALTER TABLE leads ADD COLUMN assignment_batch_id TEXT;");
   }
+  if (!existingColNames.has("is_reassigned")) {
+    db.exec("ALTER TABLE leads ADD COLUMN is_reassigned INTEGER NOT NULL DEFAULT 0;");
+  }
+  if (!existingColNames.has("previous_counselor_name")) {
+    db.exec("ALTER TABLE leads ADD COLUMN previous_counselor_name TEXT;");
+  }
+  if (!existingColNames.has("previous_disposition_name")) {
+    db.exec("ALTER TABLE leads ADD COLUMN previous_disposition_name TEXT;");
+  }
+  if (!existingColNames.has("previous_notes")) {
+    db.exec("ALTER TABLE leads ADD COLUMN previous_notes TEXT;");
+  }
+  if (!existingColNames.has("reassigned_at")) {
+    db.exec("ALTER TABLE leads ADD COLUMN reassigned_at DATETIME;");
+  }
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS assignment_batches (

@@ -129,6 +129,11 @@ export interface Lead {
   last_attempt_at?: string | null;
   cooldown_until?: string | null;
   call_outcome?: string | null;
+  is_reassigned?: boolean;
+  previous_counselor_name?: string | null;
+  previous_disposition_name?: string | null;
+  previous_notes?: string | null;
+  reassigned_at?: string | null;
   tags?: string[];
   raw_attributes: Record<string, any>;
   notes: string | null;
@@ -292,6 +297,7 @@ export interface FilterParams {
   disposition_id?: string[];
   tags?: string[];
   calling_recency?: 'uncalled_today' | 'never_called' | 'called_today' | 'all';
+  reassigned_only?: boolean;
   facets?: Record<string, string[]>;
   date_from?: string;
   date_to?: string;

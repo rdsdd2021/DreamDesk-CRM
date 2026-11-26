@@ -146,6 +146,11 @@ export class LeadsService {
       sub_disposition_id: row.sub_disposition_id,
       sub_disposition_name: row.sub_disposition_name,
       callback_at: row.callback_at,
+      is_reassigned: Boolean(row.is_reassigned),
+      previous_counselor_name: row.previous_counselor_name || null,
+      previous_disposition_name: row.previous_disposition_name || null,
+      previous_notes: row.previous_notes || null,
+      reassigned_at: row.reassigned_at || null,
       tags: this.safeParseArray(row.tags),
       raw_attributes: this.safeParseJson(row.raw_attributes),
       notes: row.notes,
@@ -336,6 +341,10 @@ export class LeadsService {
       }
     }
 
+    if (params.reassigned_only) {
+      conditions.push(`leads.is_reassigned = 1`);
+    }
+
     // Dynamic Faceted Filters from JSON attributes
     if (params.facets) {
       let facetIndex = 0;
@@ -387,6 +396,7 @@ export class LeadsService {
       c: params.campaign_id || [],
       d: params.disposition_id || [],
       cr: params.calling_recency || "",
+      re: Boolean(params.reassigned_only),
       f: params.facets || {},
     });
 
@@ -652,6 +662,55 @@ export class LeadsService {
   /**
    * Bulk Assign Leads to counselors (Auto balanced, Quota-based, or Single counselor).
    */
+  /**
+   * When a previously dispositioned/contacted lead is reassigned to a new caller,
+   * snapshots the prior outcome into previous_* columns and resets stage to 'New'
+   * so the new caller's uncalled queue and Smart Claim remain accurate.
+   */
+  private static applyReassignmentHandoff(db: any, leadId: number, newUserId: string | null) {
+    if (!newUserId) return;
+    const prev = db.prepare(`
+      SELECT l.assigned_to, l.status, l.disposition_id, l.attempt_count, l.notes,
+             u.name as prev_user_name, d.name as prev_disp_name
+      FROM leads l
+      LEFT JOIN users u ON l.assigned_to = u.id
+      LEFT JOIN dispositions d ON l.disposition_id = d.id
+      WHERE l.id = ?
+    `).get(leadId) as any;
+
+    if (!prev) return;
+    if (prev.assigned_to === newUserId) return;
+
+    const hadPriorWork = Boolean(
+      prev.disposition_id ||
+      (prev.status && prev.status !== "New") ||
+      (prev.attempt_count && prev.attempt_count > 0)
+    );
+    if (!hadPriorWork) return;
+
+    db.prepare(`
+      UPDATE leads
+      SET
+        is_reassigned = 1,
+        previous_counselor_name = ?,
+        previous_disposition_name = ?,
+        previous_notes = ?,
+        reassigned_at = CURRENT_TIMESTAMP,
+        status = 'New',
+        disposition_id = NULL,
+        sub_disposition_id = NULL,
+        callback_at = NULL,
+        cooldown_until = NULL,
+        attempt_count = 0
+      WHERE id = ?
+    `).run(
+      prev.prev_user_name || (prev.assigned_to ? "Previous Caller" : "Unassigned"),
+      prev.prev_disp_name || prev.status || "Contacted",
+      prev.notes || null,
+      leadId
+    );
+  }
+
   static bulkAssign(
     request: BulkAssignRequest,
     currentUser?: User | null
@@ -769,6 +828,7 @@ export class LeadsService {
           const cName = userId ? counselorMap.get(userId) || "Counselor" : "Unassigned";
           for (const id of finalLeadIds) {
             const isOverride = lockedSet.has(id);
+            this.applyReassignmentHandoff(db, id, userId);
             updateLead.run({ id, userId, batchId: userId ? batchId : null });
             if (userId) {
               insertBatchMember.run({ batchId, leadId: id, userId });
@@ -797,6 +857,7 @@ export class LeadsService {
             const userId = userIds[index % userIds.length];
             const cName = counselorMap.get(userId) || "Counselor";
             const isOverride = lockedSet.has(id);
+            this.applyReassignmentHandoff(db, id, userId);
             updateLead.run({ id, userId, batchId });
             insertBatchMember.run({ batchId, leadId: id, userId });
             insertAssignActivity.run({
@@ -822,6 +883,7 @@ export class LeadsService {
             for (let i = 0; i < countToGive; i++) {
               const id = finalLeadIds[currentIndex++];
               const isOverride = lockedSet.has(id);
+              this.applyReassignmentHandoff(db, id, userId);
               updateLead.run({ id, userId, batchId });
               insertBatchMember.run({ batchId, leadId: id, userId });
               insertAssignActivity.run({
@@ -2572,6 +2634,7 @@ export class LeadsService {
         last_attempt_at = CURRENT_TIMESTAMP,
         cooldown_until = @cooldownUntil,
         call_outcome = @callOutcome,
+        is_reassigned = 0,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = @leadId
     `).run({
@@ -2839,6 +2902,11 @@ export class LeadsService {
       sub_disposition_id: row.sub_disposition_id,
       sub_disposition_name: row.sub_disposition_name,
       callback_at: row.callback_at,
+      is_reassigned: Boolean(row.is_reassigned),
+      previous_counselor_name: row.previous_counselor_name || null,
+      previous_disposition_name: row.previous_disposition_name || null,
+      previous_notes: row.previous_notes || null,
+      reassigned_at: row.reassigned_at || null,
       tags: this.safeParseArray(row.tags),
       raw_attributes: this.safeParseJson(row.raw_attributes),
       notes: row.notes,
@@ -3739,6 +3807,7 @@ export class LeadsService {
         throw new Error(policyCheck.message || "Reassignment blocked by Counselor Ownership Lock Policy");
       }
 
+      this.applyReassignmentHandoff(db, leadId, value || null);
       db.prepare("UPDATE leads SET assigned_to = ?, assigned_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(value || null, leadId);
       const user = value ? (db.prepare("SELECT name FROM users WHERE id = ?").get(value) as { name: string } | undefined) : undefined;
       const counselorName = user ? user.name : (value ? "Counselor" : "Unassigned");
