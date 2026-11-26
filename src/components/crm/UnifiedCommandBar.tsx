@@ -398,90 +398,20 @@ export function UnifiedCommandBar({
           </DropdownMenu>
           </div>
 
-          {/* Operations Hub (Admin/TL/Counselor Self-service) */}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              className="inline-flex items-center justify-center h-8 px-2.5 text-xs font-semibold border border-primary/30 bg-primary/5 hover:bg-primary/10 text-primary rounded-lg cursor-pointer gap-1.5 shadow-2xs"
+          {/* Standalone Claim Fresh Leads Button */}
+          {onClaimLeads && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onClaimLeads}
+              disabled={claimingLeads}
+              className="h-8 px-2.5 text-xs font-semibold border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded-lg cursor-pointer gap-1.5 shadow-2xs shrink-0"
             >
-              <Zap className="w-3.5 h-3.5 text-primary" />
-              <span>Actions</span>
-              <ChevronDown className="w-3 h-3" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 text-xs p-1.5 rounded-xl shadow-xl">
-              <DropdownMenuLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-1">
-                Queue & Bulk Tools
-              </DropdownMenuLabel>
-              {roleMode === "counselor" && onClaimLeads && (
-                <DropdownMenuItem
-                  onClick={onClaimLeads}
-                  disabled={claimingLeads}
-                  className="gap-2 cursor-pointer text-xs rounded-lg font-semibold text-emerald-600 py-1.5 px-2"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>{claimingLeads ? "Claiming..." : "Claim 25 Fresh Leads"}</span>
-                </DropdownMenuItem>
-              )}
-              {canManageTeam && onAutoDistribute && (
-                <DropdownMenuItem
-                  onClick={onAutoDistribute}
-                  disabled={isAutoDistributing}
-                  className="gap-2 cursor-pointer text-xs rounded-lg font-semibold text-primary py-1.5 px-2"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>{isAutoDistributing ? "Distributing..." : "Auto-Distribute 250 Leads"}</span>
-                </DropdownMenuItem>
-              )}
-              {canManageTeam && onOpenImport && (
-                <DropdownMenuItem
-                  onClick={onOpenImport}
-                  className="gap-2 cursor-pointer text-xs rounded-lg py-1.5 px-2"
-                >
-                  <Upload className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>Import Leads from CSV</span>
-                </DropdownMenuItem>
-              )}
-              {canManageTeam && onOpenDuplicates && (
-                <DropdownMenuItem
-                  onClick={onOpenDuplicates}
-                  className="gap-2 cursor-pointer text-xs rounded-lg py-1.5 px-2"
-                >
-                  <GitMerge className="w-3.5 h-3.5 text-indigo-500" />
-                  <span>Duplicates Radar & Merge</span>
-                </DropdownMenuItem>
-              )}
-              {canManageTeam && onGenerateTestData && (
-                <DropdownMenuItem
-                  onClick={onGenerateTestData}
-                  className="gap-2 cursor-pointer text-xs rounded-lg py-1.5 px-2"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Generate +2,500 Test Leads</span>
-                </DropdownMenuItem>
-              )}
-              {onOpenShortcuts && (
-                <>
-                  <DropdownMenuSeparator className="my-1" />
-                  <DropdownMenuItem
-                    onClick={onOpenShortcuts}
-                    className="gap-2 cursor-pointer text-xs rounded-lg py-1.5 px-2"
-                  >
-                    <Keyboard className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span>Keyboard Hotkeys Cheat Sheet (?)</span>
-                  </DropdownMenuItem>
-                </>
-              )}
-              <DropdownMenuSeparator className="my-1" />
-              <DropdownMenuItem
-                onClick={() => {
-                  window.dispatchEvent(new CustomEvent("trigger-pwa-install"));
-                }}
-                className="gap-2 cursor-pointer text-xs rounded-lg py-1.5 px-2 text-blue-600 dark:text-blue-400 font-medium"
-              >
-                <Smartphone className="w-3.5 h-3.5 text-blue-500" />
-                <span>Install Android / PWA App</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{claimingLeads ? "Claiming..." : "Claim 25 Leads"}</span>
+            </Button>
+          )}
         </div>
       </div>
     </div>

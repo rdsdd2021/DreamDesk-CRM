@@ -961,6 +961,7 @@ export function EnhancedLeadDrawer({
   const displayTotal = (totalLeadsCount ?? 0).toLocaleString();
 
   return (
+    <>
     <Sheet open={isOpen} onOpenChange={(open) => !open && handleAttemptClose()}>
       <SheetContent className="w-full sm:max-w-xl md:max-w-2xl h-full max-h-screen overflow-hidden p-0 flex flex-col bg-background shadow-2xl">
         {/* Tier 1: Pinned Header */}
@@ -1384,21 +1385,6 @@ export function EnhancedLeadDrawer({
                       <Plus className="w-3.5 h-3.5" />
                       <span>Add #</span>
                     </Button>
-                    {(selectedDispId || callNotes.trim().length > 0) && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedDispId("");
-                          setSelectedSubDispId("");
-                          setCallbackDate("");
-                          setCallNotes("");
-                        }}
-                        className="h-8 sm:h-6 px-2.5 text-xs sm:text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
-                      >
-                        Reset
-                      </Button>
-                    )}
                     <label className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer select-none">
                       <Checkbox
                         checked={autoAdvanceOnSave}
@@ -2167,19 +2153,9 @@ export function EnhancedLeadDrawer({
               <span>WhatsApp</span>
             </Button>
           ) : null}
-
-          {selectedDispId ? (
-            <Button
-              size="default"
-              onClick={() => handleSaveDynamicOutcome()}
-              disabled={savingDisp || isMissingMandatoryOutcomeFields}
-              className="flex-[1.5] h-12 text-sm font-bold gap-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-sm cursor-pointer"
-            >
-              <Save className="w-4 h-4" />
-              <span>{savingDisp ? "Saving..." : autoAdvanceOnSave && hasNextLead ? "Save & Next" : "Save Outcome"}</span>
-            </Button>
-          ) : null}
         </div>
+      </SheetContent>
+    </Sheet>
 
         {/* Centered Fluid Sub-Disposition & Call Outcome Popup */}
         <Dialog
@@ -2480,7 +2456,6 @@ export function EnhancedLeadDrawer({
             }
           }}
         />
-      </SheetContent>
-    </Sheet>
+    </>
   );
 }

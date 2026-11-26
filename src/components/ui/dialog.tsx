@@ -25,13 +25,19 @@ function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
 
 function DialogOverlay({
   className,
+  style,
   ...props
 }: DialogPrimitive.Backdrop.Props) {
   return (
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
+      style={{
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
+        ...style,
+      }}
       className={cn(
-        "fixed inset-0 isolate z-[60] bg-slate-950/85 backdrop-blur-xl dark:bg-black/85 transition-opacity duration-200 ease-out data-[starting-style]:opacity-0 data-[ending-style]:opacity-0",
+        "fixed inset-0 z-[60] bg-slate-950/55 dark:bg-black/65 transition-opacity duration-200 ease-out data-[starting-style]:opacity-0 data-[ending-style]:opacity-0",
         className
       )}
       {...props}

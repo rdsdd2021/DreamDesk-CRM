@@ -1828,7 +1828,7 @@ export default function CRMPage() {
                 onApplySavedView={handleApplySavedView}
                 onSaveCurrentView={handleSaveCurrentView}
                 onDeleteSavedView={handleDeleteSavedView}
-                onClaimLeads={!isTelecaller ? handleClaimLeads : undefined}
+                onClaimLeads={handleClaimLeads}
                 claimingLeads={claimingLeads}
                 onAutoDistribute={!isTelecaller ? () => handleAutoDistribute(250) : undefined}
                 isAutoDistributing={isAutoDistributing}
