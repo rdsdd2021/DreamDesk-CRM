@@ -190,12 +190,12 @@ export class DailyOpsService {
     db.prepare(
       `
       INSERT INTO daily_checkins (user_id, checkin_date, presence_status, checked_in_at, updated_at)
-      VALUES (?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, NULL, ?)
       ON CONFLICT(user_id, checkin_date) DO UPDATE SET
         presence_status = excluded.presence_status,
         updated_at = excluded.updated_at
     `
-    ).run(userId, today, presence, now, now);
+    ).run(userId, today, presence, now);
 
     SyncService.publish("system", userId);
     return this.getMyDailyOps(userId).checkin!;

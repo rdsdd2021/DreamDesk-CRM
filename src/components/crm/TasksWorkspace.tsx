@@ -101,7 +101,7 @@ export function TasksWorkspace({
   );
   const [selectedPriority, setSelectedPriority] = useState<string>("all");
   const [activeTab, setActiveTab] = useState<"today" | "overdue" | "upcoming" | "completed" | "all">("today");
-  const [taskMode, setTaskMode] = useState<"calling" | "work" | "report">("calling");
+  const [taskMode, setTaskMode] = useState<"calling" | "work">("calling");
   const [completingTaskId, setCompletingTaskId] = useState<number | null>(null);
   const [dialingTaskId, setDialingTaskId] = useState<number | null>(null);
 
@@ -349,50 +349,43 @@ export function TasksWorkspace({
         <DailyCheckinBanner />
       </div>
 
-      {/* Top Mode Switcher: Calling Tasks vs Daily & Team Tasks vs Track & Print */}
-      <div className="print:hidden flex items-center gap-1.5 bg-card border border-border/80 rounded-xl p-1.5 w-full sm:w-fit overflow-x-auto">
-        <button
-          type="button"
-          onClick={() => setTaskMode("calling")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-            taskMode === "calling"
-              ? "bg-primary text-primary-foreground shadow-2xs"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <PhoneCall className="w-3.5 h-3.5" />
-          <span>Calling Tasks</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setTaskMode("work")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-            taskMode === "work"
-              ? "bg-primary text-primary-foreground shadow-2xs"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <ListChecks className="w-3.5 h-3.5" />
-          <span>Daily & Team Tasks</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setTaskMode("report")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-            taskMode === "report"
-              ? "bg-primary text-primary-foreground shadow-2xs"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Printer className="w-3.5 h-3.5" />
-          <span>Track & Print</span>
-        </button>
+      {/* Redesigned 2-Tab Mode Switcher: Calling Tasks vs Daily & Team Tasks */}
+      <div className="print:hidden flex items-center justify-between gap-3 flex-wrap">
+        <div className="inline-flex items-center p-1 rounded-xl border border-border/80 bg-muted/40 w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={() => setTaskMode("calling")}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+              taskMode === "calling"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <PhoneCall className="w-3.5 h-3.5 text-indigo-500" />
+            <span>Calling Tasks</span>
+            {tasksData.totalCount > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/15 text-indigo-600">
+                {tasksData.totalCount}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setTaskMode("work")}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+              taskMode === "work"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <ListChecks className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Daily &amp; Team Tasks</span>
+          </button>
+        </div>
       </div>
 
       {taskMode === "work" ? (
         <WorkTasksBoard roleMode={roleMode} users={users} />
-      ) : taskMode === "report" ? (
-        <WorkTasksPrintReport roleMode={roleMode} users={users} />
       ) : (
         <>
       {/* Header */}

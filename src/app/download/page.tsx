@@ -17,9 +17,11 @@ export default function DownloadPage() {
       {/* Top Header */}
       <header className="relative z-10 max-w-md mx-auto w-full flex items-center justify-between pt-2 pb-6">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white shadow-md shadow-blue-500/20">
-            D
-          </div>
+          <img
+            src="/logo.png"
+            alt="DreamDesk CRM"
+            className="w-8 h-8 rounded-lg object-contain bg-white p-0.5 shadow-md"
+          />
           <div>
             <h1 className="text-sm font-bold tracking-tight text-white leading-none">DreamDesk CRM</h1>
             <p className="text-[11px] text-neutral-400 font-mono mt-0.5">Android Telecaller Edition</p>
@@ -39,9 +41,11 @@ export default function DownloadPage() {
         <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-5 shadow-2xl backdrop-blur-sm space-y-5">
           {/* App Card Header */}
           <div className="flex items-center gap-3.5">
-            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white shadow-lg shadow-blue-600/30 shrink-0">
-              <Smartphone className="w-7 h-7" />
-            </div>
+            <img
+              src="/logo.png"
+              alt="DreamDesk CRM"
+              className="w-14 h-14 rounded-xl object-contain bg-white p-1.5 shadow-lg shrink-0"
+            />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="font-bold text-base text-white">DreamDesk CRM</span>
@@ -114,8 +118,8 @@ export default function DownloadPage() {
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 max-w-md mx-auto w-full text-center py-4 text-[11px] text-neutral-400">
-        DreamDesk CRM © 2026 · Built for Telecallers & Counselors
+      <footer className="relative z-10 max-w-md mx-auto w-full text-center py-4 text-[11px] text-neutral-500 font-mono">
+        DreamDesk CRM · {APP_VERSION}
       </footer>
     </div>
   );

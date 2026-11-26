@@ -34,9 +34,7 @@ export function MorningCheckinGate({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isGatedRole =
-    Boolean(currentUser) &&
-    currentUser?.role !== "admin";
+  const isGatedRole = Boolean(currentUser);
 
   const checkStatus = useCallback(async () => {
     if (!currentUser || !isGatedRole) {

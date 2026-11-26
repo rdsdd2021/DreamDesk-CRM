@@ -1522,28 +1522,15 @@ export default function CRMPage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Topbar */}
         <header className="h-14 border-b border-border/80 bg-card/80 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 shrink-0">
-          {/* Breadcrumb & Section Info */}
+          {/* Left Header: Logo + View Title */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <h1 className="text-xs sm:text-base font-bold text-foreground capitalize flex items-center gap-2 truncate">
-              {currentView === "leads" && (
-                <img
-                  src="/logo.png"
-                  alt="DreamDesk CRM"
-                  className="w-5 h-5 rounded object-contain shrink-0 bg-white/90 p-0.5 ring-1 ring-border/40"
-                />
-              )}
-              {currentView === "dashboard" && <LayoutDashboard className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 shrink-0" />}
-              {currentView === "pipeline" && <Kanban className="w-4 h-4 sm:w-5 sm:h-5 text-violet-500 shrink-0" />}
-              {currentView === "campaigns" && <Target className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500 shrink-0" />}
-              {currentView === "dispositions" && <Tag className="w-4 h-4 sm:w-5 sm:h-5 text-rose-500 shrink-0" />}
-              {currentView === "whatsapp" && <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500 shrink-0" />}
-              {currentView === "fields" && <SlidersHorizontal className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500 shrink-0" />}
-              {currentView === "tasks" && <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500 shrink-0" />}
-              {currentView === "team" && <Users className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500 shrink-0" />}
-              {currentView === "import" && <Upload className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 shrink-0" />}
-              {currentView === "activity" && <History className="w-4 h-4 sm:w-5 sm:h-5 text-purple-500 shrink-0" />}
-              {currentView === "policies" && <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 shrink-0" />}
-              <span className="truncate max-w-[130px] sm:max-w-none">
+              <img
+                src="/logo.png"
+                alt="DreamDesk CRM"
+                className="w-6 h-6 rounded-lg object-contain shrink-0 bg-white/90 p-0.5 ring-1 ring-border/40"
+              />
+              <span className="truncate max-w-[125px] sm:max-w-none">
                 {currentView === "leads" && "Leads Workspace"}
                 {currentView === "dashboard" && "Dashboard & Analytics"}
                 {currentView === "pipeline" && "Pipeline & Kanban"}
@@ -1551,7 +1538,7 @@ export default function CRMPage() {
                 {currentView === "dispositions" && "Call Dispositions & Outcomes"}
                 {currentView === "whatsapp" && "WhatsApp Template Studio"}
                 {currentView === "fields" && "Dynamic Schema & Fields Studio"}
-                {currentView === "tasks" && "Scheduled Tasks & Callbacks"}
+                {currentView === "tasks" && "Tasks & Daily Ops"}
                 {currentView === "team" && "Counselors & Team Directory"}
                 {currentView === "assignments" && "Assignment Batches & Caller Reports"}
                 {currentView === "import" && "Batch CSV Ingestion & Field Mapping Studio"}
@@ -1562,116 +1549,25 @@ export default function CRMPage() {
                 {APP_VERSION}
               </span>
             </h1>
-
-            {/* Quick Command Launcher Button */}
-            <button
-              onClick={() => setIsCommandCenterOpen(true)}
-              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-muted/40 hover:bg-muted text-xs text-muted-foreground transition-colors"
-            >
-              <Search className="w-3.5 h-3.5" />
-              <span>Search or jump to...</span>
-              <kbd className="ml-2 font-mono text-[10px] bg-background border px-1.5 py-0.5 rounded shadow-2xs">
-                Ctrl K
-              </kbd>
-            </button>
           </div>
 
-          {/* Right Header Actions */}
-          <div className="flex items-center gap-2">
-            {/* Live Presence Status Pill */}
+          {/* Right Header Actions: Status + Notification + Mode */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* 1. Status Button */}
             {currentUser && <DailyPresencePill />}
 
-            {/* Notification Bell Dropdown */}
+            {/* 2. Notification Button */}
             <NotificationBell
               currentUser={currentUser}
               onNavigateToTasks={() => setCurrentView("tasks")}
             />
 
-            {/* Staff Identity & Role Switcher */}
-            {currentUser && (
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  className={cn(
-                    buttonVariants({ variant: "outline", size: "sm" }),
-                    "h-9 text-xs gap-2 font-medium cursor-pointer border-border/80 bg-card hover:bg-muted/50 rounded-xl px-2.5 shadow-2xs"
-                  )}
-                >
-                  <div
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-2xs shrink-0"
-                    style={{ backgroundColor: currentUser.avatar_color || "#3b82f6" }}
-                  >
-                    {currentUser.name.charAt(0).toUpperCase()}
-                  </div>
-                  <span className="font-semibold text-foreground truncate max-w-[120px]">
-                    {currentUser.name}
-                  </span>
-                  <Badge variant="outline" className="text-[10px] py-0.5 px-1.5 border-primary/30 text-primary capitalize font-medium rounded-md">
-                    {currentUser.role.replace("_", " ")}
-                  </Badge>
-                  <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64 p-1.5 text-xs rounded-xl shadow-xl">
-                  <div className="flex items-center gap-2.5 p-2 bg-muted/40 rounded-lg mb-1 border border-border/60">
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-xs"
-                      style={{ backgroundColor: currentUser.avatar_color || "#3b82f6" }}
-                    >
-                      {currentUser.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="font-bold text-foreground truncate text-xs">{currentUser.name}</div>
-                      <div className="text-[11px] text-muted-foreground truncate">{currentUser.email}</div>
-                    </div>
-                  </div>
-
-                  {/* Mobile Perspective Toggle in User Dropdown */}
-                  {permissions?.canViewAllLeads && (
-                    <div className="md:hidden px-1 py-1.5 border-b border-border/60 mb-1">
-                      <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1 px-1">
-                        Workspace Perspective
-                      </div>
-                      <div className="flex items-center gap-1 p-0.5 rounded-lg bg-muted/60">
-                        <button
-                          onClick={() => setRoleMode("admin")}
-                          className={`flex-1 py-1 px-2 rounded-md text-xs font-semibold transition-all cursor-pointer ${
-                            roleMode === "admin"
-                              ? "bg-background text-foreground shadow-2xs"
-                              : "text-muted-foreground hover:text-foreground"
-                          }`}
-                        >
-                          All Leads
-                        </button>
-                        <button
-                          onClick={() => setRoleMode("counselor")}
-                          className={`flex-1 py-1 px-2 rounded-md text-xs font-semibold transition-all cursor-pointer ${
-                            roleMode === "counselor"
-                              ? "bg-background text-foreground shadow-2xs"
-                              : "text-muted-foreground hover:text-foreground"
-                          }`}
-                        >
-                          Counselor Desk
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  <DropdownMenuItem
-                    onClick={handleLogout}
-                    className="gap-2 cursor-pointer text-xs text-rose-600 focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/20 rounded-lg py-1.5 px-2"
-                  >
-                    <LogOut className="w-4 h-4 text-rose-600" />
-                    <span className="font-semibold">Sign Out</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-
-            {/* Perspective Selector (Admins & Team Leads Only - Desktop) */}
+            {/* 3. Mode Button (All Leads / Counselor View) */}
             {permissions?.canViewAllLeads ? (
-              <div className="hidden md:flex items-center p-0.5 rounded-xl border border-border/80 bg-muted/40 text-xs shrink-0">
+              <div className="flex items-center p-0.5 rounded-xl border border-border/80 bg-muted/40 text-xs shrink-0">
                 <button
                   onClick={() => setRoleMode("admin")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
                     roleMode === "admin"
                       ? "bg-background text-foreground shadow-2xs"
                       : "text-muted-foreground hover:text-foreground"
@@ -1681,93 +1577,21 @@ export default function CRMPage() {
                 </button>
                 <button
                   onClick={() => setRoleMode("counselor")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
                     roleMode === "counselor"
                       ? "bg-background text-foreground shadow-2xs"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  Counselor View
+                  Counselor
                 </button>
               </div>
             ) : (
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border bg-primary/5 border-primary/20 text-xs shrink-0">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl border bg-primary/5 border-primary/20 text-[11px] shrink-0">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="font-semibold text-primary">Private Desk</span>
+                <span className="font-semibold text-primary">Caller Mode</span>
               </div>
             )}
-
-            {/* Active Counselor Switcher (Visible in Counselor Mode for Supervisory Roles - Desktop) */}
-            {roleMode === "counselor" && permissions?.canViewAllLeads && (
-              <div className="hidden lg:block shrink-0">
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    className={cn(
-                      buttonVariants({ variant: "outline", size: "sm" }),
-                      "h-9 text-xs gap-2 font-medium cursor-pointer border-primary/30 bg-primary/5 rounded-xl px-2.5 shadow-2xs"
-                    )}
-                  >
-                    <div
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-2xs shrink-0"
-                      style={{
-                        backgroundColor:
-                          users.find((u) => u.id === activeCounselorId)?.avatar_color || "#3b82f6",
-                      }}
-                    >
-                      {(users.find((u) => u.id === activeCounselorId)?.name || "C").charAt(0).toUpperCase()}
-                    </div>
-                    <span className="font-semibold text-foreground truncate max-w-[110px]">
-                      {users.find((u) => u.id === activeCounselorId)?.name || "Select Counselor"}
-                    </span>
-                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-60 p-1.5 text-xs rounded-xl shadow-xl">
-                    <DropdownMenuLabel className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 py-1">
-                      Switch Active Counselor
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator className="my-1" />
-                    <div className="max-h-48 overflow-y-auto space-y-0.5">
-                      {users.map((u) => (
-                        <DropdownMenuItem
-                          key={u.id}
-                          onClick={() => setActiveCounselorId(u.id)}
-                          className={`gap-2 cursor-pointer text-xs rounded-lg px-2 py-1.5 ${
-                            activeCounselorId === u.id ? "bg-primary/10 font-semibold text-primary" : ""
-                          }`}
-                        >
-                          <div
-                            className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 shadow-2xs"
-                            style={{ backgroundColor: u.avatar_color }}
-                          >
-                            {u.name.charAt(0).toUpperCase()}
-                          </div>
-                          <span className="truncate flex-1 font-medium">{u.name}</span>
-                          <span className="text-[10px] font-mono text-muted-foreground font-semibold">
-                            {u.assigned_count || 0} leads
-                          </span>
-                        </DropdownMenuItem>
-                      ))}
-                    </div>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            )}
-
-
-            {/* Dark / Light Theme Toggle */}
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={toggleTheme}
-              className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg bg-card"
-              title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-            >
-              {isDark ? (
-                <Sun className="w-3.5 h-3.5 text-amber-400" />
-              ) : (
-                <Moon className="w-3.5 h-3.5 text-slate-700" />
-              )}
-            </Button>
           </div>
         </header>
 

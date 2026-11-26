@@ -39,7 +39,7 @@ export function MobileBottomNav({
     },
     {
       id: "tasks",
-      label: "Callbacks",
+      label: "Tasks",
       icon: Clock,
       badge: pendingTasksCount > 0 ? (pendingTasksCount > 99 ? "99+" : pendingTasksCount) : null,
       badgeColor: "bg-amber-500 text-white",

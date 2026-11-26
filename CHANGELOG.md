@@ -4,6 +4,16 @@ All notable changes, architectural enhancements, schema migrations, and feature 
 
 ---
 
+## [v1.4.2] — 2026-11-27
+
+### ✨ Morning Check-In Enforcement, Clean Toolbar, Wrap-Up EOD & Tasks Redesign
+- **Mandatory Full-Page Check-In for All Users (`MorningCheckinGate.tsx`, `dailyOpsService.ts`)**: Fixed presence updates not to stamp `checked_in_at`, and enabled the full-page Morning Check-In gate for **all** authenticated users (including Admin) on first open each day.
+- **Streamlined Top Toolbar (`page.tsx`)**: Shows only **Logo**, **Status**, **Notifications**, and **Mode** (`All Leads` / `Counselor`).
+- **Wrap Up → EOD (`DailyCheckinBanner.tsx`)**: Removed `Edit Focus` and `Submit EOD` buttons; selecting **Wrap Up** in the top-bar Status dropdown now opens the EOD Summary modal automatically.
+- **Mobile & Tasks Redesign (`MobileBottomNav.tsx`, `TasksWorkspace.tsx`, `WorkTasksBoard.tsx`)**: Renamed mobile `Callbacks` tab to **Tasks**, redesigned the Tasks switcher into **Calling Tasks** and **Daily & Team Tasks**, and moved **Track & Print** into a modal button inside **Daily & Team Tasks**.
+
+---
+
 ## [v1.4.0] — 2026-11-27
 
 ### 🛡️ Background Job Crash Recovery, Cancel Button & Full-Page Morning Check-In

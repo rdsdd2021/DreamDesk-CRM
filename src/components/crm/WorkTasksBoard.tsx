@@ -27,8 +27,10 @@ import {
   FileCheck2,
   Send,
   RotateCcw,
+  Printer,
 } from "lucide-react";
 import { SopPlaybookModal } from "@/components/crm/SopPlaybookModal";
+import { WorkTasksPrintReport } from "@/components/crm/WorkTasksPrintReport";
 
 interface WorkTasksBoardProps {
   roleMode: "admin" | "counselor";
@@ -60,8 +62,9 @@ export function WorkTasksBoard({ roleMode, users }: WorkTasksBoardProps) {
   const [newRequiresApproval, setNewRequiresApproval] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  // Playbook, Proof, Review & Nudge Modals
+  // Playbook, Proof, Review, Print & Nudge Modals
   const [isPlaybookOpen, setIsPlaybookOpen] = useState(false);
+  const [isPrintReportOpen, setIsPrintReportOpen] = useState(false);
   const [proofTask, setProofTask] = useState<WorkTask | null>(null);
   const [proofText, setProofText] = useState("");
   const [reviewTask, setReviewTask] = useState<WorkTask | null>(null);
@@ -283,6 +286,17 @@ export function WorkTasksBoard({ roleMode, users }: WorkTasksBoardProps) {
             <option value="done">Done</option>
           </select>
 
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsPrintReportOpen(true)}
+            className="h-8 gap-1.5 text-xs font-semibold"
+            title="Track & Print Work Task Reports"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Track &amp; Print</span>
+          </Button>
+
           {roleMode === "admin" && (
             <>
               <Button
@@ -321,6 +335,17 @@ export function WorkTasksBoard({ roleMode, users }: WorkTasksBoardProps) {
           <p className="text-xs text-muted-foreground max-w-md mx-auto">
             Create daily recurring checklists, timed tasks, or tasks linked to a teammate&apos;s task.
           </p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsPrintReportOpen(true)}
+            className="h-8 gap-1.5 text-xs font-semibold"
+            title="Track & Print Work Task Reports"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Track &amp; Print</span>
+          </Button>
+
           {roleMode === "admin" && (
             <Button size="sm" onClick={() => setIsCreateOpen(true)} className="mt-2 gap-1.5 text-xs">
               <Plus className="w-3.5 h-3.5" />
@@ -383,7 +408,18 @@ export function WorkTasksBoard({ roleMode, users }: WorkTasksBoardProps) {
                         )}
                       </div>
 
-                      {roleMode === "admin" && (
+                      <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsPrintReportOpen(true)}
+            className="h-8 gap-1.5 text-xs font-semibold"
+            title="Track & Print Work Task Reports"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Track &amp; Print</span>
+          </Button>
+
+          {roleMode === "admin" && (
                         <button
                           type="button"
                           onClick={() => handleDelete(task.id)}
@@ -885,6 +921,36 @@ export function WorkTasksBoard({ roleMode, users }: WorkTasksBoardProps) {
         users={users}
         onDeployed={loadTasks}
       />
+
+      {/* Track & Print Report Modal */}
+      {isPrintReportOpen && (
+        <div
+          className="fixed inset-0 z-[60] bg-slate-950/55 backdrop-blur-md flex items-center justify-center p-4"
+          onClick={() => setIsPrintReportOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-card border border-border/80 rounded-2xl max-w-5xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl"
+          >
+            <div className="px-6 py-4 border-b border-border/70 bg-muted/25 flex items-center justify-between print:hidden">
+              <h3 className="text-sm font-bold flex items-center gap-2">
+                <Printer className="w-4 h-4 text-primary" />
+                Track &amp; Print Daily Task Reports
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsPrintReportOpen(false)}
+                className="h-7 w-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/80"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 overflow-y-auto flex-1">
+              <WorkTasksPrintReport roleMode={roleMode} users={users} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Proof Notes Modal */}
       {proofTask && (
