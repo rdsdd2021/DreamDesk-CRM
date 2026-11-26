@@ -1803,11 +1803,9 @@ export function EnhancedLeadDrawer({
                 </div>
               </div>
 
-              {/* Counselor, Stage, Campaign & Tags Management (Supervisors / Admins Only) */}
-              {!isTelecaller && (
-                <>
-                  {/* Counselor, Stage & Campaign Assignment Card */}
-                  <div className="bg-card border border-border/80 rounded-2xl p-4 sm:p-5 space-y-4 shadow-2xs">
+              {/* Counselor, Stage & Campaign Assignment Card (Desktop Supervisors / Admins Only) */}
+              {isExemptRole && (
+                <div className="hidden sm:block bg-card border border-border/80 rounded-2xl p-4 sm:p-5 space-y-4 shadow-2xs">
                 <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
                     <ShieldCheck className="w-3.5 h-3.5 text-primary" />
@@ -1979,8 +1977,10 @@ export function EnhancedLeadDrawer({
                   </div>
                 </div>
               </div>
+              )}
 
               {/* Student Tags & Priority Labels Card */}
+              {!isTelecaller && (
               <div className="bg-card border border-border/80 rounded-2xl p-4 sm:p-5 space-y-3.5 shadow-2xs">
                 <div className="flex items-center justify-between">
                   <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
@@ -2068,8 +2068,7 @@ export function EnhancedLeadDrawer({
                   </div>
                 </div>
               </div>
-            </>
-          )}
+              )}
 
               {/* Direct Contacts Card */}
               <div className="bg-card border border-border/80 rounded-2xl p-4 sm:p-5 space-y-3 shadow-2xs">
