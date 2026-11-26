@@ -126,3 +126,11 @@ CREATE TABLE whatsapp_templates (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 ```
+
+---
+
+## Mobile Drawer Ergonomics, Multi-Contact & Swipe Navigation (`v1.3.x`)
+
+- **Thumb-Friendly Call & WhatsApp Actions**: On mobile, `Call` and `WhatsApp` buttons (`h-11 w-11`) sit directly beside the student's name in `EnhancedLeadDrawer.tsx` for effortless one-handed tapping, without a redundant bottom bar.
+- **Zero-Diary Multi-Contact (`phone_label`, `alternate_contacts`, `/api/leads/[id]/contacts`)**: Callers can store labeled secondary numbers (e.g., *Father*, *Mother*, *Alternate*) and pick which number to dial or WhatsApp in 1 tap.
+- **Horizontal Swipe Navigation**: Callers can swipe left/right inside the mobile lead drawer to step through sequential leads smoothly.

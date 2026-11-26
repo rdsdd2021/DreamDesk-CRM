@@ -117,3 +117,10 @@ A protected administrative tool for permanently purging obsolete or corrupted le
   3. Clicks `+ Campus Visit Saturday` and `+ Bus Route 4`.
   4. Clicks **Apply Tags**.
 - **Result**: The transport coordinator can now filter by `Tag = 'Bus Route 4'` and download the passenger manifest in 1 click.
+
+---
+
+## Non-Blocking Background Jobs Engine & Task Log Console (`v1.3.5`)
+
+- **Server-Side Background Queue (`background_jobs`, `JobsService`, `/api/jobs`)**: Heavy bulk operations (bulk assign, status updates, tagging, campaign changes, bulk delete, auto-distribute, and 60MB+ CSV imports) immediately return `202 Accepted` and execute asynchronously in chunks on the server.
+- **Persistent Progress & Log Console (`BackgroundJobsTracker.tsx`)**: A floating job tracker polls active jobs, renders live percentage progress bars, and includes an expandable terminal-style **Task Logs** box (`INFO`, `WARN`, `ERROR`) persisted in SQLite so progress survives browser closes or refreshes.

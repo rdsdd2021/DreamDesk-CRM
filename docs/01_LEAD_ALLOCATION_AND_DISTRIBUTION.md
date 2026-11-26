@@ -151,3 +151,11 @@ CREATE TABLE assignment_rules (
 | **2** | Engineering / JEE Specialist | `stream` | `Engineering / JEE` | Admissions Desk (Super Admin) |
 | **3** | Commerce / CA Specialist | `stream` | `Commerce / CA` | Admissions Desk (Super Admin) |
 | **4** | Humanities / Arts Specialist | `stream` | `Humanities / Arts` | Admissions Desk (Super Admin) |
+
+---
+
+## Named Assignment Batches, Smart Filter Claim & Reassigned Handoff (`v1.3.x`)
+
+- **Named Assignment Batches (`assignment_batches`, `assignment_batch_members`)**: Every bulk or auto distribution can be named (e.g., *"Batch A — CBSE Delhi"*), saving the exact filter criteria so Team Leads can track caller-wise progress in `AssignmentReportsWorkspace.tsx` (`/api/assignments/report`).
+- **Policy-Gated Smart Filter Claim**: When a caller finishes dialing their assigned queue and no policy conflicts exist, they can claim additional matching leads directly from the active filter batch.
+- **Reassigned Lead Handoff (`is_reassigned`, `previous_counselor_name`, `previous_disposition_name`, `previous_notes`)**: When a lead is reassigned to a new caller, its stage resets to `New` while preserving prior context in a prominent **Reassigned Lead Handoff** banner and `Reassigned` filter chip.

@@ -153,9 +153,18 @@ CREATE TABLE users (
   last_login_location TEXT,
   deactivated_at DATETIME,
   deactivated_by TEXT,
+  team_lead_id TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 ```
+
+---
+
+## Team Lead Pod Hierarchy, View Guards & Task Governance (`v1.3.x`–`v1.3.6`)
+
+- **Specific Team Lead Assignment (`users.team_lead_id`)**: Assign callers to any specific Team Lead, Senior Counselor, or Admin by name in `TeamWorkspace.tsx`. Team Leads automatically view their own pod on the Live Team Floor and receive task sign-off requests for their callers (with Admin fallback).
+- **View & Search Access Enforcement**: `CommandCenter.tsx` and `src/app/page.tsx` enforce `canAccessView` and role-filtered search results so callers cannot jump to restricted admin views or unowned leads.
+- **Caller Task Guardrails**: Callers cannot create, deploy SOP playbooks, or archive/delete work tasks in `WorkTasksBoard.tsx` — only Admins and Team Leads control task creation and playbook deployment.
 
 ### `sessions` Table
 ```sql

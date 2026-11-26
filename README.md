@@ -337,13 +337,16 @@ DreamDesk CRM/
 │   │   │   ├── analytics/       # Performance & institutional reporting
 │   │   │   ├── auth/            # Scrypt login, logout & session validation
 │   │   │   ├── campaigns/       # Campaign management
+│   │   │   ├── daily-ops/       # Check-in, live team floor, daily targets & SOP playbooks
 │   │   │   ├── dispositions/    # Dispositions & nested sub-dispositions
-│   │   │   ├── leads/           # Leads, bulk actions, import & deduplication
+│   │   │   ├── jobs/            # Background job queue status & logs
+│   │   │   ├── leads/           # Leads, bulk actions, streaming 60MB+ import & deduplication
 │   │   │   ├── notifications/   # Counselor in-app notification center
 │   │   │   ├── policies/        # 7-day counselor ownership protection
 │   │   │   ├── schema/          # Dynamic Schema Studio definitions
 │   │   │   ├── tasks/           # Priority follow-up & callback task engine
-│   │   │   └── users/           # Staff accounts & instant deactivation
+│   │   │   ├── users/           # Staff accounts, Team Lead pods & instant deactivation
+│   │   │   └── work-tasks/      # Operational tasks, proof/sign-off & overdue nudges
 │   │   ├── login/               # Enterprise SaaS Login Screen
 │   │   └── page.tsx             # High-Density Admissions Workspace
 │   ├── components/
@@ -369,10 +372,13 @@ DreamDesk CRM/
 │       ├── auth/                # Session encryption & scrypt authentication
 │       ├── db/                  # SQLite WAL connection, migrations & indexes
 │       └── services/            # Decoupled domain service layer
-│           ├── authService.ts   # User & session security operations
-│           ├── leadsService.ts  # Lead querying, filtering & mutations
-│           ├── policyService.ts # 7-day call lock & ownership governance
-│           └── tasksService.ts  # Prioritized task creation & notifications
+│           ├── authService.ts       # User & session security operations
+│           ├── dailyOpsService.ts   # Check-in, EOD, targets, team floor & SOP playbooks
+│           ├── jobsService.ts       # Non-blocking server background jobs & logs
+│           ├── leadsService.ts      # Lead querying, filtering, batches & mutations
+│           ├── policyService.ts     # 7-day call lock & ownership governance
+│           ├── tasksService.ts      # Prioritized callback task creation & notifications
+│           └── workTasksService.ts  # Operational tasks, proof/sign-off & nudges
 ```
 
 ---
@@ -383,6 +389,9 @@ For an in-depth, granular log of all schema additions, API expansions, and UI re
 👉 **[CHANGELOG.md](./CHANGELOG.md)**
 
 ### Release Highlights
+- **v1.3.6 (2026-11-27)**: Team Lead Pod Hierarchy (`users.team_lead_id`), Live Team Floor & Daily Targets (`TeamFloorPanel.tsx`), Morning Check-In & Auto-Computed EOD (`DailyCheckinBanner.tsx`), SOP Playbooks (`SopPlaybookModal.tsx`), Proof/Sign-Off/Overdue Nudges (`WorkTasksBoard.tsx`), and strict caller task-creation guardrails.
+- **v1.3.5 (2026-11-27)**: Streaming 60MB+ CSV Uploads (`FormData` + 500-row server chunking) and Persistent Background Job Task Log Console (`BackgroundJobsTracker.tsx`, `JobsService`).
+- **v1.3.0–v1.3.3 (2026-11-26)**: Named Assignment Batches & Caller Reports, Reassigned Lead Handoff Banner, Non-Blocking Background Jobs Engine, Thumb-Friendly Call/WhatsApp Actions Beside Student Name, Zero-Diary Multi-Contact (`alternate_contacts`), and Mobile Swipe Lead Navigation.
 - **v2.13.0 (2026-10-28)**: Low-End Android Optimization, OOM Crash Elimination (15 leads/page on mobile), Full-Width Word-Wrapped School Cards, Zero-Blur GPU De-Throttling, and Lazy-Mounted Drawer Tabs.
 - **v2.12.1 (2026-10-28)**: Mobile Lead Details Drawer Layout Refactoring: 3-Tier Flexbox with Pinned Header, Independently Scrollable Body, and Docked Bottom Action Bar.
 - **v2.12.0 (2026-10-28)**: In-App WhatsApp Template Editor & Token Builder, Removal of Legacy Demo Auto-Tagging & Modulo Mutations on Imported Leads.
