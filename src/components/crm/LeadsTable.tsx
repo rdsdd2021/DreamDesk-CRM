@@ -138,8 +138,6 @@ interface LeadsTableProps {
   density?: "compact" | "comfortable";
   activeLeadId?: number | null;
   onInlineUpdate?: (leadId: number, field: string, value: any) => void;
-  viewMode?: "table" | "cards" | "grid";
-  onViewModeChange?: (mode: "table" | "cards" | "grid") => void;
   isTelecaller?: boolean;
 }
 
@@ -167,26 +165,8 @@ export function LeadsTable({
   density = "comfortable",
   activeLeadId = null,
   onInlineUpdate,
-  viewMode: propViewMode,
-  onViewModeChange,
   isTelecaller = false,
 }: LeadsTableProps) {
-  const normalizedPropMode = propViewMode === "grid" ? "cards" : propViewMode;
-  const [localViewMode, setLocalViewMode] = useState<"table" | "cards">(
-    normalizedPropMode || "table"
-  );
-
-  useEffect(() => {
-    if (propViewMode) {
-      setLocalViewMode(propViewMode === "grid" ? "cards" : (propViewMode as "table" | "cards"));
-      return;
-    }
-    if (typeof window !== "undefined") {
-      if (window.innerWidth < 768) {
-        setLocalViewMode("cards");
-      }
-    }
-  }, [propViewMode]);
 
   const [dialingLeadId, setDialingLeadId] = useState<number | null>(null);
 
@@ -227,10 +207,6 @@ export function LeadsTable({
     }
   };
 
-  const handleSwitchViewMode = (mode: "table" | "cards") => {
-    setLocalViewMode(mode);
-    onViewModeChange?.(mode === "cards" ? "grid" : "table");
-  };
   const getStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
       case "new":
@@ -704,45 +680,10 @@ export function LeadsTable({
             )}
           </span>
         </div>
-
-        {/* View Mode Toggle (Cards vs Table) */}
-        <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border border-border/60">
-          <button
-            type="button"
-            onClick={() => handleSwitchViewMode("cards")}
-            className={cn(
-              "flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer",
-              localViewMode === "cards"
-                ? "bg-card text-foreground shadow-2xs font-bold"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-            title="Switch to Student Cards Grid View"
-          >
-            <LayoutGrid className="w-3.5 h-3.5 text-primary" />
-            <span className="text-[11px]">Grid</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSwitchViewMode("table")}
-            className={cn(
-              "flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer",
-              localViewMode === "table"
-                ? "bg-card text-foreground shadow-2xs font-bold"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-            title="Switch to High-Density Table View"
-          >
-            <TableIcon className="w-3.5 h-3.5" />
-            <span className="text-[11px]">Table</span>
-          </button>
-        </div>
       </div>
 
-      {localViewMode === "cards" ? (
-        renderCardsView()
-      ) : (
-        /* Table Container */
-        <div className="overflow-x-auto min-h-[420px]">
+      {/* Table Container */}
+      <div className="overflow-x-auto min-h-[420px]">
           <Table>
           <TableHeader className="bg-muted/95 sticky top-0 z-10 border-b border-border/80">
             <TableRow className="hover:bg-transparent border-none">
@@ -1311,7 +1252,6 @@ export function LeadsTable({
           </TableBody>
         </Table>
       </div>
-      )}
     </div>
   );
 }

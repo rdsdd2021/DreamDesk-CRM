@@ -30,7 +30,6 @@ import { FilterSidebar } from "@/components/crm/FilterSidebar";
 import { LeadsTable } from "@/components/crm/LeadsTable";
 import { CompactKpiBar } from "@/components/crm/CompactKpiBar";
 import { UnifiedCommandBar } from "@/components/crm/UnifiedCommandBar";
-import { SpeedDialerWorkspace } from "@/components/crm/SpeedDialerWorkspace";
 import { BulkActionBar } from "@/components/crm/BulkActionBar";
 import { BulkAssignModal } from "@/components/crm/BulkAssignModal";
 import { BulkTagsModal } from "@/components/crm/BulkTagsModal";
@@ -297,7 +296,6 @@ export default function CRMPage() {
   const [density, setDensity] = useState<"compact" | "comfortable">("comfortable");
   const [activeLeadIndex, setActiveLeadIndex] = useState<number | null>(null);
   const [claimingLeads, setClaimingLeads] = useState(false);
-  const [leadsViewMode, setLeadsViewMode] = useState<"table" | "grid" | "dialer">("table");
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
 
   // Live Uncalled Today Count for Dialing Queue
@@ -1054,17 +1052,11 @@ export default function CRMPage() {
         if (selectedLeadForDetail) {
           e.preventDefault();
           handlePrevLead();
-        } else if (leadsViewMode === "dialer") {
-          e.preventDefault();
-          setActiveLeadIndex((prev) => (prev === null ? 0 : Math.max(0, prev - 1)));
         }
       } else if (e.key === "]" || (e.altKey && e.key === "ArrowRight")) {
         if (selectedLeadForDetail) {
           e.preventDefault();
           handleNextLead();
-        } else if (leadsViewMode === "dialer") {
-          e.preventDefault();
-          setActiveLeadIndex((prev) => (prev === null ? (leads.length > 1 ? 1 : 0) : Math.min(leads.length - 1, prev + 1)));
         }
       } else if (e.key.toLowerCase() === "w") {
         const targetLead = selectedLeadForDetail || (activeLeadIndex !== null ? leads[activeLeadIndex] : null);
@@ -1082,7 +1074,7 @@ export default function CRMPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [leads, activeLeadIndex, dispositions, toggleFilterSidebar, selectedLeadForDetail, handleNextLead, handlePrevLead, leadsViewMode]);
+  }, [leads, activeLeadIndex, dispositions, toggleFilterSidebar, selectedLeadForDetail, handleNextLead, handlePrevLead]);
 
   const handleToggleColumnVisibility = (key: string) => {
     setVisibleColumns((prev) =>
@@ -1799,8 +1791,6 @@ export default function CRMPage() {
                 roleMode={isRestrictedCounselor ? "counselor" : roleMode}
                 search={search}
                 onSearchChange={setSearch}
-                viewMode={leadsViewMode}
-                onToggleViewMode={setLeadsViewMode}
                 filterDrawerOpen={filterDrawerOpen}
                 onToggleFilterDrawer={() => setFilterDrawerOpen((prev) => !prev)}
                 selectedFacets={selectedFacets}
@@ -1826,40 +1816,8 @@ export default function CRMPage() {
                 canManageTeam={!isTelecaller && permissions?.canManageTeam}
               />
 
-              {/* Dual View Rendering: Speed Dialer Desk vs Leads Table */}
-              {leadsViewMode === "dialer" ? (
-                <SpeedDialerWorkspace
-                  leads={leads}
-                  activeLead={activeLeadIndex !== null && leads[activeLeadIndex] ? leads[activeLeadIndex] : (leads[0] || null)}
-                  onSelectLead={(lead) => {
-                    const idx = leads.findIndex((l) => l.id === lead.id);
-                    if (idx !== -1) setActiveLeadIndex(idx);
-                  }}
-                  dispositions={dispositions}
-                  users={users}
-                  schemaMeta={schemaMeta}
-                  onQuickDispositionChange={handleQuickDispositionChange}
-                  onOpenWhatsApp={(lead) => setWhatsAppTargetLead(lead)}
-                  onNextLead={() => {
-                    setActiveLeadIndex((prev) => {
-                      const curr = prev === null ? 0 : prev;
-                      return curr < leads.length - 1 ? curr + 1 : curr;
-                    });
-                  }}
-                  onPrevLead={() => {
-                    setActiveLeadIndex((prev) => {
-                      const curr = prev === null ? 0 : prev;
-                      return curr > 0 ? curr - 1 : 0;
-                    });
-                  }}
-                  hasNextLead={activeLeadIndex === null ? leads.length > 1 : activeLeadIndex < leads.length - 1}
-                  hasPrevLead={activeLeadIndex !== null && activeLeadIndex > 0}
-                  onLeadUpdated={() => {
-                    fetchLeads();
-                  }}
-                />
-              ) : (
-                <>
+              {/* Leads Table View */}
+              <>
                   <LeadsTable
                     leads={leads}
                     schemaMeta={schemaMeta}
@@ -1894,8 +1852,6 @@ export default function CRMPage() {
                     density={density}
                     activeLeadId={activeLeadIndex !== null && leads[activeLeadIndex] ? leads[activeLeadIndex].id : null}
                     onInlineUpdate={handleInlineFieldUpdate}
-                    viewMode={leadsViewMode === "grid" ? "grid" : "table"}
-                    onViewModeChange={(m) => setLeadsViewMode(m === "cards" || m === "grid" ? "grid" : "table")}
                     isTelecaller={isTelecaller}
                   />
 
@@ -1911,7 +1867,6 @@ export default function CRMPage() {
                     }}
                   />
                 </>
-              )}
             </div>
           )}
 

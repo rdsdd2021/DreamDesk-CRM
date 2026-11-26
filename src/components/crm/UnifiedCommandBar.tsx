@@ -58,10 +58,6 @@ interface UnifiedCommandBarProps {
   search: string;
   onSearchChange: (val: string) => void;
 
-  // View Mode: Table vs Grid vs Speed Dialer
-  viewMode: "table" | "grid" | "dialer";
-  onToggleViewMode: (mode: "table" | "grid" | "dialer") => void;
-
   // Filter Flyout Drawer toggle
   filterDrawerOpen: boolean;
   onToggleFilterDrawer: () => void;
@@ -105,8 +101,6 @@ export function UnifiedCommandBar({
   roleMode,
   search,
   onSearchChange,
-  viewMode,
-  onToggleViewMode,
   filterDrawerOpen,
   onToggleFilterDrawer,
   selectedFacets,
@@ -236,51 +230,6 @@ export function UnifiedCommandBar({
               );
             })}
           </div>
-
-          {/* Right: View Mode Toggle: Table Grid vs Card Grid vs Speed Dialer */}
-          <div className="flex items-center justify-end shrink-0 pt-0.5 md:pt-0">
-            <div className="flex items-center p-0.5 rounded-lg border border-border/80 bg-muted/40 text-xs shrink-0">
-              <button
-                type="button"
-                onClick={() => onToggleViewMode("table")}
-                className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                  viewMode === "table"
-                    ? "bg-background text-foreground shadow-2xs font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-                title="Spreadsheet Table View"
-              >
-                <TableIcon className="w-3.5 h-3.5" />
-                <span>Table</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onToggleViewMode("grid")}
-                className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                  viewMode === "grid"
-                    ? "bg-background text-primary shadow-2xs font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-                title="Student Card Grid View"
-              >
-                <LayoutGrid className="w-3.5 h-3.5" />
-                <span>Grid</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onToggleViewMode("dialer")}
-                className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                  viewMode === "dialer"
-                    ? "bg-background text-primary shadow-2xs font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-                title="Speed Dialer Mode (High-velocity calling desk)"
-              >
-                <Headphones className="w-3.5 h-3.5 text-primary" />
-                <span>Dialer</span>
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Tier 2: Search, Filters & Action Tools */}
@@ -384,7 +333,8 @@ export function UnifiedCommandBar({
           </DropdownMenu>
         </div>
 
-        {/* Saved Views Dropdown */}
+        {/* Saved Views Dropdown (Hidden on mobile < sm) */}
+        <div className="hidden sm:inline-flex">
         <DropdownMenu>
             <DropdownMenuTrigger
               className="inline-flex items-center justify-center h-8 px-2.5 text-xs font-medium border border-border/80 bg-background hover:bg-muted rounded-lg cursor-pointer gap-1.5 shadow-2xs"
@@ -446,6 +396,7 @@ export function UnifiedCommandBar({
               </div>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
 
           {/* Operations Hub (Admin/TL/Counselor Self-service) */}
           <DropdownMenu>

@@ -1876,20 +1876,8 @@ export function EnhancedLeadDrawer({
 
               {/* Direct Contacts Card */}
               <div className="bg-card border border-border/80 rounded-2xl p-4 sm:p-5 space-y-3 shadow-2xs">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Contact Information
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setIsAddContactOpen(true)}
-                    className="h-8 sm:h-7 px-2.5 text-xs sm:text-[11px] font-semibold gap-1 rounded-lg border-primary/30 text-primary hover:bg-primary/10 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Add Number</span>
-                  </Button>
+                <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Contact Information
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
