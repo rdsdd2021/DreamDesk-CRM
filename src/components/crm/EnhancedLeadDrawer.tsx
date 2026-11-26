@@ -1341,94 +1341,6 @@ export function EnhancedLeadDrawer({
                   </div>
                 </div>
 
-                {/* Inline Zero-Diary Multi-Number Capture Panel */}
-                {isAddContactOpen && (
-                  <div className="p-3.5 rounded-xl bg-primary/5 border border-primary/25 space-y-3 animate-in fade-in-50 duration-200">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                        <Phone className="w-3.5 h-3.5 text-primary" />
-                        <span>Save New Contact Number</span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setIsAddContactOpen(false)}
-                        className="text-xs text-muted-foreground hover:text-foreground cursor-pointer"
-                      >
-                        Close
-                      </button>
-                    </div>
-
-                    <Input
-                      type="tel"
-                      inputMode="tel"
-                      placeholder="Enter 10-digit mobile number..."
-                      value={newContactPhone}
-                      onChange={(e) => setNewContactPhone(e.target.value)}
-                      className="h-11 sm:h-9 text-sm bg-background border-border/80 font-mono"
-                    />
-
-                    <div className="space-y-1.5">
-                      <div className="text-[11px] font-semibold text-muted-foreground">Who owns this number?</div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {["Student", "Guardian", "Father", "Mother", "Sibling", "Alternate"].map((lbl) => {
-                          const active = newContactLabel === lbl;
-                          return (
-                            <button
-                              key={lbl}
-                              type="button"
-                              onClick={() => {
-                                setNewContactLabel(lbl);
-                                setMakeNewContactPrimary(lbl === "Student");
-                              }}
-                              className={cn(
-                                "min-h-[36px] sm:min-h-0 px-3 py-1.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer",
-                                active
-                                  ? "bg-primary text-primary-foreground border-primary shadow-2xs"
-                                  : "bg-background border-border/80 text-foreground hover:bg-muted"
-                              )}
-                            >
-                              {lbl}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <label className="flex items-start gap-2 text-xs text-foreground cursor-pointer select-none pt-0.5">
-                      <Checkbox
-                        checked={makeNewContactPrimary}
-                        onCheckedChange={(checked) => setMakeNewContactPrimary(Boolean(checked))}
-                        className="mt-0.5 h-4 w-4 rounded"
-                      />
-                      <span className="leading-snug">
-                        <strong>Make Primary number</strong>{" "}
-                        <span className="text-muted-foreground">
-                          (automatically keeps current number in Alternate Contacts)
-                        </span>
-                      </span>
-                    </label>
-
-                    {duplicateContactNotice && (
-                      <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs font-medium">
-                        {duplicateContactNotice}
-                      </div>
-                    )}
-
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={savingContact || !newContactPhone.trim()}
-                        onClick={handleSaveContactHandoff}
-                        className="h-10 sm:h-8 px-4 text-xs font-bold gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg cursor-pointer"
-                      >
-                        {savingContact ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                        <span>{savingContact ? "Saving..." : "Save Number"}</span>
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
                 {/* Dynamic Disposition Outcome Trays */}
                 {activeReachableDisps.length === 0 ? (
                   <div className="p-4 rounded-xl border border-dashed border-border/80 text-center text-xs text-muted-foreground">
@@ -2206,7 +2118,7 @@ export function EnhancedLeadDrawer({
           ) : null}
         </div>
 
-        {/* Fluid Sub-Disposition & Call Outcome Popup (Bottom Sheet on Mobile, Centered Modal on Desktop) */}
+        {/* Centered Fluid Sub-Disposition & Call Outcome Popup */}
         <Dialog
           open={Boolean(selectedDispObj)}
           onOpenChange={(open) => {
@@ -2218,7 +2130,7 @@ export function EnhancedLeadDrawer({
           }}
         >
           {selectedDispObj && (
-            <DialogContent className="p-0 gap-0 max-h-[88vh] flex flex-col max-sm:top-auto max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:translate-x-0 max-sm:translate-y-0 max-sm:max-w-full max-sm:rounded-b-none max-sm:rounded-t-2xl max-sm:data-open:slide-in-from-bottom-6 max-sm:data-closed:slide-out-to-bottom-6 sm:max-w-md">
+            <DialogContent className="p-0 gap-0 w-[calc(100%-1.5rem)] max-w-md max-h-[85vh] flex flex-col rounded-2xl">
               <DialogHeader
                 className={cn(
                   "px-4 sm:px-5 py-3.5 border-b border-border/60 shrink-0 text-left",
@@ -2396,6 +2308,102 @@ export function EnhancedLeadDrawer({
               </div>
             </DialogContent>
           )}
+        </Dialog>
+
+        {/* Centered Popup for Adding New Contact Number (Zero-Diary Handoff) */}
+        <Dialog open={isAddContactOpen} onOpenChange={setIsAddContactOpen}>
+          <DialogContent className="p-0 gap-0 w-[calc(100%-1.5rem)] max-w-md flex flex-col rounded-2xl">
+            <DialogHeader className="px-4 sm:px-5 py-3.5 border-b border-border/60 bg-primary/10 text-left">
+              <DialogTitle className="text-base font-bold text-foreground flex items-center gap-2 pr-8">
+                <Phone className="w-4 h-4 text-primary shrink-0" />
+                <span>Save New Contact Number</span>
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Add student, guardian, or family numbers without losing the existing number.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="p-4 sm:p-5 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">Phone Number</label>
+                <Input
+                  type="tel"
+                  inputMode="tel"
+                  placeholder="Enter 10-digit mobile number..."
+                  value={newContactPhone}
+                  onChange={(e) => setNewContactPhone(e.target.value)}
+                  className="h-11 sm:h-9 text-sm bg-background border-border/80 font-mono"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="text-xs font-semibold text-foreground">Who owns this number?</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {["Student", "Guardian", "Father", "Mother", "Sibling", "Alternate"].map((lbl) => {
+                    const active = newContactLabel === lbl;
+                    return (
+                      <button
+                        key={lbl}
+                        type="button"
+                        onClick={() => {
+                          setNewContactLabel(lbl);
+                          setMakeNewContactPrimary(lbl === "Student");
+                        }}
+                        className={cn(
+                          "min-h-[38px] sm:min-h-0 px-3 py-1.5 sm:px-2.5 sm:py-1 rounded-xl sm:rounded-lg text-xs font-semibold border transition-all cursor-pointer",
+                          active
+                            ? "bg-primary text-primary-foreground border-primary shadow-2xs"
+                            : "bg-background border-border/80 text-foreground hover:bg-muted"
+                        )}
+                      >
+                        {lbl}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <label className="flex items-start gap-2.5 text-xs text-foreground cursor-pointer select-none p-3 rounded-xl bg-muted/40 border border-border/60">
+                <Checkbox
+                  checked={makeNewContactPrimary}
+                  onCheckedChange={(checked) => setMakeNewContactPrimary(Boolean(checked))}
+                  className="mt-0.5 h-4 w-4 rounded"
+                />
+                <span className="leading-snug">
+                  <strong>Make Primary number</strong>{" "}
+                  <span className="text-muted-foreground">
+                    (automatically keeps current number in Alternate Contacts)
+                  </span>
+                </span>
+              </label>
+
+              {duplicateContactNotice && (
+                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs font-medium">
+                  {duplicateContactNotice}
+                </div>
+              )}
+            </div>
+
+            <div className="p-3.5 sm:p-4 border-t border-border/60 bg-muted/30 flex items-center gap-2.5">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsAddContactOpen(false)}
+                className="h-11 sm:h-9 px-4 text-xs sm:text-sm font-semibold rounded-xl sm:rounded-lg cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={savingContact || !newContactPhone.trim()}
+                onClick={handleSaveContactHandoff}
+                className="flex-1 h-11 sm:h-9 px-4 text-sm font-bold gap-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl sm:rounded-lg shadow-xs cursor-pointer"
+              >
+                {savingContact ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                <span>{savingContact ? "Saving..." : "Save Number"}</span>
+              </Button>
+            </div>
+          </DialogContent>
         </Dialog>
 
         {/* WhatsApp Quick Template Messenger Modal */}
