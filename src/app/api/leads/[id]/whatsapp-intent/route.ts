@@ -29,13 +29,6 @@ export async function POST(
       return NextResponse.json({ error: "Lead not found" }, { status: 404 });
     }
 
-    if (!contact.phone || !contact.phone.trim()) {
-      return NextResponse.json(
-        { error: "No phone number available for this student lead" },
-        { status: 400 }
-      );
-    }
-
     // Role-based permission check: Counselors can only message leads assigned to them unless permitted
     if (
       !session.permissions.canViewAllLeads &&
@@ -49,19 +42,35 @@ export async function POST(
     }
 
     let templateText = "";
+    let contactId = "";
     try {
       const body = await request.json();
       templateText = body.templateText || body.text || "";
+      contactId = body.contactId ? String(body.contactId) : "";
     } catch {
       // empty body
     }
 
-    let cleanDigits = cleanPhoneDigits(contact.phone);
+    const altContact = contactId
+      ? contact.alternate_contacts.find((c) => c.id === contactId)
+      : null;
+
+    const targetPhone = altContact ? altContact.phone : contact.phone;
+    const targetLabel = altContact ? altContact.label : (contact.phone_label || "Primary");
+
+    if (!targetPhone || !targetPhone.trim()) {
+      return NextResponse.json(
+        { error: "No phone number available for this student lead" },
+        { status: 400 }
+      );
+    }
+
+    let cleanDigits = cleanPhoneDigits(targetPhone);
     if (cleanDigits.length === 10) {
       cleanDigits = `91${cleanDigits}`;
     }
 
-    const maskedPhone = maskPhoneNumber(contact.phone);
+    const maskedPhone = maskPhoneNumber(targetPhone);
     const queryParam = templateText ? `?text=${encodeURIComponent(templateText)}` : "";
     const launchUrl = `https://wa.me/${cleanDigits}${queryParam}`;
 
@@ -69,10 +78,10 @@ export async function POST(
     LeadsService.logLeadActivity({
       lead_id: leadId,
       activity_type: "whatsapp",
-      title: "WhatsApp Outreach Initiated",
+      title: `WhatsApp Outreach Initiated (${targetLabel})`,
       description: templateText
-        ? `Outreach via WhatsApp: "${templateText.slice(0, 100)}${templateText.length > 100 ? "..." : ""}"`
-        : `Direct WhatsApp message started by ${currentUser.name}`,
+        ? `Outreach via WhatsApp (${targetLabel}): "${templateText.slice(0, 100)}${templateText.length > 100 ? "..." : ""}"`
+        : `Direct WhatsApp message started on ${targetLabel} number by ${currentUser.name}`,
       new_value: maskedPhone,
       performed_by_name: currentUser.name || "Counselor",
     });

@@ -1,6 +1,7 @@
 import { getDatabase, withDbRetry, logServerError } from "@/lib/db/database";
 import {
   Lead,
+  LeadAlternateContact,
   FilterParams,
   LeadsResponse,
   LeadSummaryStats,
@@ -30,7 +31,7 @@ import { TasksService } from "@/lib/services/tasksService";
 import { AuthService } from "@/lib/services/authService";
 import { SyncService } from "@/lib/services/syncService";
 import { ScoringService } from "@/lib/services/scoringService";
-import { maskPhoneNumber, isMaskedPhone } from "@/lib/utils/phoneMasker";
+import { maskPhoneNumber, isMaskedPhone, cleanPhoneDigits } from "@/lib/utils/phoneMasker";
 
 /**
  * Normalizes phone numbers to standard 10-digit format (or clean digits)
@@ -127,6 +128,8 @@ export class LeadsService {
       lead_code: row.lead_code,
       name: row.name,
       phone: shouldMaskPhone ? maskPhoneNumber(row.phone) : row.phone,
+      phone_label: row.phone_label || "Primary",
+      alternate_contacts: this.parseAlternateContacts(row.alternate_contacts, shouldMaskPhone),
       email: row.email,
       status: row.status,
       assigned_to: row.assigned_to,
@@ -2505,6 +2508,8 @@ export class LeadsService {
       lead_code: updated.lead_code,
       name: updated.name,
       phone: shouldMaskPhone ? maskPhoneNumber(updated.phone) : updated.phone,
+      phone_label: updated.phone_label || "Primary",
+      alternate_contacts: this.parseAlternateContacts(updated.alternate_contacts, shouldMaskPhone),
       email: updated.email,
       status: updated.status,
       assigned_to: updated.assigned_to,
@@ -2584,6 +2589,8 @@ export class LeadsService {
       lead_code: row.lead_code,
       name: row.name,
       phone: shouldMaskPhone ? maskPhoneNumber(row.phone) : row.phone,
+      phone_label: row.phone_label || "Primary",
+      alternate_contacts: this.parseAlternateContacts(row.alternate_contacts, shouldMaskPhone),
       email: row.email,
       status: row.status,
       assigned_to: row.assigned_to,
@@ -2606,13 +2613,219 @@ export class LeadsService {
     };
   }
 
+  static parseAlternateContacts(raw: any, shouldMaskPhone: boolean): LeadAlternateContact[] {
+    const arr = Array.isArray(raw) ? raw : this.safeParseArray(raw);
+    return arr
+      .filter((c: any) => c && typeof c.phone === "string" && c.phone.trim().length > 0)
+      .map((c: any) => ({
+        id: String(c.id || ""),
+        phone: shouldMaskPhone ? maskPhoneNumber(c.phone) : c.phone,
+        label: String(c.label || "Alternate"),
+        added_by_name: c.added_by_name ? String(c.added_by_name) : undefined,
+        added_at: String(c.added_at || new Date().toISOString()),
+      }));
+  }
+
   /**
    * Retrieves raw unmasked contact details directly from database for secure click-to-dial or WhatsApp intents.
    */
-  static getRawLeadContact(leadId: number): { id: number; name: string; phone: string | null; assigned_to: string | null } | null {
+  static getRawLeadContact(leadId: number): {
+    id: number;
+    name: string;
+    phone: string | null;
+    phone_label: string | null;
+    alternate_contacts: LeadAlternateContact[];
+    assigned_to: string | null;
+  } | null {
     const db = getDatabase();
-    const row = db.prepare("SELECT id, name, phone, assigned_to FROM leads WHERE id = ?").get(leadId) as any;
-    return row || null;
+    const row = db
+      .prepare("SELECT id, name, phone, phone_label, alternate_contacts, assigned_to FROM leads WHERE id = ?")
+      .get(leadId) as any;
+    if (!row) return null;
+    return {
+      id: row.id,
+      name: row.name,
+      phone: row.phone,
+      phone_label: row.phone_label || "Primary",
+      alternate_contacts: this.parseAlternateContacts(row.alternate_contacts, false),
+      assigned_to: row.assigned_to,
+    };
+  }
+
+  /**
+   * Adds a new phone number (Student, Guardian, Father, Mother, Sibling, etc.) to a lead.
+   * When makePrimary is true, preserves the previous primary number inside alternate_contacts.
+   */
+  static addLeadContact(
+    leadId: number,
+    payload: { phone: string; label?: string; makePrimary?: boolean },
+    currentUser?: User | null
+  ): {
+    lead: Lead;
+    duplicateMatches: Array<{ id: number; lead_code: string; name: string | null }>;
+  } {
+    const db = getDatabase();
+    const existing = db.prepare("SELECT * FROM leads WHERE id = ?").get(leadId) as any;
+    if (!existing) throw new Error(`Lead ${leadId} not found`);
+
+    const rawPhone = String(payload.phone || "").trim();
+    const digits = cleanPhoneDigits(rawPhone);
+    if (digits.length < 10) {
+      throw new Error("Please enter a valid 10-digit phone number.");
+    }
+
+    const normNew = digits.slice(-10);
+    const cleanLabel = String(payload.label || "Guardian").trim() || "Guardian";
+    const makePrimary = Boolean(payload.makePrimary);
+    const performerName = currentUser?.name || "Counselor";
+
+    const currentContacts = this.parseAlternateContacts(existing.alternate_contacts, false);
+    const existingPrimaryNorm = existing.phone ? cleanPhoneDigits(existing.phone).slice(-10) : "";
+
+    const alreadyInAlternates = currentContacts.some((c) => cleanPhoneDigits(c.phone).slice(-10) === normNew);
+    if (normNew && (normNew === existingPrimaryNorm || alreadyInAlternates)) {
+      throw new Error("This phone number is already saved on this student profile.");
+    }
+
+    const nowIso = new Date().toISOString();
+    let nextPrimaryPhone = existing.phone;
+    let nextPrimaryLabel = existing.phone_label || "Primary";
+    let nextContacts = [...currentContacts];
+
+    if (makePrimary || !existing.phone || !existing.phone.trim()) {
+      if (existing.phone && existing.phone.trim()) {
+        const preservedLabel =
+          existing.phone_label && existing.phone_label !== "Primary"
+            ? existing.phone_label
+            : "Guardian";
+        nextContacts.unshift({
+          id: `cnt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          phone: existing.phone.trim(),
+          label: preservedLabel,
+          added_by_name: performerName,
+          added_at: nowIso,
+        });
+      }
+      nextPrimaryPhone = rawPhone;
+      nextPrimaryLabel = cleanLabel;
+    } else {
+      nextContacts.push({
+        id: `cnt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        phone: rawPhone,
+        label: cleanLabel,
+        added_by_name: performerName,
+        added_at: nowIso,
+      });
+    }
+
+    db.prepare(
+      "UPDATE leads SET phone = ?, phone_label = ?, alternate_contacts = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+    ).run(nextPrimaryPhone, nextPrimaryLabel, JSON.stringify(nextContacts), leadId);
+
+    const maskedNew = maskPhoneNumber(rawPhone);
+    const activityTitle = makePrimary
+      ? `Primary Contact Set to ${cleanLabel}`
+      : `Added ${cleanLabel} Contact`;
+    const activityDesc = makePrimary && existing.phone
+      ? `Saved ${cleanLabel} number (${maskedNew}) as Primary; preserved previous number (${maskPhoneNumber(existing.phone)}) as Alternate.`
+      : `Saved ${cleanLabel} number (${maskedNew}) to profile.`;
+
+    this.logLeadActivity({
+      lead_id: leadId,
+      activity_type: "field_update",
+      title: activityTitle,
+      description: activityDesc,
+      new_value: `${cleanLabel}: ${maskedNew}`,
+      performed_by_name: performerName,
+    });
+
+    const last10 = digits.slice(-10);
+    const duplicateMatches = db
+      .prepare(
+        `SELECT id, lead_code, name FROM leads
+         WHERE id != ? AND (REPLACE(REPLACE(REPLACE(phone, '+', ''), ' ', ''), '-', '') LIKE ? OR alternate_contacts LIKE ?)
+         LIMIT 3`
+      )
+      .all(leadId, `%${last10}`, `%${last10}%`) as Array<{ id: number; lead_code: string; name: string | null }>;
+
+    this.invalidateCache();
+    try {
+      SyncService.publish("lead_updated", "contact_added", {
+        entityId: leadId,
+        userId: currentUser?.id,
+      });
+    } catch {}
+
+    const userScope: UserScope | null = currentUser
+      ? { userId: currentUser.id, role: currentUser.role, canViewAllLeads: currentUser.role === "admin" || currentUser.role === "team_lead", name: currentUser.name }
+      : null;
+
+    const updatedLead = this.getLeadById(leadId, userScope);
+    if (!updatedLead) throw new Error("Failed to reload updated lead");
+
+    return { lead: updatedLead, duplicateMatches };
+  }
+
+  /**
+   * Swaps an existing alternate contact into the Primary phone slot, preserving the old Primary in alternate_contacts.
+   */
+  static promoteAlternateContact(
+    leadId: number,
+    contactId: string,
+    currentUser?: User | null
+  ): Lead {
+    const db = getDatabase();
+    const existing = db.prepare("SELECT * FROM leads WHERE id = ?").get(leadId) as any;
+    if (!existing) throw new Error(`Lead ${leadId} not found`);
+
+    const currentContacts = this.parseAlternateContacts(existing.alternate_contacts, false);
+    const targetIdx = currentContacts.findIndex((c) => c.id === contactId);
+    if (targetIdx === -1) {
+      throw new Error("Contact not found on this lead");
+    }
+
+    const target = currentContacts[targetIdx];
+    const remaining = currentContacts.filter((c) => c.id !== contactId);
+    const performerName = currentUser?.name || "Counselor";
+
+    if (existing.phone && existing.phone.trim()) {
+      remaining.unshift({
+        id: `cnt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        phone: existing.phone.trim(),
+        label: existing.phone_label && existing.phone_label !== "Primary" ? existing.phone_label : "Guardian",
+        added_by_name: performerName,
+        added_at: new Date().toISOString(),
+      });
+    }
+
+    db.prepare(
+      "UPDATE leads SET phone = ?, phone_label = ?, alternate_contacts = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+    ).run(target.phone, target.label, JSON.stringify(remaining), leadId);
+
+    this.logLeadActivity({
+      lead_id: leadId,
+      activity_type: "field_update",
+      title: `Primary Number Switched to ${target.label}`,
+      description: `Promoted ${target.label} (${maskPhoneNumber(target.phone)}) to Primary contact.`,
+      new_value: `${target.label}: ${maskPhoneNumber(target.phone)}`,
+      performed_by_name: performerName,
+    });
+
+    this.invalidateCache();
+    try {
+      SyncService.publish("lead_updated", "contact_promoted", {
+        entityId: leadId,
+        userId: currentUser?.id,
+      });
+    } catch {}
+
+    const userScope: UserScope | null = currentUser
+      ? { userId: currentUser.id, role: currentUser.role, canViewAllLeads: currentUser.role === "admin" || currentUser.role === "team_lead", name: currentUser.name }
+      : null;
+
+    const updatedLead = this.getLeadById(leadId, userScope);
+    if (!updatedLead) throw new Error("Failed to reload updated lead");
+    return updatedLead;
   }
 
   /**

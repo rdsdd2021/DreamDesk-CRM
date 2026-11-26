@@ -249,6 +249,23 @@ export function EnhancedLeadDrawer({
   const [unmaskedPhone, setUnmaskedPhone] = useState<string | null>(null);
   const [isUnmasking, setIsUnmasking] = useState(false);
 
+  // Multi-Contact / Guardian-to-Student Handoff State
+  const [isAddContactOpen, setIsAddContactOpen] = useState(false);
+  const [newContactPhone, setNewContactPhone] = useState("");
+  const [newContactLabel, setNewContactLabel] = useState<string>("Student");
+  const [makeNewContactPrimary, setMakeNewContactPrimary] = useState<boolean>(true);
+  const [savingContact, setSavingContact] = useState(false);
+  const [switchingContactId, setSwitchingContactId] = useState<string | null>(null);
+  const [duplicateContactNotice, setDuplicateContactNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    setIsAddContactOpen(false);
+    setNewContactPhone("");
+    setNewContactLabel("Student");
+    setMakeNewContactPrimary(true);
+    setDuplicateContactNotice(null);
+  }, [lead?.id]);
+
   useEffect(() => {
     let interval: any = null;
     if (isCalling) {
@@ -263,13 +280,16 @@ export function EnhancedLeadDrawer({
     };
   }, [isCalling]);
 
-  const handleStartCall = async () => {
+  const handleStartCall = async (contactId?: string) => {
     if (!lead?.id) return;
     try {
       setIsDialing(true);
       const { data, error } = await ApiClient.fetchJson<{ success: boolean; dialUri: string }>(
         `/api/leads/${lead.id}/call-intent`,
-        { method: "POST" }
+        {
+          method: "POST",
+          body: contactId ? JSON.stringify({ contactId }) : undefined,
+        }
       );
       if (error) throw new Error(error.message);
       setIsCalling(true);
@@ -284,6 +304,106 @@ export function EnhancedLeadDrawer({
       alert(err.message || "Failed to trigger call dialer");
     } finally {
       setIsDialing(false);
+    }
+  };
+
+  const handleWhatsAppContact = async (contactId?: string) => {
+    if (!lead?.id) return;
+    try {
+      const { data, error } = await ApiClient.fetchJson<{ success: boolean; launchUrl: string }>(
+        `/api/leads/${lead.id}/whatsapp-intent`,
+        {
+          method: "POST",
+          body: JSON.stringify(contactId ? { contactId } : {}),
+        }
+      );
+      if (error) throw new Error(error.message);
+      if (data?.launchUrl) {
+        window.open(data.launchUrl, "_blank", "noopener,noreferrer");
+      }
+      fetchActivities(lead.id);
+    } catch (err: any) {
+      alert(err.message || "Failed to launch WhatsApp");
+    }
+  };
+
+  const handleSaveContactHandoff = async () => {
+    if (!lead?.id) return;
+    const trimmed = newContactPhone.trim();
+    if (!trimmed) {
+      alert("Please enter a phone number.");
+      return;
+    }
+    setSavingContact(true);
+    setDuplicateContactNotice(null);
+    try {
+      const { data, error } = await ApiClient.fetchJson<{
+        success: boolean;
+        lead: Lead;
+        duplicateMatches?: Array<{ id: number; lead_code: string; name: string | null }>;
+      }>(`/api/leads/${lead.id}/contacts`, {
+        method: "POST",
+        body: JSON.stringify({
+          phone: trimmed,
+          label: newContactLabel,
+          makePrimary: makeNewContactPrimary,
+        }),
+      });
+      if (error || !data?.lead) {
+        throw new Error(error?.message || "Failed to save contact number");
+      }
+      if (onLeadUpdated) {
+        onLeadUpdated(data.lead, false);
+      }
+      setUnmaskedPhone(null);
+      setNewContactPhone("");
+      if (data.duplicateMatches && data.duplicateMatches.length > 0) {
+        const codes = data.duplicateMatches.map((m) => `${m.lead_code}${m.name ? ` (${m.name})` : ""}`).join(", ");
+        setDuplicateContactNotice(`Saved! Note: This number also appears on ${codes}.`);
+      } else {
+        setIsAddContactOpen(false);
+      }
+      setToastMessage(
+        makeNewContactPrimary
+          ? `Saved ${newContactLabel} number as Primary (previous number kept in Alternate Contacts).`
+          : `Added ${newContactLabel} number to Alternate Contacts.`
+      );
+      setSuccessToast(true);
+      setTimeout(() => setSuccessToast(false), 3500);
+      fetchActivities(lead.id);
+    } catch (err: any) {
+      alert(err.message || "Failed to save contact number");
+    } finally {
+      setSavingContact(false);
+    }
+  };
+
+  const handlePromoteContact = async (contactId: string) => {
+    if (!lead?.id) return;
+    setSwitchingContactId(contactId);
+    try {
+      const { data, error } = await ApiClient.fetchJson<{ success: boolean; lead: Lead }>(
+        `/api/leads/${lead.id}/contacts`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ contactId }),
+        }
+      );
+      if (error || !data?.lead) {
+        throw new Error(error?.message || "Failed to switch primary contact");
+      }
+      if (onLeadUpdated) {
+        onLeadUpdated(data.lead, false);
+      }
+      setUnmaskedPhone(null);
+      setToastMessage("Switched Primary contact number.");
+      setSuccessToast(true);
+      setTimeout(() => setSuccessToast(false), 3000);
+      fetchActivities(lead.id);
+    } catch (err: any) {
+      alert(err.message || "Failed to switch primary contact");
+    } finally {
+      setSwitchingContactId(null);
     }
   };
 
@@ -991,7 +1111,7 @@ export function EnhancedLeadDrawer({
             {lead.phone && !isCalling && (
               <Button
                 size="sm"
-                onClick={handleStartCall}
+                onClick={() => handleStartCall()}
                 disabled={isDialing}
                 className="h-8 px-3 text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-2xs"
               >
@@ -1184,7 +1304,17 @@ export function EnhancedLeadDrawer({
                     )}
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setIsAddContactOpen((prev) => !prev)}
+                      className="h-8 sm:h-7 px-2.5 text-xs sm:text-[11px] font-semibold gap-1 rounded-lg border-primary/30 text-primary hover:bg-primary/10 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add #</span>
+                    </Button>
                     {(selectedDispId || callNotes.trim().length > 0) && (
                       <Button
                         variant="ghost"
@@ -1216,6 +1346,94 @@ export function EnhancedLeadDrawer({
                     </label>
                   </div>
                 </div>
+
+                {/* Inline Zero-Diary Multi-Number Capture Panel */}
+                {isAddContactOpen && (
+                  <div className="p-3.5 rounded-xl bg-primary/5 border border-primary/25 space-y-3 animate-in fade-in-50 duration-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                        <Phone className="w-3.5 h-3.5 text-primary" />
+                        <span>Save New Contact Number</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddContactOpen(false)}
+                        className="text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                      >
+                        Close
+                      </button>
+                    </div>
+
+                    <Input
+                      type="tel"
+                      inputMode="tel"
+                      placeholder="Enter 10-digit mobile number..."
+                      value={newContactPhone}
+                      onChange={(e) => setNewContactPhone(e.target.value)}
+                      className="h-11 sm:h-9 text-sm bg-background border-border/80 font-mono"
+                    />
+
+                    <div className="space-y-1.5">
+                      <div className="text-[11px] font-semibold text-muted-foreground">Who owns this number?</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {["Student", "Guardian", "Father", "Mother", "Sibling", "Alternate"].map((lbl) => {
+                          const active = newContactLabel === lbl;
+                          return (
+                            <button
+                              key={lbl}
+                              type="button"
+                              onClick={() => {
+                                setNewContactLabel(lbl);
+                                setMakeNewContactPrimary(lbl === "Student");
+                              }}
+                              className={cn(
+                                "min-h-[36px] sm:min-h-0 px-3 py-1.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer",
+                                active
+                                  ? "bg-primary text-primary-foreground border-primary shadow-2xs"
+                                  : "bg-background border-border/80 text-foreground hover:bg-muted"
+                              )}
+                            >
+                              {lbl}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <label className="flex items-start gap-2 text-xs text-foreground cursor-pointer select-none pt-0.5">
+                      <Checkbox
+                        checked={makeNewContactPrimary}
+                        onCheckedChange={(checked) => setMakeNewContactPrimary(Boolean(checked))}
+                        className="mt-0.5 h-4 w-4 rounded"
+                      />
+                      <span className="leading-snug">
+                        <strong>Make Primary number</strong>{" "}
+                        <span className="text-muted-foreground">
+                          (automatically keeps current number in Alternate Contacts)
+                        </span>
+                      </span>
+                    </label>
+
+                    {duplicateContactNotice && (
+                      <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs font-medium">
+                        {duplicateContactNotice}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-end gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={savingContact || !newContactPhone.trim()}
+                        onClick={handleSaveContactHandoff}
+                        className="h-10 sm:h-8 px-4 text-xs font-bold gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg cursor-pointer"
+                      >
+                        {savingContact ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                        <span>{savingContact ? "Saving..." : "Save Number"}</span>
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Dynamic Disposition Outcome Trays */}
                 {activeReachableDisps.length === 0 ? (
@@ -1855,20 +2073,32 @@ export function EnhancedLeadDrawer({
 
               {/* Direct Contacts Card */}
               <div className="bg-card border border-border/80 rounded-2xl p-4 sm:p-5 space-y-3 shadow-2xs">
-                <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Contact Information
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Contact Information
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setIsAddContactOpen(true)}
+                    className="h-8 sm:h-7 px-2.5 text-xs sm:text-[11px] font-semibold gap-1 rounded-lg border-primary/30 text-primary hover:bg-primary/10 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Number</span>
+                  </Button>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Phone */}
                   <div className="p-3 rounded-xl border border-border/70 bg-muted/20 text-xs flex items-center justify-between">
                     <div className="space-y-0.5">
-                      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 flex-wrap">
                         <Phone className="w-3 h-3 text-emerald-600" />
-                        <span>Mobile Phone</span>
+                        <span>{lead.phone_label || "Primary"}</span>
                         <span className="text-[9px] font-medium text-emerald-600 bg-emerald-500/10 px-1 py-0.2 rounded flex items-center gap-0.5 border border-emerald-500/20">
                           <ShieldCheck className="w-2.5 h-2.5" />
-                          <span>Protected</span>
+                          <span>Primary</span>
                         </span>
                       </div>
                       <div className="font-mono font-bold text-foreground text-sm tracking-wide">
@@ -1937,6 +2167,75 @@ export function EnhancedLeadDrawer({
                     )}
                   </div>
                 </div>
+
+                {/* Saved Alternate / Guardian / Family Numbers */}
+                {lead.alternate_contacts && lead.alternate_contacts.length > 0 && (
+                  <div className="pt-2 border-t border-border/60 space-y-2">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Saved Alternate & Guardian Numbers ({lead.alternate_contacts.length})
+                    </div>
+                    <div className="space-y-2">
+                      {lead.alternate_contacts.map((cnt) => (
+                        <div
+                          key={cnt.id}
+                          className="p-3 rounded-xl border border-border/70 bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5"
+                        >
+                          <div className="space-y-0.5 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/25">
+                                {cnt.label}
+                              </span>
+                              {cnt.added_by_name && (
+                                <span className="text-[10px] text-muted-foreground truncate">
+                                  Added by {cnt.added_by_name}
+                                </span>
+                              )}
+                            </div>
+                            <div className="font-mono font-bold text-foreground text-sm tracking-wide">
+                              {cnt.phone}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => handleStartCall(cnt.id)}
+                              disabled={isDialing || isCalling}
+                              className="min-h-[38px] sm:min-h-0 sm:h-8 px-3 text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer"
+                            >
+                              <PhoneCall className="w-3.5 h-3.5" />
+                              <span>Call</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleWhatsAppContact(cnt.id)}
+                              className="min-h-[38px] sm:min-h-0 sm:h-8 px-3 text-xs font-semibold gap-1.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 rounded-lg cursor-pointer"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                              <span>WhatsApp</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              disabled={switchingContactId === cnt.id}
+                              onClick={() => handlePromoteContact(cnt.id)}
+                              className="min-h-[38px] sm:min-h-0 sm:h-8 px-2.5 text-xs font-semibold text-primary hover:bg-primary/10 rounded-lg cursor-pointer"
+                            >
+                              {switchingContactId === cnt.id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <span>Set Primary</span>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
 
@@ -2048,7 +2347,7 @@ export function EnhancedLeadDrawer({
           {lead.phone ? (
             <Button
               size="default"
-              onClick={handleStartCall}
+              onClick={() => handleStartCall()}
               disabled={isCalling || isDialing}
               className="flex-1 h-12 text-sm font-bold gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
             >

@@ -96,11 +96,21 @@ export interface Campaign {
   created_at: string;
 }
 
+export interface LeadAlternateContact {
+  id: string;
+  phone: string;
+  label: string;
+  added_by_name?: string;
+  added_at: string;
+}
+
 export interface Lead {
   id: number;
   lead_code: string;
   name: string | null;
   phone: string | null;
+  phone_label?: string | null;
+  alternate_contacts?: LeadAlternateContact[];
   email: string | null;
   status: string;
   assigned_to: string | null;

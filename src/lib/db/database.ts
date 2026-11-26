@@ -269,6 +269,12 @@ function initializeSchema(db: Database.Database) {
   if (!existingColNames.has("tags")) {
     db.exec("ALTER TABLE leads ADD COLUMN tags TEXT DEFAULT '[]';");
   }
+  if (!existingColNames.has("phone_label")) {
+    db.exec("ALTER TABLE leads ADD COLUMN phone_label TEXT DEFAULT 'Primary';");
+  }
+  if (!existingColNames.has("alternate_contacts")) {
+    db.exec("ALTER TABLE leads ADD COLUMN alternate_contacts TEXT DEFAULT '[]';");
+  }
 
 
   // Optimize indices for high-volume 500k lead queries
