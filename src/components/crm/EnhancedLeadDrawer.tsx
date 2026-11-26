@@ -136,6 +136,7 @@ export function EnhancedLeadDrawer({
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [fieldSearchQuery, setFieldSearchQuery] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const selectedDispPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -532,6 +533,24 @@ export function EnhancedLeadDrawer({
 
   const selectedDispObj = campaignDispositions.find((d) => d.id === selectedDispId);
   const requiresCallback = selectedDispObj ? Boolean(selectedDispObj.requires_callback) : false;
+  const requiresSubDisp = Boolean(
+    selectedDispObj?.sub_dispositions && selectedDispObj.sub_dispositions.length > 0
+  );
+  const isMissingMandatoryOutcomeFields = Boolean(
+    (requiresSubDisp && !selectedSubDispId) || (requiresCallback && !callbackDate)
+  );
+
+  // Auto-scroll to sub-dispositions and input fields when a main disposition is tapped
+  useEffect(() => {
+    if (!selectedDispId) return;
+    const timer = setTimeout(() => {
+      selectedDispPanelRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [selectedDispId]);
 
   // Preset callback helpers
   const setCallbackInHours = (hours: number) => {
@@ -621,6 +640,11 @@ export function EnhancedLeadDrawer({
     const targetDisp = specificDisp || campaignDispositions.find((d) => d.id === selectedDispId);
     if (!targetDisp) {
       alert("Please select a call disposition outcome.");
+      return;
+    }
+
+    if (targetDisp.sub_dispositions && targetDisp.sub_dispositions.length > 0 && !selectedSubDispId) {
+      alert("Please select a specific reason for this disposition.");
       return;
     }
 
@@ -1220,12 +1244,11 @@ export function EnhancedLeadDrawer({
                                     if (isSelected) {
                                       setSelectedDispId("");
                                       setSelectedSubDispId("");
+                                      setCallbackDate("");
                                     } else {
                                       setSelectedDispId(disp.id);
                                       setSelectedSubDispId("");
-                                      if (disp.requires_callback && !callbackDate) {
-                                        setCallbackInHours(2);
-                                      }
+                                      setCallbackDate("");
                                     }
                                   }}
                                   className={cn(
@@ -1269,12 +1292,11 @@ export function EnhancedLeadDrawer({
                                     if (isSelected) {
                                       setSelectedDispId("");
                                       setSelectedSubDispId("");
+                                      setCallbackDate("");
                                     } else {
                                       setSelectedDispId(disp.id);
                                       setSelectedSubDispId("");
-                                      if (disp.requires_callback && !callbackDate) {
-                                        setCallbackInHours(2);
-                                      }
+                                      setCallbackDate("");
                                     }
                                   }}
                                   className={cn(
@@ -1318,12 +1340,11 @@ export function EnhancedLeadDrawer({
                                     if (isSelected) {
                                       setSelectedDispId("");
                                       setSelectedSubDispId("");
+                                      setCallbackDate("");
                                     } else {
                                       setSelectedDispId(disp.id);
                                       setSelectedSubDispId("");
-                                      if (disp.requires_callback && !callbackDate) {
-                                        setCallbackInHours(2);
-                                      }
+                                      setCallbackDate("");
                                     }
                                   }}
                                   className={cn(
@@ -1352,8 +1373,9 @@ export function EnhancedLeadDrawer({
                 {/* Contextual Input Panel for Selected Disposition */}
                 {selectedDispObj && (
                   <div
+                    ref={selectedDispPanelRef}
                     className={cn(
-                      "p-3.5 rounded-xl border space-y-3.5 animate-in fade-in-50 duration-200",
+                      "p-3.5 rounded-xl border space-y-3.5 animate-in fade-in-50 duration-200 scroll-mt-3",
                       selectedDispObj.category === "positive"
                         ? "bg-emerald-500/5 border-emerald-500/30"
                         : selectedDispObj.category === "neutral" || selectedDispObj.requires_callback
@@ -1389,9 +1411,9 @@ export function EnhancedLeadDrawer({
                         <div className="flex items-center justify-between">
                           <label className="text-[11px] font-semibold text-foreground flex items-center gap-1">
                             <Sparkles className="w-3 h-3 text-primary" />
-                            <span>Specific Reason</span>
+                            <span>Specific Reason <span className="text-rose-500">*</span></span>
                           </label>
-                          <span className="text-[10px] text-muted-foreground">Optional</span>
+                          <span className="text-[10px] font-semibold text-rose-500">Required</span>
                         </div>
                         <div className="flex flex-wrap gap-1.5">
                           {selectedDispObj.sub_dispositions.map((sub) => {
@@ -1432,8 +1454,12 @@ export function EnhancedLeadDrawer({
                           onChange={(e) => setCallbackDate(e.target.value)}
                           className="h-10 sm:h-8 text-sm sm:text-xs bg-background border-border/80 font-mono focus-visible:ring-amber-500"
                         />
-                        {/* Fast Callback Time Presets */}
-                        <div className="flex flex-wrap gap-1.5 sm:gap-1 pt-0.5">
+                        {/* Fast Callback Time Presets (suggestions, never prefilled) */}
+                        <div className="space-y-1 pt-0.5">
+                          <div className="text-[10px] text-muted-foreground font-medium">
+                            Quick suggestions (tap to fill):
+                          </div>
+                          <div className="flex flex-wrap gap-1.5 sm:gap-1">
                           <button
                             type="button"
                             onClick={() => setCallbackInHours(2)}
@@ -1469,6 +1495,7 @@ export function EnhancedLeadDrawer({
                           >
                             Next Mon
                           </button>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -1505,7 +1532,7 @@ export function EnhancedLeadDrawer({
                       </span>
                       <Button
                         size="sm"
-                        disabled={savingDisp || Boolean(selectedDispObj.requires_callback && !callbackDate)}
+                        disabled={savingDisp || isMissingMandatoryOutcomeFields}
                         onClick={() => handleSaveDynamicOutcome()}
                         className="h-8 px-3 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg shadow-xs cursor-pointer gap-1.5 shrink-0 disabled:opacity-50"
                       >
@@ -2055,7 +2082,7 @@ export function EnhancedLeadDrawer({
             <Button
               size="default"
               onClick={() => handleSaveDynamicOutcome()}
-              disabled={savingDisp || Boolean(selectedDispObj?.requires_callback && !callbackDate)}
+              disabled={savingDisp || isMissingMandatoryOutcomeFields}
               className="flex-[1.5] h-12 text-sm font-bold gap-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-sm cursor-pointer"
             >
               <Save className="w-4 h-4" />
