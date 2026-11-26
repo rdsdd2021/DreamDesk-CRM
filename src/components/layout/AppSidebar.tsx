@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { APP_VERSION } from "@/lib/version";
 import {
   GraduationCap,
   LayoutDashboard,
@@ -157,7 +158,7 @@ export function AppSidebar({
                   CRM
                 </span>
                 <span className="text-[9px] font-mono font-semibold px-1 py-0.2 rounded bg-muted/80 text-muted-foreground border border-border/60">
-                  v1.1.0
+                  {APP_VERSION}
                 </span>
               </div>
             </div>

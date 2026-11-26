@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { APP_VERSION } from "@/lib/version";
 import {
   GraduationCap,
   Lock,
@@ -260,7 +261,7 @@ export default function LoginPage() {
               <span>Encrypted Session • Enterprise RBAC</span>
             </div>
             <div className="text-[10px] font-mono text-muted-foreground/60">
-              DreamDesk CRM v1.1.0
+              DreamDesk CRM {APP_VERSION}
             </div>
           </div>
         </div>

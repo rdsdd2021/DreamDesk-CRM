@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { APP_VERSION } from "@/lib/version";
 import {
   Lead,
   FacetGroup,
@@ -1535,7 +1536,7 @@ export default function CRMPage() {
                 {currentView === "policies" && "Governance & CRM Policies"}
               </span>
               <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 shrink-0">
-                v1.1.0
+                {APP_VERSION}
               </span>
             </h1>
 
