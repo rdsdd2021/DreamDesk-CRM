@@ -220,113 +220,59 @@ export function BulkAssignModal({
     }
 
     setLoading(true);
-    setLoadingStatusText("Resolving target lead cohort...");
+    setLoadingStatusText("Submitting background assignment job...");
 
     try {
-      let finalTargetIds: number[] = [];
-
-      if (!isAllFilteredSelected) {
-        finalTargetIds = [...selectedLeadIds];
-      } else {
-        // Query IDs of all matching filtered leads
-        const requestedLimit =
-          activeTab === "auto" && autoAssignType === "custom"
-            ? autoCustomCount
-            : activeTab === "single" && singleAssignType === "custom"
-            ? singleCustomCount
-            : activeTab === "quota"
-            ? totalQuotaAllocated
-            : undefined;
-
-        const res = await ApiClient.fetchJson<{ leadIds: number[] }>("/api/leads/target-ids", {
-          method: "POST",
-          body: JSON.stringify({
-            filter_params: currentFilterParams,
-            limit: requestedLimit,
-          }),
-        });
-
-        if (res.error || !res.data) {
-          throw new Error(res.error?.message || "Failed to resolve target leads.");
-        }
-        finalTargetIds = res.data.leadIds;
-      }
-
-      if (finalTargetIds.length === 0) {
-        throw new Error("No matching leads found for assignment.");
-      }
-
-      setTargetIdsCache(finalTargetIds);
-      setLoading(false);
-      setViewMode("cockpit");
-
-      // Initialize initial counselor tally
-      const initialTally: Record<string, number> = {};
-      users.forEach((u) => {
-        initialTally[u.id] = 0;
-      });
-
-      const controller = new BatchController();
-      batchControllerRef.current = controller;
-      setIsPaused(false);
+      const requestedLimit =
+        activeTab === "auto" && autoAssignType === "custom"
+          ? autoCustomCount
+          : activeTab === "single" && singleAssignType === "custom"
+          ? singleCustomCount
+          : activeTab === "quota"
+          ? totalQuotaAllocated
+          : undefined;
 
       const batchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
       const finalAssignmentName =
         assignmentName.trim() ||
         `Batch — ${new Date().toLocaleString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`;
 
-      // Execute Chunked Assignment (350 leads per batch for optimal 40ms SQLite WAL transactions)
-      const batchResult = await runBatchOperation(
-        {
-          items: finalTargetIds,
-          chunkSize: 350,
-          initialCounselorTally: initialTally,
-          onProgress: (p) => setProgress(p),
-          processChunk: async (chunkIds) => {
-            const payload: BulkAssignRequest = {
-              mode: activeTab,
-              assignment_batch_id: batchId,
-              assignment_name: finalAssignmentName,
-              filter_params: currentFilterParams,
-              selected_user_ids: activeTab === "auto" ? selectedCounselorIds : undefined,
-              user_quotas: activeTab === "quota" ? quotas : undefined,
-              single_user_id: activeTab === "single" ? (singleUserId || effectiveSingleUserId) : undefined,
-              lead_ids: chunkIds,
-              apply_to_all_filtered: false,
-              override_policy: overridePolicy,
-              task_config: createFollowupTask
-                ? {
-                    create_task: true,
-                    title: taskTitle.trim() || "Follow up with newly assigned student applicant",
-                    priority: taskPriority,
-                    due_in_hours: taskDueHours,
-                  }
-                : undefined,
-            };
-
-            const chunkRes = await ApiClient.fetchJson<any>("/api/leads/bulk-assign", {
-              method: "POST",
-              body: JSON.stringify(payload),
-            });
-
-            if (chunkRes.error || !chunkRes.data) {
-              throw new Error(chunkRes.error?.message || "Chunk assignment failed");
+      const payload: BulkAssignRequest & { async: boolean } = {
+        async: true,
+        mode: activeTab,
+        assignment_batch_id: batchId,
+        assignment_name: finalAssignmentName,
+        filter_params: currentFilterParams,
+        total_to_assign: isAllFilteredSelected ? requestedLimit : undefined,
+        selected_user_ids: activeTab === "auto" ? selectedCounselorIds : undefined,
+        user_quotas: activeTab === "quota" ? quotas : undefined,
+        single_user_id: activeTab === "single" ? (singleUserId || effectiveSingleUserId) : undefined,
+        lead_ids: !isAllFilteredSelected ? selectedLeadIds : undefined,
+        apply_to_all_filtered: isAllFilteredSelected,
+        override_policy: overridePolicy,
+        task_config: createFollowupTask
+          ? {
+              create_task: true,
+              title: taskTitle.trim() || "Follow up with newly assigned student applicant",
+              priority: taskPriority,
+              due_in_hours: taskDueHours,
             }
+          : undefined,
+      };
 
-            return {
-              affectedCount: chunkRes.data.affectedCount || 0,
-              skippedLockedCount: chunkRes.data.skippedLockedCount || 0,
-              counselorTally: chunkRes.data.counselorTally || {},
-              message: chunkRes.data.message,
-            };
-          },
-        },
-        controller
-      );
+      const res = await ApiClient.fetchJson<any>("/api/leads/bulk-assign", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
 
-      if (!batchResult.success && batchResult.error) {
-        setErrorMessage(batchResult.error);
+      if (res.error || !res.data) {
+        throw new Error(res.error?.message || "Failed to queue assignment job.");
       }
+
+      window.dispatchEvent(new CustomEvent("background-job-queued"));
+      setLoading(false);
+      onAssignComplete(availableCount, res.data.message || `Queued "${finalAssignmentName}" in background.`);
+      onClose();
     } catch (err: any) {
       setErrorMessage(err.message || "Failed to start bulk assignment");
       setLoading(false);

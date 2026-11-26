@@ -360,6 +360,35 @@ export interface AssignmentBatchCallerStat {
   conversion_rate: number;
 }
 
+export type BackgroundJobType =
+  | 'import'
+  | 'bulk_assign'
+  | 'bulk_status'
+  | 'bulk_campaign'
+  | 'bulk_tags'
+  | 'bulk_delete'
+  | 'auto_distribute';
+
+export type BackgroundJobStatus = 'queued' | 'running' | 'completed' | 'failed';
+
+export interface BackgroundJob {
+  id: string;
+  job_type: BackgroundJobType;
+  title: string;
+  status: BackgroundJobStatus;
+  total_items: number;
+  processed_items: number;
+  success_count: number;
+  skipped_count: number;
+  error_message?: string | null;
+  result_summary?: Record<string, any> | null;
+  created_by?: string | null;
+  created_by_name?: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at?: string | null;
+}
+
 export interface AssignmentBatchSummary {
   id: string;
   name: string;

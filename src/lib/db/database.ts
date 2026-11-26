@@ -317,6 +317,26 @@ function initializeSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_abm_batch ON assignment_batch_members(batch_id);
     CREATE INDEX IF NOT EXISTS idx_abm_user ON assignment_batch_members(assigned_to, assigned_at DESC);
     CREATE INDEX IF NOT EXISTS idx_abm_lead ON assignment_batch_members(lead_id);
+
+    CREATE TABLE IF NOT EXISTS background_jobs (
+      id TEXT PRIMARY KEY,
+      job_type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'queued',
+      total_items INTEGER NOT NULL DEFAULT 0,
+      processed_items INTEGER NOT NULL DEFAULT 0,
+      success_count INTEGER NOT NULL DEFAULT 0,
+      skipped_count INTEGER NOT NULL DEFAULT 0,
+      error_message TEXT,
+      result_summary TEXT,
+      created_by TEXT,
+      created_by_name TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      completed_at DATETIME
+    );
+    CREATE INDEX IF NOT EXISTS idx_bg_jobs_created ON background_jobs(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_bg_jobs_status ON background_jobs(status);
   `);
 
 

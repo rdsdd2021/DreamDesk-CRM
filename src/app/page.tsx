@@ -46,6 +46,7 @@ import { ActivityLogsModal } from "@/components/crm/ActivityLogsModal";
 import { TasksWorkspace } from "@/components/crm/TasksWorkspace";
 import { TeamWorkspace } from "@/components/crm/TeamWorkspace";
 import { AssignmentReportsWorkspace } from "@/components/crm/AssignmentReportsWorkspace";
+import { BackgroundJobsTracker } from "@/components/crm/BackgroundJobsTracker";
 import { ImportWorkspace } from "@/components/crm/ImportWorkspace";
 import { ActivityWorkspace } from "@/components/crm/ActivityWorkspace";
 import { PoliciesWorkspace } from "@/components/crm/PoliciesWorkspace";
@@ -2391,6 +2392,14 @@ export default function CRMPage() {
       <SystemDiagnosticsDrawer
         isOpen={isDiagnosticsOpen}
         onClose={() => setIsDiagnosticsOpen(false)}
+      />
+
+      {/* Non-Blocking Server Background Jobs Tracker */}
+      <BackgroundJobsTracker
+        onJobCompleted={() => {
+          fetchLeads(true);
+          loadMetaAndUsers();
+        }}
       />
     </div>
   </GlobalErrorBoundary>

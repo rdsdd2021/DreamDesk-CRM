@@ -280,13 +280,15 @@ export function ImportWorkspace({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Import failed");
 
+      window.dispatchEvent(new CustomEvent("background-job-queued"));
+
       setImportResult({
-        importedCount: data.importedCount,
-        skippedDuplicates: data.skippedDuplicates,
+        importedCount: data.importedCount ?? parsedData.length,
+        skippedDuplicates: data.skippedDuplicates ?? 0,
         newHeadersFound: data.newHeadersFound || [],
       });
 
-      onImportComplete(data.importedCount, data.newHeadersFound || []);
+      onImportComplete(data.importedCount ?? parsedData.length, data.newHeadersFound || []);
       setCurrentStep(3);
     } catch (err: any) {
       setError(err.message || "Failed to import leads");
