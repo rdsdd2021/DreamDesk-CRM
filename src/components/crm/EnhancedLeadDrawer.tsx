@@ -758,9 +758,9 @@ export function EnhancedLeadDrawer({
     <Sheet open={isOpen} onOpenChange={(open) => !open && handleAttemptClose()}>
       <SheetContent className="w-full sm:max-w-xl md:max-w-2xl h-full max-h-screen overflow-hidden p-0 flex flex-col bg-background shadow-2xl">
         {/* Tier 1: Pinned Header */}
-        <div className="shrink-0 p-4 sm:p-6 pb-4 bg-muted/40 border-b border-border/80 z-20">
+        <div className="shrink-0 p-3.5 sm:p-6 pb-3 sm:pb-4 bg-muted/40 border-b border-border/80 z-20">
           {/* Top metadata & Lead Stepper Navigation Row (pr-10 sm:pr-12 gives clear breathing room from Sheet close button) */}
-          <div className="flex items-center justify-between gap-2 mb-3 pr-10 sm:pr-12">
+          <div className="flex items-center justify-between gap-2 mb-2.5 sm:mb-3 pr-10 sm:pr-12">
             <div className="flex items-center gap-2 min-w-0 flex-wrap">
               <span className="font-mono text-xs font-bold text-foreground bg-background border border-border/80 px-2.5 py-1 rounded-md shadow-2xs shrink-0 select-all">
                 {lead.lead_code}
@@ -775,7 +775,7 @@ export function EnhancedLeadDrawer({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 rounded-md hover:bg-muted shrink-0 text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="h-8 w-8 sm:h-6 sm:w-6 rounded-md hover:bg-muted shrink-0 text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                       disabled={!hasPrevLead || isNavigationLocked}
                       onClick={() => {
                         if (isNavigationLocked) {
@@ -787,7 +787,7 @@ export function EnhancedLeadDrawer({
                       }}
                       title={isNavigationLocked ? "Save outcome to unlock navigation" : "Previous Lead (Shortcut: [ or Alt+Left)"}
                     >
-                      <ChevronLeft className="h-3.5 w-3.5" />
+                      <ChevronLeft className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                     </Button>
                     <span className="text-xs font-mono text-muted-foreground px-1.5 tabular-nums font-semibold select-none whitespace-nowrap">
                       {displayIndex} / {displayTotal}
@@ -795,7 +795,7 @@ export function EnhancedLeadDrawer({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 rounded-md hover:bg-muted shrink-0 text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="h-8 w-8 sm:h-6 sm:w-6 rounded-md hover:bg-muted shrink-0 text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                       disabled={!hasNextLead || isNavigationLocked}
                       onClick={() => {
                         if (isNavigationLocked) {
@@ -807,7 +807,7 @@ export function EnhancedLeadDrawer({
                       }}
                       title={isNavigationLocked ? "Save outcome to unlock navigation" : "Next Lead (Shortcut: ] or Alt+Right)"}
                     >
-                      <ChevronRight className="h-3.5 w-3.5" />
+                      <ChevronRight className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                     </Button>
                   </div>
 
@@ -854,21 +854,21 @@ export function EnhancedLeadDrawer({
           )}
 
           {/* Student Profile Identity Card */}
-          <div className="flex items-start gap-3.5 pt-1">
-            <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary font-bold text-base flex items-center justify-center border border-primary/20 shrink-0 shadow-2xs">
+          <div className="flex items-center sm:items-start gap-3 sm:gap-3.5 pt-0.5 sm:pt-1">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-primary/10 text-primary font-bold text-sm sm:text-base flex items-center justify-center border border-primary/20 shrink-0 shadow-2xs">
               {initials}
             </div>
             <div className="min-w-0 flex-1">
-              <SheetTitle className="text-xl sm:text-2xl font-bold tracking-tight text-foreground truncate">
+              <SheetTitle className="text-lg sm:text-2xl font-bold tracking-tight text-foreground truncate">
                 {lead.name || "Student Profile"}
               </SheetTitle>
 
               {/* Disposition & Sub-disposition Badges (placed cleanly beneath student name) */}
               {(lead.disposition_name || lead.sub_disposition_name) && (
-                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                <div className="flex items-center gap-1.5 mt-1 sm:mt-1.5 flex-wrap">
                   {lead.disposition_name && (
                     <span
-                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold text-white shadow-2xs max-w-[260px] truncate shrink-0"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold text-white shadow-2xs max-w-[240px] sm:max-w-[260px] truncate shrink-0"
                       style={{ backgroundColor: lead.disposition_color || "#3b82f6" }}
                       title={`Disposition: ${lead.disposition_name}`}
                     >
@@ -878,7 +878,7 @@ export function EnhancedLeadDrawer({
                   )}
                   {lead.sub_disposition_name && (
                     <span
-                      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-background border border-border/80 text-foreground shadow-2xs max-w-[260px] truncate shrink-0"
+                      className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-background border border-border/80 text-foreground shadow-2xs max-w-[260px] truncate shrink-0"
                       title={`Sub-disposition: ${lead.sub_disposition_name}`}
                     >
                       <span className="truncate">{lead.sub_disposition_name}</span>
@@ -887,7 +887,7 @@ export function EnhancedLeadDrawer({
                 </div>
               )}
 
-              <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2 flex-wrap">
+              <div className="hidden sm:flex items-center gap-3 text-xs text-muted-foreground mt-2 flex-wrap">
                 <span className="flex items-center gap-1 font-medium">
                   <Calendar className="w-3.5 h-3.5 text-muted-foreground/70" />
                   <span>Enrolled {new Date(lead.created_at).toLocaleDateString()}</span>
@@ -962,8 +962,8 @@ export function EnhancedLeadDrawer({
             </div>
           )}
 
-          {/* Quick Communication Actions Bar */}
-          <div className="flex items-center gap-2 mt-3 flex-wrap">
+          {/* Quick Communication Actions Bar (Desktop only; mobile uses the docked thumb-friendly bottom bar) */}
+          <div className="hidden sm:flex items-center gap-2 mt-3 flex-wrap">
             {lead.phone && !isCalling && (
               <Button
                 size="sm"
@@ -1171,12 +1171,12 @@ export function EnhancedLeadDrawer({
                           setCallbackDate("");
                           setCallNotes("");
                         }}
-                        className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+                        className="h-8 sm:h-6 px-2.5 text-xs sm:text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
                       >
                         Reset
                       </Button>
                     )}
-                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer select-none">
+                    <label className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer select-none">
                       <Checkbox
                         checked={autoAdvanceOnSave}
                         onCheckedChange={(checked) => {
@@ -1202,12 +1202,12 @@ export function EnhancedLeadDrawer({
                   <div className="space-y-2.5">
                     {/* TRAY 1: Progressing Forward */}
                     {activeReachableDisps.some((d) => d.category === "positive") && (
-                      <div className="space-y-1">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
-                          <Flame className="w-3 h-3" />
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] sm:text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                          <Flame className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
                           <span>Positive Outcomes</span>
                         </div>
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-1.5">
                           {activeReachableDisps
                             .filter((d) => d.category === "positive")
                             .map((disp) => {
@@ -1229,7 +1229,7 @@ export function EnhancedLeadDrawer({
                                     }
                                   }}
                                   className={cn(
-                                    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer h-8 shadow-2xs select-none",
+                                    "inline-flex items-center justify-start gap-2 sm:gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg text-xs font-semibold border transition-all cursor-pointer min-h-[44px] sm:min-h-0 sm:h-8 shadow-2xs select-none text-left",
                                     isSelected
                                       ? "bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-500/30"
                                       : "bg-background border-border/80 hover:bg-emerald-500/10 hover:border-emerald-500/40 text-foreground"
@@ -1251,12 +1251,12 @@ export function EnhancedLeadDrawer({
 
                     {/* TRAY 2: Needs Follow-up */}
                     {activeReachableDisps.some((d) => d.category === "neutral" || (d.requires_callback && d.category !== "positive")) && (
-                      <div className="space-y-1">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] sm:text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
                           <span>Follow-up Required</span>
                         </div>
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-1.5">
                           {activeReachableDisps
                             .filter((d) => d.category === "neutral" || (d.requires_callback && d.category !== "positive"))
                             .map((disp) => {
@@ -1278,7 +1278,7 @@ export function EnhancedLeadDrawer({
                                     }
                                   }}
                                   className={cn(
-                                    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer h-8 shadow-2xs select-none",
+                                    "inline-flex items-center justify-start gap-2 sm:gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg text-xs font-semibold border transition-all cursor-pointer min-h-[44px] sm:min-h-0 sm:h-8 shadow-2xs select-none text-left",
                                     isSelected
                                       ? "bg-amber-600 text-white border-amber-600 ring-2 ring-amber-500/30"
                                       : "bg-background border-border/80 hover:bg-amber-500/10 hover:border-amber-500/40 text-foreground"
@@ -1300,12 +1300,12 @@ export function EnhancedLeadDrawer({
 
                     {/* TRAY 3: Closed / Dropped */}
                     {activeReachableDisps.some((d) => d.category === "negative") && (
-                      <div className="space-y-1">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 flex items-center gap-1">
-                          <XCircle className="w-3 h-3" />
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] sm:text-[10px] font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 flex items-center gap-1">
+                          <XCircle className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
                           <span>Closed / Disqualified</span>
                         </div>
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-1.5">
                           {activeReachableDisps
                             .filter((d) => d.category === "negative")
                             .map((disp) => {
@@ -1327,7 +1327,7 @@ export function EnhancedLeadDrawer({
                                     }
                                   }}
                                   className={cn(
-                                    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer h-8 shadow-2xs select-none",
+                                    "inline-flex items-center justify-start gap-2 sm:gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl sm:rounded-lg text-xs font-semibold border transition-all cursor-pointer min-h-[44px] sm:min-h-0 sm:h-8 shadow-2xs select-none text-left",
                                     isSelected
                                       ? "bg-rose-600 text-white border-rose-600 ring-2 ring-rose-500/30"
                                       : "bg-background border-border/80 hover:bg-rose-500/10 hover:border-rose-500/40 text-foreground"
@@ -1393,7 +1393,7 @@ export function EnhancedLeadDrawer({
                           </label>
                           <span className="text-[10px] text-muted-foreground">Optional</span>
                         </div>
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-1.5">
                           {selectedDispObj.sub_dispositions.map((sub) => {
                             const isSubActive = selectedSubDispId === sub.id;
                             return (
@@ -1402,7 +1402,7 @@ export function EnhancedLeadDrawer({
                                 type="button"
                                 onClick={() => setSelectedSubDispId(isSubActive ? "" : sub.id)}
                                 className={cn(
-                                  "px-2 py-0.5 text-[11px] font-medium rounded-md border transition-all cursor-pointer select-none",
+                                  "min-h-[38px] sm:min-h-0 px-3 py-1.5 sm:px-2 sm:py-0.5 text-xs sm:text-[11px] font-medium rounded-lg sm:rounded-md border transition-all cursor-pointer select-none",
                                   isSubActive
                                     ? "bg-primary text-primary-foreground border-primary shadow-2xs font-semibold"
                                     : "bg-background border-border/80 hover:bg-muted text-foreground"
@@ -1430,42 +1430,42 @@ export function EnhancedLeadDrawer({
                           type="datetime-local"
                           value={callbackDate}
                           onChange={(e) => setCallbackDate(e.target.value)}
-                          className="h-8 text-xs bg-background border-border/80 font-mono focus-visible:ring-amber-500"
+                          className="h-10 sm:h-8 text-sm sm:text-xs bg-background border-border/80 font-mono focus-visible:ring-amber-500"
                         />
                         {/* Fast Callback Time Presets */}
-                        <div className="flex flex-wrap gap-1 pt-0.5">
+                        <div className="flex flex-wrap gap-1.5 sm:gap-1 pt-0.5">
                           <button
                             type="button"
                             onClick={() => setCallbackInHours(2)}
-                            className="px-2 py-0.5 text-[10px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                            className="min-h-[36px] sm:min-h-0 px-3 py-1.5 sm:px-2 sm:py-0.5 text-xs sm:text-[10px] font-medium rounded-lg sm:rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                           >
                             +2 Hours
                           </button>
                           <button
                             type="button"
                             onClick={() => setCallbackInHours(4)}
-                            className="px-2 py-0.5 text-[10px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                            className="min-h-[36px] sm:min-h-0 px-3 py-1.5 sm:px-2 sm:py-0.5 text-xs sm:text-[10px] font-medium rounded-lg sm:rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                           >
                             +4 Hours
                           </button>
                           <button
                             type="button"
                             onClick={() => setCallbackTomorrow(11)}
-                            className="px-2 py-0.5 text-[10px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                            className="min-h-[36px] sm:min-h-0 px-3 py-1.5 sm:px-2 sm:py-0.5 text-xs sm:text-[10px] font-medium rounded-lg sm:rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                           >
                             Tomorrow 11 AM
                           </button>
                           <button
                             type="button"
                             onClick={() => setCallbackTomorrow(16)}
-                            className="px-2 py-0.5 text-[10px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                            className="min-h-[36px] sm:min-h-0 px-3 py-1.5 sm:px-2 sm:py-0.5 text-xs sm:text-[10px] font-medium rounded-lg sm:rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                           >
                             Tomorrow 4 PM
                           </button>
                           <button
                             type="button"
                             onClick={setCallbackNextMonday}
-                            className="px-2 py-0.5 text-[10px] font-medium rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                            className="min-h-[36px] sm:min-h-0 px-3 py-1.5 sm:px-2 sm:py-0.5 text-xs sm:text-[10px] font-medium rounded-lg sm:rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                           >
                             Next Mon
                           </button>
@@ -1483,7 +1483,7 @@ export function EnhancedLeadDrawer({
                         value={callNotes}
                         onChange={(e) => setCallNotes(e.target.value)}
                         placeholder="e.g. Student inquiring about fees, entrance test, campus visit..."
-                        className="text-xs min-h-[48px] bg-background border-border/80 resize-none focus-visible:ring-primary"
+                        className="text-sm sm:text-xs min-h-[64px] sm:min-h-[48px] bg-background border-border/80 resize-none focus-visible:ring-primary"
                       />
                     </div>
 
@@ -1532,7 +1532,7 @@ export function EnhancedLeadDrawer({
                     </span>
                   </div>
 
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-1.5">
                     {unreachableOptions.map((opt) => (
                       <Button
                         key={opt.code}
@@ -1541,7 +1541,7 @@ export function EnhancedLeadDrawer({
                         disabled={loggingUnreachableId !== null || savingDisp}
                         onClick={() => handleInstantUnreachable(opt)}
                         className={cn(
-                          "h-8 py-1 px-2.5 text-xs font-semibold border-border/80 hover:bg-orange-500/10 hover:border-orange-500/40 hover:text-orange-700 dark:hover:text-orange-400 rounded-lg transition-all gap-1.5 cursor-pointer shadow-2xs select-none",
+                          "min-h-[44px] sm:min-h-0 sm:h-8 py-2 sm:py-1 px-3 sm:px-2.5 text-xs font-semibold border-border/80 hover:bg-orange-500/10 hover:border-orange-500/40 hover:text-orange-700 dark:hover:text-orange-400 rounded-xl sm:rounded-lg transition-all justify-start gap-2 sm:gap-1.5 cursor-pointer shadow-2xs select-none",
                           loggingUnreachableId === opt.id && "bg-orange-500/15 border-orange-500 text-orange-700 dark:text-orange-400"
                         )}
                         title={`Log ${opt.label} and apply 3h retry cooldown`}
@@ -2017,22 +2017,22 @@ export function EnhancedLeadDrawer({
     </div>
 
         {/* Tier 3: Docked Mobile Action Bar (Finger-friendly for telecallers & counselors) */}
-        <div className="shrink-0 p-2.5 bg-card border-t border-border/80 flex items-center gap-2 sm:hidden z-30 shadow-lg safe-area-bottom">
+        <div className="shrink-0 p-3 bg-card border-t border-border/80 flex items-center gap-2.5 sm:hidden z-30 shadow-lg safe-area-bottom">
           {lead.phone ? (
             <Button
-              size="sm"
+              size="default"
               onClick={handleStartCall}
               disabled={isCalling || isDialing}
-              className="flex-1 h-9 text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-2xs"
+              className="flex-1 h-12 text-sm font-bold gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
             >
               {isDialing ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                   <span>Connecting...</span>
                 </>
               ) : (
                 <>
-                  <PhoneCall className="w-3.5 h-3.5" />
+                  <PhoneCall className="w-4 h-4" />
                   <span>{isCalling ? "In Call" : "Call"}</span>
                 </>
               )}
@@ -2041,24 +2041,24 @@ export function EnhancedLeadDrawer({
 
           {lead.phone ? (
             <Button
-              size="sm"
+              size="default"
               variant="outline"
               onClick={() => setIsWhatsAppModalOpen(true)}
-              className="flex-1 h-9 text-xs font-semibold gap-1.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-lg shadow-2xs"
+              className="flex-1 h-12 text-sm font-bold gap-2 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl shadow-xs"
             >
-              <MessageSquare className="w-3.5 h-3.5" />
+              <MessageSquare className="w-4 h-4" />
               <span>WhatsApp</span>
             </Button>
           ) : null}
 
           {selectedDispId ? (
             <Button
-              size="sm"
+              size="default"
               onClick={() => handleSaveDynamicOutcome()}
               disabled={savingDisp || Boolean(selectedDispObj?.requires_callback && !callbackDate)}
-              className="flex-1 h-9 text-xs font-bold gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg shadow-xs cursor-pointer"
+              className="flex-[1.5] h-12 text-sm font-bold gap-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-sm cursor-pointer"
             >
-              <Save className="w-3.5 h-3.5" />
+              <Save className="w-4 h-4" />
               <span>{savingDisp ? "Saving..." : autoAdvanceOnSave && hasNextLead ? "Save & Next" : "Save Outcome"}</span>
             </Button>
           ) : null}
