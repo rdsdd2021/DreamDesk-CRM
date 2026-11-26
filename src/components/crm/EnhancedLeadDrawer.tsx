@@ -1066,9 +1066,47 @@ export function EnhancedLeadDrawer({
               {initials}
             </div>
             <div className="min-w-0 flex-1">
-              <SheetTitle className="text-lg sm:text-2xl font-bold tracking-tight text-foreground truncate">
-                {lead.name || "Student Profile"}
-              </SheetTitle>
+              <div className="flex items-center justify-between gap-2">
+                <SheetTitle className="text-lg sm:text-2xl font-bold tracking-tight text-foreground truncate">
+                  {lead.name || "Student Profile"}
+                </SheetTitle>
+
+                {/* Thumb-friendly Call & WhatsApp right beside Student Name */}
+                {lead.phone && (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => handleStartCall()}
+                      disabled={isCalling || isDialing}
+                      aria-label="Call student"
+                      title={isCalling ? "In Call" : "Call Student"}
+                      className="h-11 w-11 sm:h-9 sm:w-auto sm:px-3 p-0 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs gap-1.5 cursor-pointer"
+                    >
+                      {isDialing ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <PhoneCall className="w-4 h-4" />
+                      )}
+                      <span className="hidden sm:inline text-xs font-semibold">
+                        {isCalling ? "In Call" : "Call"}
+                      </span>
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setIsWhatsAppModalOpen(true)}
+                      aria-label="WhatsApp student"
+                      title="WhatsApp Student"
+                      className="h-11 w-11 sm:h-9 sm:w-auto sm:px-3 p-0 rounded-xl border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 hover:bg-emerald-500/15 shadow-xs gap-1.5 cursor-pointer"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      <span className="hidden sm:inline text-xs font-semibold">WhatsApp</span>
+                    </Button>
+                  </div>
+                )}
+              </div>
 
               {/* Disposition & Sub-disposition Badges (placed cleanly beneath student name) */}
               {(lead.disposition_name || lead.sub_disposition_name) && (
@@ -1192,91 +1230,9 @@ export function EnhancedLeadDrawer({
             </div>
           )}
 
-          {/* Quick Communication Actions Bar (Desktop only; mobile uses the docked thumb-friendly bottom bar) */}
-          <div className="hidden sm:flex items-center gap-2 mt-3 flex-wrap">
-            {lead.phone && !isCalling && (
-              <Button
-                size="sm"
-                onClick={() => handleStartCall()}
-                disabled={isDialing}
-                className="h-8 px-3 text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-2xs"
-              >
-                {isDialing ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Connecting...</span>
-                  </>
-                ) : (
-                  <>
-                    <PhoneCall className="w-3.5 h-3.5" />
-                    <span>Call Student</span>
-                  </>
-                )}
-              </Button>
-            )}
-
-            {lead.phone && (
-              <div className="inline-flex rounded-lg shadow-2xs">
-                <button
-                  type="button"
-                  onClick={() => setIsWhatsAppModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-l-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-colors h-8 cursor-pointer"
-                >
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  <span>WhatsApp</span>
-                </button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger className="px-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-r-lg border-l border-emerald-500/40 cursor-pointer h-8 flex items-center">
-                    <ChevronDown className="w-3 h-3" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-72 text-xs">
-                    <DropdownMenuItem
-                      onClick={() => setIsWhatsAppModalOpen(true)}
-                      className="cursor-pointer text-xs font-bold text-emerald-600 dark:text-emerald-400 gap-2 py-2"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      <span>Open Template Messenger Studio...</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuLabel className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      Fast Pitch Templates
-                    </DropdownMenuLabel>
-                    <DropdownMenuItem
-                      onClick={() =>
-                        handleSendWhatsAppTemplate(
-                          `Hello ${lead.name || "Student"}! Thank you for inquiring about DreamDesk admissions. Here is the requested fee structure & course details for your branch. Let us know if you'd like to book an in-person counseling session!`
-                        )
-                      }
-                      className="cursor-pointer text-xs py-2"
-                    >
-                      📄 Fee Structure & Brochure
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() =>
-                        handleSendWhatsAppTemplate(
-                          `Hi ${lead.name || "Student"}, our counseling team would like to invite you and your parents for an on-campus interaction and lab tour this week. What day works best for you?`
-                        )
-                      }
-                      className="cursor-pointer text-xs py-2"
-                    >
-                      🏛️ Campus Visit Invitation
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() =>
-                        handleSendWhatsAppTemplate(
-                          `Dear ${lead.name || "Student"}, please keep your 10th & 12th mark sheets and ID proof ready for your upcoming admission counseling session!`
-                        )
-                      }
-                      className="cursor-pointer text-xs py-2"
-                    >
-                      📑 Document Checklist
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            )}
-
-            {lead.email && (
+          {/* Quick Email Action (Desktop only) */}
+          {lead.email && (
+            <div className="hidden sm:flex items-center gap-2 mt-2.5">
               <a
                 href={`mailto:${lead.email}`}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-border/80 bg-background hover:bg-accent transition-colors h-8 shadow-2xs"
@@ -1284,8 +1240,8 @@ export function EnhancedLeadDrawer({
                 <Mail className="w-3.5 h-3.5 text-muted-foreground" />
                 <span>Email</span>
               </a>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Tier 2: Scrollable Multi-Tab Navigation Body */}
@@ -2141,42 +2097,6 @@ export function EnhancedLeadDrawer({
             )}
       </Tabs>
     </div>
-
-        {/* Tier 3: Docked Mobile Action Bar (Finger-friendly for telecallers & counselors) */}
-        <div className="shrink-0 p-3 bg-card border-t border-border/80 flex items-center gap-2.5 sm:hidden z-30 shadow-lg safe-area-bottom">
-          {lead.phone ? (
-            <Button
-              size="default"
-              onClick={() => handleStartCall()}
-              disabled={isCalling || isDialing}
-              className="flex-1 h-12 text-sm font-bold gap-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs"
-            >
-              {isDialing ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Connecting...</span>
-                </>
-              ) : (
-                <>
-                  <PhoneCall className="w-4 h-4" />
-                  <span>{isCalling ? "In Call" : "Call"}</span>
-                </>
-              )}
-            </Button>
-          ) : null}
-
-          {lead.phone ? (
-            <Button
-              size="default"
-              variant="outline"
-              onClick={() => setIsWhatsAppModalOpen(true)}
-              className="flex-1 h-12 text-sm font-bold gap-2 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl shadow-xs"
-            >
-              <MessageSquare className="w-4 h-4" />
-              <span>WhatsApp</span>
-            </Button>
-          ) : null}
-        </div>
       </SheetContent>
     </Sheet>
 
