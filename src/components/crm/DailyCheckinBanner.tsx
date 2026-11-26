@@ -13,7 +13,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   CheckCircle2,
+  ChevronDown,
   ClipboardCheck,
   Clock,
   Coffee,
@@ -33,25 +40,31 @@ const PRESENCE_OPTIONS: {
     value: "available",
     label: "Available",
     dotClass: "bg-emerald-500",
-    pillClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    pillClass: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
   },
   {
     value: "on_calls",
     label: "On Calls",
     dotClass: "bg-blue-500 animate-pulse",
-    pillClass: "bg-blue-50 text-blue-700 border-blue-200",
+    pillClass: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30",
+  },
+  {
+    value: "busy",
+    label: "Busy",
+    dotClass: "bg-rose-500",
+    pillClass: "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30",
   },
   {
     value: "break",
     label: "Break",
     dotClass: "bg-amber-500",
-    pillClass: "bg-amber-50 text-amber-700 border-amber-200",
+    pillClass: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30",
   },
   {
     value: "wrap_up",
     label: "Wrap Up",
     dotClass: "bg-purple-500",
-    pillClass: "bg-purple-50 text-purple-700 border-purple-200",
+    pillClass: "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/30",
   },
 ];
 
@@ -73,10 +86,30 @@ export function DailyPresencePill() {
 
   useEffect(() => {
     load();
+    const onUpdated = () => load();
+    window.addEventListener("daily-ops-updated", onUpdated);
+    return () => window.removeEventListener("daily-ops-updated", onUpdated);
   }, [load]);
 
   const handleChange = async (next: PresenceStatus) => {
     setUpdating(true);
+    // Optimistic UI update
+    setCheckin((prev) =>
+      prev
+        ? { ...prev, presence_status: next }
+        : {
+            id: 0,
+            user_id: "",
+            checkin_date: new Date().toISOString().slice(0, 10),
+            presence_status: next,
+            morning_focus: null,
+            checked_in_at: null,
+            eod_submitted_at: null,
+            eod_notes: null,
+            eod_blockers: null,
+            updated_at: new Date().toISOString(),
+          }
+    );
     try {
       const res = await fetch("/api/daily-ops/checkin", {
         method: "POST",
@@ -86,32 +119,43 @@ export function DailyPresencePill() {
       if (res.ok) {
         const data = await res.json();
         setCheckin(data.checkin);
+        window.dispatchEvent(new CustomEvent("daily-ops-updated"));
       }
     } finally {
       setUpdating(false);
     }
   };
 
-  const current = checkin?.checked_in_at ? checkin.presence_status : "available";
+  const current = checkin?.presence_status || "available";
   const meta = PRESENCE_OPTIONS.find((p) => p.value === current) || PRESENCE_OPTIONS[0];
 
   return (
-    <div className="flex items-center gap-1.5">
-      <span className={`h-2 w-2 rounded-full ${meta.dotClass}`} />
-      <select
-        value={current}
+    <DropdownMenu>
+      <DropdownMenuTrigger
         disabled={updating}
-        onChange={(e) => handleChange(e.target.value as PresenceStatus)}
         aria-label="Live Presence Status"
-        className={`h-7 rounded-full border px-2 text-[11px] font-semibold cursor-pointer focus:outline-none ${meta.pillClass}`}
+        className={`h-8 rounded-full border px-2.5 text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer transition-all hover:opacity-90 ${meta.pillClass}`}
       >
+        <span className={`h-2 w-2 rounded-full shrink-0 ${meta.dotClass}`} />
+        <span className="hidden sm:inline">{meta.label}</span>
+        <ChevronDown className="h-3 w-3 opacity-70" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-40 p-1 rounded-xl">
         {PRESENCE_OPTIONS.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
+          <DropdownMenuItem
+            key={opt.value}
+            onClick={() => handleChange(opt.value)}
+            className="flex items-center justify-between gap-2 text-xs rounded-lg px-2.5 py-2 cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${opt.dotClass}`} />
+              <span className="font-medium">{opt.label}</span>
+            </div>
+            {current === opt.value && <CheckCircle2 className="h-3.5 w-3.5 text-primary" />}
+          </DropdownMenuItem>
         ))}
-      </select>
-    </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -159,6 +203,9 @@ export function DailyCheckinBanner() {
 
   useEffect(() => {
     fetchOps();
+    const onUpdated = () => fetchOps();
+    window.addEventListener("daily-ops-updated", onUpdated);
+    return () => window.removeEventListener("daily-ops-updated", onUpdated);
   }, [fetchOps]);
 
   const handleCheckInSubmit = async (e: React.FormEvent) => {

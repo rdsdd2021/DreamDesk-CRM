@@ -49,6 +49,12 @@ const PRESENCE_META: Record<
     badgeClass: "bg-blue-50 text-blue-700 border-blue-200",
     icon: <PhoneCall className="h-3 w-3" />,
   },
+  busy: {
+    label: "Busy",
+    dotClass: "bg-rose-500",
+    badgeClass: "bg-rose-50 text-rose-700 border-rose-200",
+    icon: <AlertTriangle className="h-3 w-3" />,
+  },
   break: {
     label: "Break",
     dotClass: "bg-amber-500",
@@ -72,6 +78,7 @@ const PRESENCE_META: Record<
 export function TeamFloorPanel({ users, currentUser }: TeamFloorPanelProps) {
   const [members, setMembers] = useState<TeamFloorMember[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<"attendance" | "cards">("attendance");
   const [teamLeadFilter, setTeamLeadFilter] = useState<string>("all");
   const [eodPreviewMember, setEodPreviewMember] = useState<TeamFloorMember | null>(null);
 
@@ -197,6 +204,30 @@ export function TeamFloorPanel({ users, currentUser }: TeamFloorPanelProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+            <button
+              type="button"
+              onClick={() => setViewMode("attendance")}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold cursor-pointer transition-colors ${
+                viewMode === "attendance"
+                  ? "bg-white text-slate-900 shadow-2xs"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              Check-In Log
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("cards")}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold cursor-pointer transition-colors ${
+                viewMode === "cards"
+                  ? "bg-white text-slate-900 shadow-2xs"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              Floor Cards
+            </button>
+          </div>
           {isAdmin && teamLeads.length > 0 && (
             <select
               value={teamLeadFilter}
@@ -262,11 +293,112 @@ export function TeamFloorPanel({ users, currentUser }: TeamFloorPanelProps) {
         </div>
       </div>
 
-      {/* Caller Floor Cards */}
+      {/* Caller Attendance Table OR Floor Cards */}
       {members.length === 0 ? (
         <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-xs text-slate-500">
           <Users className="h-6 w-6 mx-auto mb-1.5 text-slate-300" />
           No callers found in this team scope yet. Assign callers to a Team Lead below to build pods.
+        </div>
+      ) : viewMode === "attendance" ? (
+        <div className="rounded-xl border border-slate-200 overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-semibold text-slate-600">
+                <th className="py-2.5 px-3">Staff Member</th>
+                <th className="py-2.5 px-3">Check-In Time</th>
+                <th className="py-2.5 px-3">Live Status</th>
+                <th className="py-2.5 px-3">Morning Message / Focus</th>
+                <th className="py-2.5 px-3">Quota Progress</th>
+                <th className="py-2.5 px-3 text-right">EOD</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {members.map((m) => {
+                const pStatus: PresenceStatus = m.checkin?.presence_status
+                  ? m.checkin.presence_status
+                  : m.checkin?.checked_in_at
+                  ? "available"
+                  : "offline";
+                const meta = PRESENCE_META[pStatus] || PRESENCE_META.offline;
+                const checkinTimeStr = m.checkin?.checked_in_at
+                  ? new Date(m.checkin.checked_in_at).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : null;
+                const eodTimeStr = m.checkin?.eod_submitted_at
+                  ? new Date(m.checkin.eod_submitted_at).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : null;
+
+                return (
+                  <tr key={m.user.id} className="hover:bg-slate-50/60">
+                    <td className="py-2.5 px-3">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="h-7 w-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0"
+                          style={{ backgroundColor: m.user.avatar_color || "#4f46e5" }}
+                        >
+                          {m.user.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="font-semibold text-slate-900">{m.user.name}</div>
+                          <div className="text-[10px] text-slate-500">
+                            {m.user.team_lead_name ? `Pod: ${m.user.team_lead_name}` : m.user.role.replace("_", " ")}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-3 whitespace-nowrap">
+                      {checkinTimeStr ? (
+                        <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200 font-mono">
+                          {checkinTimeStr}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-500 border-slate-200">
+                          Not Checked In
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 whitespace-nowrap">
+                      <Badge variant="outline" className={`text-[10px] gap-1 ${meta.badgeClass}`}>
+                        {meta.icon}
+                        {meta.label}
+                      </Badge>
+                    </td>
+                    <td className="py-2.5 px-3 max-w-[260px]">
+                      {m.checkin?.morning_focus ? (
+                        <span className="text-slate-700 line-clamp-2">{m.checkin.morning_focus}</span>
+                      ) : (
+                        <span className="italic text-slate-400">No message yet</span>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3 whitespace-nowrap text-[11px] text-slate-600">
+                      <span className="font-semibold text-slate-900">{m.autoStats.callsMade}</span>/{m.target.calls_target} calls ·{" "}
+                      <span className="font-semibold text-slate-900">{m.autoStats.tasksCompleted}</span>/{m.target.tasks_target} tasks
+                    </td>
+                    <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                      {eodTimeStr ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEodPreviewMember(m)}
+                          className="h-7 text-[11px] gap-1"
+                        >
+                          <FileText className="h-3 w-3 text-purple-600" />
+                          {eodTimeStr}
+                        </Button>
+                      ) : (
+                        <span className="text-[11px] text-slate-400">Pending</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">

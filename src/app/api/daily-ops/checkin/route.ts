@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     if (action === "presence") {
       const presence = body?.presence_status as PresenceStatus;
-      if (!["available", "on_calls", "break", "wrap_up", "offline"].includes(presence)) {
+      if (!["available", "on_calls", "busy", "break", "wrap_up", "offline"].includes(presence)) {
         return NextResponse.json({ error: "Invalid presence status" }, { status: 400 });
       }
       const checkin = DailyOpsService.updatePresence(session.user.id, presence);

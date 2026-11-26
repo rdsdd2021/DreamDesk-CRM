@@ -4,6 +4,15 @@ All notable changes, architectural enhancements, schema migrations, and feature 
 
 ---
 
+## [v1.3.9] — 2026-11-27
+
+### 🌅 Mandatory Morning Check-In Gate, Live Status Dropdown & Admin Attendance Log
+- **Live Presence Status Dropdown (`DailyPresencePill`)**: Replaced the native `<select>` with an interactive `DropdownMenu` pill supporting `Available`, `On Calls`, `Busy`, `Break`, and `Wrap Up` across Admin, Team Lead, and Caller accounts, synced across header and Tasks banner via `daily-ops-updated`.
+- **Full-Screen Morning Check-In Gate (`MorningCheckinGate.tsx`)**: Callers (`counselor`, `senior_counselor`, `telecaller`) who have not checked in yet today are presented with a full-screen blurred lock overlay requiring their daily focus message before entering the CRM workspace.
+- **Admin Check-In & Attendance Log (`TeamFloorPanel.tsx`)**: Added an **Attendance & Check-In Log** table view in the **Team** tab showing each staff member's exact check-in time, live status, morning focus message, quota progress, and EOD submission time.
+
+---
+
 ## [v1.3.6] — 2026-11-27
 
 ### 👥 Team Lead Pod Hierarchy, Daily Team Ops, & Task Governance
