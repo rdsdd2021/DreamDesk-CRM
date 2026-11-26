@@ -685,7 +685,7 @@ export function PlaybookStudioWorkspace({ onFilterByDisposition }: PlaybookStudi
 
             <div className="flex items-center justify-between pt-2">
               <span className="text-[11px] text-muted-foreground">
-                Recalculating triggers a fast WAL SQLite batch update on all leads.
+                Recalculating triggers a fast batch update on all leads.
               </span>
               <div className="flex items-center gap-2">
                 <Button

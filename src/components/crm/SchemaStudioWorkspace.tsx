@@ -267,7 +267,7 @@ export function SchemaStudioWorkspace({
             <h2 className="text-lg font-bold text-foreground tracking-tight flex items-center gap-2">
               <span>Dynamic Schema & Fields Studio</span>
               <Badge variant="outline" className="text-[10px] font-mono border-emerald-500/30 text-emerald-600 bg-emerald-500/5">
-                SQLite EAV / No-Migration
+                Dynamic Custom Fields
               </Badge>
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -336,7 +336,7 @@ export function SchemaStudioWorkspace({
             {totalLeadsCount.toLocaleString()}
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Student leads indexed in WAL
+            Total student leads
           </p>
         </div>
       </div>

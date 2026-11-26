@@ -258,22 +258,6 @@ export function AppSidebar({
             );
           })}
         </nav>
-
-        {/* Install Android App Quick Action */}
-        <div className="px-2 pt-1 border-t border-border/40">
-          <button
-            onClick={() => {
-              window.dispatchEvent(new CustomEvent("trigger-pwa-install"));
-            }}
-            className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50/60 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/40 border border-blue-200 dark:border-blue-900/60 transition-colors ${
-              isCollapsed ? "justify-center px-0" : ""
-            }`}
-            title="Install DreamDesk Mobile App on Android"
-          >
-            <Smartphone className="w-3.5 h-3.5 shrink-0 text-blue-500" />
-            {!isCollapsed && <span>Install Android App</span>}
-          </button>
-        </div>
       </div>
 
       {/* Bottom User Profile & Performance Widget */}
@@ -320,102 +304,6 @@ export function AppSidebar({
               {currentUser.name.charAt(0)}
             </div>
           )
-        )}
-
-        {currentUser?.role === "admin" && (
-          !isCollapsed ? (
-            <a
-              href="/db-admin"
-              className="flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-border/40 transition-colors"
-              title="Open Live SQLite Database GUI (Admin Only)"
-            >
-              <span className="flex items-center gap-2">
-                <Database className="w-3.5 h-3.5 text-emerald-500" />
-                <span>Live DB GUI</span>
-              </span>
-              <span className="text-[10px] font-mono font-semibold px-1 py-0.2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded">
-                SQL
-              </span>
-            </a>
-          ) : (
-            <a
-              href="/db-admin"
-              className="flex items-center justify-center p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-              title="Open Live SQLite Database GUI"
-            >
-              <Database className="w-3.5 h-3.5 text-emerald-500" />
-            </a>
-          )
-        )}
-
-        {!isCollapsed ? (
-          <a
-            href="/download"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-border/40 transition-colors"
-            title="Download Android APK for low-end phones"
-          >
-            <span className="flex items-center gap-2">
-              <Smartphone className="w-3.5 h-3.5 text-blue-500" />
-              <span>Android App</span>
-            </span>
-            <span className="text-[10px] font-mono font-semibold px-1 py-0.2 bg-blue-500/10 text-blue-500 rounded">
-              APK
-            </span>
-          </a>
-        ) : (
-          <a
-            href="/download"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-            title="Download Android App (APK)"
-          >
-            <Smartphone className="w-3.5 h-3.5 text-blue-500" />
-          </a>
-        )}
-
-        {!isCollapsed ? (
-          <div
-            onClick={onOpenDiagnostics}
-            className="space-y-1.5 cursor-pointer p-1 -m-1 rounded-xl hover:bg-muted/40 transition-colors"
-            title="Click to open Server Health & Error Diagnostics"
-          >
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="text-muted-foreground font-medium flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="hover:text-foreground transition-colors">SQLite Engine Health</span>
-              </span>
-              <span className="font-mono text-[10px] text-muted-foreground font-bold">
-                64MB RAM
-              </span>
-            </div>
-
-            <div className="p-2 rounded-lg bg-card border border-border/70 text-[10px] space-y-1">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span>Leads In DB</span>
-                <span className="font-mono font-bold text-foreground tabular-nums">
-                  {totalLeadsCount.toLocaleString()}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span>Unallocated</span>
-                <span className="font-mono font-bold text-amber-600 tabular-nums">
-                  {unassignedCount.toLocaleString()}
-                </span>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div
-            onClick={onOpenDiagnostics}
-            className="flex flex-col items-center gap-2 cursor-pointer p-1 rounded-lg hover:bg-muted/40"
-            title="SQLite WAL Online • Click for Diagnostics"
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20" />
-            <Database className="w-3.5 h-3.5 text-muted-foreground" />
-          </div>
         )}
       </div>
     </aside>

@@ -995,7 +995,7 @@ export function CampaignsSchemaStudio({
                   Purge data from all student records
                 </div>
                 <div className="text-[11px] text-muted-foreground mt-0.5">
-                  Executes SQLite <code className="font-mono bg-muted px-1 rounded">json_remove</code> on all leads to free storage. If unchecked, the values stay in raw attributes.
+                  Permanently removes this field from all leads to free storage. If unchecked, the values stay in raw attributes.
                 </div>
               </div>
             </label>

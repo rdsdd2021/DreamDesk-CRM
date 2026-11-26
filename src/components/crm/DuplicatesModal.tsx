@@ -141,7 +141,7 @@ export function DuplicatesModal({
 
         {loading ? (
           <div className="py-20 text-center text-xs text-muted-foreground">
-            Scanning 112,500+ records in SQLite WAL...
+            Scanning records for duplicates...
           </div>
         ) : allClusters.length === 0 ? (
           <div className="py-20 text-center space-y-2">
@@ -307,7 +307,7 @@ export function DuplicatesModal({
         <DialogFooter className="p-3 border-t bg-muted/20 flex items-center justify-between shrink-0">
           <div className="text-xs text-muted-foreground flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-            <span>SQLite ACID Merge: Preserves all notes, picks highest score, and avoids data loss.</span>
+            <span>Safe Merge: Preserves all notes, picks highest score, and avoids data loss.</span>
           </div>
           <Button variant="outline" size="sm" onClick={onClose} className="h-9 text-xs font-semibold px-4 rounded-lg">
             Close

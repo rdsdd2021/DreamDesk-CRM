@@ -339,7 +339,7 @@ export function ImportWorkspace({
             Batch CSV Lead Ingestion
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">
-            Stream student spreadsheets into SQLite WAL with intelligent column auto-matching,
+            Upload student spreadsheets with intelligent column auto-matching,
             phone deduplication, and dynamic schema auto-registration.
           </p>
         </div>
@@ -807,7 +807,7 @@ export function ImportWorkspace({
               Ingestion Completed Successfully!
             </h2>
             <p className="text-xs text-muted-foreground mt-1">
-              Your leads have been transactionally committed to SQLite WAL and are immediately available for routing and calls.
+              Your leads have been saved to DreamDesk CRM and are immediately available for routing and calls.
             </p>
           </div>
 

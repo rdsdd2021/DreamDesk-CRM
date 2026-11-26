@@ -2165,7 +2165,7 @@ export default function CRMPage() {
 
       {/* Mobile Navigation Drawer Sheet */}
       <Sheet open={isMobileNavOpen} onOpenChange={setIsMobileNavOpen}>
-        <SheetContent side="left" className="p-0 w-72 sm:w-80 border-r border-border/80" showCloseButton={false}>
+        <SheetContent side="right" className="p-0 w-72 sm:w-80 border-l border-border/80" showCloseButton={false}>
           <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
           <SheetDescription className="sr-only">Main CRM navigation and workspace switcher</SheetDescription>
           <AppSidebar

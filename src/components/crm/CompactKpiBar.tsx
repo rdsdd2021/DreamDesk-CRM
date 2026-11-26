@@ -173,7 +173,7 @@ export function CompactKpiBar({
                   ? `${summary.totalLeads} of ${globalTotalDisplay} total`
                   : isRestrictedCounselor
                   ? "Assigned to you"
-                  : "All leads in WAL"}
+                  : "All leads in CRM"}
               </span>
             </div>
           </div>

@@ -530,7 +530,7 @@ export function BulkAssignModal({
 
                   <span className="text-xs text-muted-foreground flex items-center gap-1.5 font-medium">
                     <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-                    <span>Processing chunk in SQLite...</span>
+                    <span>Processing batch...</span>
                   </span>
                 </>
               )}
