@@ -9,6 +9,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -136,7 +143,6 @@ export function EnhancedLeadDrawer({
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [fieldSearchQuery, setFieldSearchQuery] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
-  const selectedDispPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -639,18 +645,6 @@ export function EnhancedLeadDrawer({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, hasPrevLead, hasNextLead, onPrevLead, onNextLead, isNavigationLocked]);
-
-  // Auto-scroll to sub-dispositions and input fields when a main disposition is tapped
-  useEffect(() => {
-    if (!selectedDispId) return;
-    const timer = setTimeout(() => {
-      selectedDispPanelRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 60);
-    return () => clearTimeout(timer);
-  }, [selectedDispId]);
 
   if (!lead) return null;
 
@@ -1588,183 +1582,6 @@ export function EnhancedLeadDrawer({
                   </div>
                 )}
 
-                {/* Contextual Input Panel for Selected Disposition */}
-                {selectedDispObj && (
-                  <div
-                    ref={selectedDispPanelRef}
-                    className={cn(
-                      "p-3.5 rounded-xl border space-y-3.5 animate-in fade-in-50 duration-200 scroll-mt-3",
-                      selectedDispObj.category === "positive"
-                        ? "bg-emerald-500/5 border-emerald-500/30"
-                        : selectedDispObj.category === "neutral" || selectedDispObj.requires_callback
-                        ? "bg-amber-500/5 border-amber-500/30"
-                        : selectedDispObj.category === "negative"
-                        ? "bg-rose-500/5 border-rose-500/30"
-                        : "bg-primary/5 border-primary/30"
-                    )}
-                  >
-                    {/* Header showing outcome and score effect */}
-                    <div className="flex items-center justify-between pb-1 border-b border-border/40">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-foreground">
-                          Selected: <span className="underline decoration-primary/40">{selectedDispObj.name}</span>
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedDispId("");
-                          setSelectedSubDispId("");
-                        }}
-                        className="text-[11px] text-muted-foreground hover:text-foreground cursor-pointer underline"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-
-                    {/* Dynamic Sub-dispositions / Reasons */}
-                    {selectedDispObj.sub_dispositions && selectedDispObj.sub_dispositions.length > 0 && (
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <label className="text-[11px] font-semibold text-foreground flex items-center gap-1">
-                            <Sparkles className="w-3 h-3 text-primary" />
-                            <span>Specific Reason <span className="text-rose-500">*</span></span>
-                          </label>
-                          <span className="text-[10px] font-semibold text-rose-500">Required</span>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {selectedDispObj.sub_dispositions.map((sub) => {
-                            const isSubActive = selectedSubDispId === sub.id;
-                            return (
-                              <button
-                                key={sub.id}
-                                type="button"
-                                onClick={() => setSelectedSubDispId(isSubActive ? "" : sub.id)}
-                                className={cn(
-                                  "min-h-[38px] sm:min-h-0 px-3 py-1.5 sm:px-2 sm:py-0.5 text-xs sm:text-[11px] font-medium rounded-lg sm:rounded-md border transition-all cursor-pointer select-none",
-                                  isSubActive
-                                    ? "bg-primary text-primary-foreground border-primary shadow-2xs font-semibold"
-                                    : "bg-background border-border/80 hover:bg-muted text-foreground"
-                                )}
-                              >
-                                <span>{sub.name}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Conditional Callback Date & Time (if requires_callback) */}
-                    {selectedDispObj.requires_callback === 1 && (
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <label className="text-[11px] font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-1">
-                            <Clock className="w-3 h-3 text-amber-600" />
-                            <span>Callback Time <span className="text-rose-500">*</span></span>
-                          </label>
-                          <span className="text-[10px] text-muted-foreground">Required</span>
-                        </div>
-                        <Input
-                          type="datetime-local"
-                          value={callbackDate}
-                          onChange={(e) => setCallbackDate(e.target.value)}
-                          className="h-10 sm:h-8 text-sm sm:text-xs bg-background border-border/80 font-mono focus-visible:ring-amber-500"
-                        />
-                        {/* Fast Callback Time Presets (suggestions, never prefilled) */}
-                        <div className="space-y-1 pt-0.5">
-                          <div className="text-[10px] text-muted-foreground font-medium">
-                            Quick suggestions (tap to fill):
-                          </div>
-                          <div className="flex flex-wrap gap-1.5 sm:gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setCallbackInHours(2)}
-                            className="min-h-[36px] sm:min-h-0 px-3 py-1.5 sm:px-2 sm:py-0.5 text-xs sm:text-[10px] font-medium rounded-lg sm:rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                          >
-                            +2 Hours
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setCallbackInHours(4)}
-                            className="min-h-[36px] sm:min-h-0 px-3 py-1.5 sm:px-2 sm:py-0.5 text-xs sm:text-[10px] font-medium rounded-lg sm:rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                          >
-                            +4 Hours
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setCallbackTomorrow(11)}
-                            className="min-h-[36px] sm:min-h-0 px-3 py-1.5 sm:px-2 sm:py-0.5 text-xs sm:text-[10px] font-medium rounded-lg sm:rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                          >
-                            Tomorrow 11 AM
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setCallbackTomorrow(16)}
-                            className="min-h-[36px] sm:min-h-0 px-3 py-1.5 sm:px-2 sm:py-0.5 text-xs sm:text-[10px] font-medium rounded-lg sm:rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                          >
-                            Tomorrow 4 PM
-                          </button>
-                          <button
-                            type="button"
-                            onClick={setCallbackNextMonday}
-                            className="min-h-[36px] sm:min-h-0 px-3 py-1.5 sm:px-2 sm:py-0.5 text-xs sm:text-[10px] font-medium rounded-lg sm:rounded-md bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                          >
-                            Next Mon
-                          </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Notes / Remarks Field */}
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-foreground flex items-center justify-between">
-                        <span>Call Notes & Remarks</span>
-                        <span className="text-[10px] font-normal text-muted-foreground">Optional</span>
-                      </label>
-                      <Textarea
-                        value={callNotes}
-                        onChange={(e) => setCallNotes(e.target.value)}
-                        placeholder="e.g. Student inquiring about fees, entrance test, campus visit..."
-                        className="text-sm sm:text-xs min-h-[64px] sm:min-h-[48px] bg-background border-border/80 resize-none focus-visible:ring-primary"
-                      />
-                    </div>
-
-                    {/* Save Action Row (Desktop view; on mobile handled by docked bottom bar) */}
-                    <div className="hidden sm:flex items-center justify-between gap-2 pt-1">
-                      <span className="text-[11px] text-muted-foreground truncate">
-                        Stage updates to{" "}
-                        <strong className="text-foreground">
-                          {selectedDispObj.code === "ADM_SUBMITTED"
-                            ? "Admitted"
-                            : selectedDispObj.category === "positive" || selectedDispObj.code === "INT_HIGH"
-                            ? "Interested"
-                            : selectedDispObj.requires_callback
-                            ? "Follow-up"
-                            : selectedDispObj.category === "negative"
-                            ? "Not Interested"
-                            : "Contacted"}
-                        </strong>
-                      </span>
-                      <Button
-                        size="sm"
-                        disabled={savingDisp || isMissingMandatoryOutcomeFields}
-                        onClick={() => handleSaveDynamicOutcome()}
-                        className="h-8 px-3 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg shadow-xs cursor-pointer gap-1.5 shrink-0 disabled:opacity-50"
-                      >
-                        {savingDisp ? (
-                          <RotateCw className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                        )}
-                        <span>{autoAdvanceOnSave && hasNextLead ? "Save & Next" : "Save Outcome"}</span>
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
                 {/* Instant 1-Click Unreachable Attempts Section */}
                 <div className="space-y-1.5 pt-1 border-t border-border/60">
                   <div className="flex items-center justify-between">
@@ -2388,6 +2205,198 @@ export function EnhancedLeadDrawer({
             </Button>
           ) : null}
         </div>
+
+        {/* Fluid Sub-Disposition & Call Outcome Popup (Bottom Sheet on Mobile, Centered Modal on Desktop) */}
+        <Dialog
+          open={Boolean(selectedDispObj)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedDispId("");
+              setSelectedSubDispId("");
+              setCallbackDate("");
+            }
+          }}
+        >
+          {selectedDispObj && (
+            <DialogContent className="p-0 gap-0 max-h-[88vh] flex flex-col max-sm:top-auto max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:translate-x-0 max-sm:translate-y-0 max-sm:max-w-full max-sm:rounded-b-none max-sm:rounded-t-2xl max-sm:data-open:slide-in-from-bottom-6 max-sm:data-closed:slide-out-to-bottom-6 sm:max-w-md">
+              <DialogHeader
+                className={cn(
+                  "px-4 sm:px-5 py-3.5 border-b border-border/60 shrink-0 text-left",
+                  selectedDispObj.category === "positive"
+                    ? "bg-emerald-500/10"
+                    : selectedDispObj.category === "neutral" || selectedDispObj.requires_callback
+                    ? "bg-amber-500/10"
+                    : selectedDispObj.category === "negative"
+                    ? "bg-rose-500/10"
+                    : "bg-primary/10"
+                )}
+              >
+                <DialogTitle className="text-base font-bold text-foreground pr-8">
+                  {selectedDispObj.name}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  Stage updates to{" "}
+                  <strong className="text-foreground">
+                    {selectedDispObj.code === "ADM_SUBMITTED"
+                      ? "Admitted"
+                      : selectedDispObj.category === "positive" || selectedDispObj.code === "INT_HIGH"
+                      ? "Interested"
+                      : selectedDispObj.requires_callback
+                      ? "Follow-up"
+                      : selectedDispObj.category === "negative"
+                      ? "Not Interested"
+                      : "Contacted"}
+                  </strong>
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
+                {/* Dynamic Sub-dispositions / Reasons */}
+                {selectedDispObj.sub_dispositions && selectedDispObj.sub_dispositions.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-primary" />
+                        <span>Specific Reason <span className="text-rose-500">*</span></span>
+                      </label>
+                      <span className="text-[11px] font-semibold text-rose-500">Required</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:flex sm:flex-wrap gap-2">
+                      {selectedDispObj.sub_dispositions.map((sub) => {
+                        const isSubActive = selectedSubDispId === sub.id;
+                        return (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            onClick={() => setSelectedSubDispId(isSubActive ? "" : sub.id)}
+                            className={cn(
+                              "min-h-[42px] sm:min-h-0 px-3.5 py-2 sm:px-3 sm:py-1.5 text-xs font-semibold rounded-xl sm:rounded-lg border transition-all cursor-pointer select-none text-left flex items-center justify-between gap-2",
+                              isSubActive
+                                ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                                : "bg-background border-border/80 hover:bg-muted text-foreground"
+                            )}
+                          >
+                            <span>{sub.name}</span>
+                            {isSubActive && <Check className="w-3.5 h-3.5 shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Conditional Callback Date & Time (if requires_callback) */}
+                {selectedDispObj.requires_callback === 1 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Callback Time <span className="text-rose-500">*</span></span>
+                      </label>
+                      <span className="text-[11px] font-semibold text-rose-500">Required</span>
+                    </div>
+                    <Input
+                      type="datetime-local"
+                      value={callbackDate}
+                      onChange={(e) => setCallbackDate(e.target.value)}
+                      className="h-11 sm:h-9 text-sm sm:text-xs bg-background border-border/80 font-mono focus-visible:ring-amber-500"
+                    />
+                    <div className="space-y-1.5 pt-0.5">
+                      <div className="text-[11px] text-muted-foreground font-medium">
+                        Quick suggestions (tap to fill):
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setCallbackInHours(2)}
+                          className="min-h-[36px] sm:min-h-0 px-3 py-1.5 sm:px-2.5 sm:py-1 text-xs sm:text-[11px] font-medium rounded-lg bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                        >
+                          +2 Hours
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCallbackInHours(4)}
+                          className="min-h-[36px] sm:min-h-0 px-3 py-1.5 sm:px-2.5 sm:py-1 text-xs sm:text-[11px] font-medium rounded-lg bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                        >
+                          +4 Hours
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCallbackTomorrow(11)}
+                          className="min-h-[36px] sm:min-h-0 px-3 py-1.5 sm:px-2.5 sm:py-1 text-xs sm:text-[11px] font-medium rounded-lg bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                        >
+                          Tomorrow 11 AM
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCallbackTomorrow(16)}
+                          className="min-h-[36px] sm:min-h-0 px-3 py-1.5 sm:px-2.5 sm:py-1 text-xs sm:text-[11px] font-medium rounded-lg bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                        >
+                          Tomorrow 4 PM
+                        </button>
+                        <button
+                          type="button"
+                          onClick={setCallbackNextMonday}
+                          className="min-h-[36px] sm:min-h-0 px-3 py-1.5 sm:px-2.5 sm:py-1 text-xs sm:text-[11px] font-medium rounded-lg bg-background border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                        >
+                          Next Mon
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Notes / Remarks Field */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                    <span>Call Notes & Remarks</span>
+                    <span className="text-[11px] font-normal text-muted-foreground">Optional</span>
+                  </label>
+                  <Textarea
+                    value={callNotes}
+                    onChange={(e) => setCallNotes(e.target.value)}
+                    placeholder="e.g. Student inquiring about fees, entrance test, campus visit..."
+                    className="text-sm sm:text-xs min-h-[76px] sm:min-h-[64px] bg-background border-border/80 resize-none focus-visible:ring-primary"
+                  />
+                </div>
+              </div>
+
+              <div className="p-3.5 sm:p-4 border-t border-border/60 bg-muted/30 flex items-center gap-2.5 shrink-0 safe-area-bottom">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedDispId("");
+                    setSelectedSubDispId("");
+                    setCallbackDate("");
+                  }}
+                  className="h-11 sm:h-9 px-4 text-xs sm:text-sm font-semibold rounded-xl sm:rounded-lg cursor-pointer"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  disabled={savingDisp || isMissingMandatoryOutcomeFields}
+                  onClick={() => handleSaveDynamicOutcome()}
+                  className="flex-1 h-11 sm:h-9 px-4 text-sm font-bold bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl sm:rounded-lg shadow-xs cursor-pointer gap-2 disabled:opacity-50"
+                >
+                  {savingDisp ? (
+                    <RotateCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4" />
+                  )}
+                  <span>
+                    {savingDisp
+                      ? "Saving..."
+                      : autoAdvanceOnSave && hasNextLead
+                      ? "Save & Next"
+                      : "Save Outcome"}
+                  </span>
+                </Button>
+              </div>
+            </DialogContent>
+          )}
+        </Dialog>
 
         {/* WhatsApp Quick Template Messenger Modal */}
         <WhatsAppModal
