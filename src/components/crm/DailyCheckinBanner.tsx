@@ -371,31 +371,34 @@ export function DailyCheckinBanner() {
 
       {/* Morning Check-in Modal */}
       <Dialog open={showCheckinModal} onOpenChange={setShowCheckinModal}>
-        <DialogContent className="sm:max-w-md bg-white">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
+        <DialogContent className="sm:max-w-md p-0">
+          <DialogHeader className="px-6 py-4 border-b border-border/70 bg-muted/25">
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
               <Sun className="h-4 w-4 text-amber-500" />
               Morning Check-In
             </DialogTitle>
-            <DialogDescription className="text-xs">
+            <DialogDescription className="text-xs text-muted-foreground">
               Share your main calling or follow-up priority for today.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleCheckInSubmit} className="space-y-3 text-xs">
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Today&apos;s Focus</label>
-              <Input
-                value={focusInput}
-                onChange={(e) => setFocusInput(e.target.value)}
-                placeholder="e.g. Call 50 fresh NEET leads and close 3 warm callbacks"
-                required
-              />
+          <form onSubmit={handleCheckInSubmit}>
+            <div className="px-6 py-5 space-y-3 text-xs">
+              <div className="space-y-1.5">
+                <label className="block font-semibold text-foreground">Today&apos;s Focus</label>
+                <Input
+                  value={focusInput}
+                  onChange={(e) => setFocusInput(e.target.value)}
+                  placeholder="e.g. Call 50 fresh NEET leads and close 3 warm callbacks"
+                  className="h-10 rounded-xl"
+                  required
+                />
+              </div>
             </div>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setShowCheckinModal(false)}>
+            <div className="px-6 py-3.5 border-t border-border/70 bg-muted/20 flex justify-end gap-2.5">
+              <Button type="button" variant="outline" size="sm" className="h-9 px-4 rounded-xl" onClick={() => setShowCheckinModal(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={savingCheckin}>
+              <Button type="submit" size="sm" className="h-9 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700" disabled={savingCheckin}>
                 {savingCheckin ? "Saving..." : "Check In Now"}
               </Button>
             </div>
@@ -405,59 +408,61 @@ export function DailyCheckinBanner() {
 
       {/* EOD Summary Modal */}
       <Dialog open={showEodModal} onOpenChange={setShowEodModal}>
-        <DialogContent className="sm:max-w-md bg-white">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
+        <DialogContent className="sm:max-w-lg p-0">
+          <DialogHeader className="px-6 py-4 border-b border-border/70 bg-muted/25">
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
               <Sparkles className="h-4 w-4 text-purple-600" />
               Submit End-of-Day (EOD) Summary
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              Your live stats are auto-calculated below. Add any highlights or blockers for your Team Lead.
+            <DialogDescription className="text-xs text-muted-foreground">
+              Your live stats are auto-calculated below. Add highlights or blockers for your Team Lead.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleEodSubmit} className="space-y-3 text-xs">
-            <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-lg bg-slate-50 p-2 text-center border border-slate-100">
-                <div className="text-slate-500">Calls</div>
-                <div className="text-base font-bold text-slate-900">{autoStats.callsMade}</div>
+          <form onSubmit={handleEodSubmit}>
+            <div className="px-6 py-5 space-y-4 text-xs max-h-[68vh] overflow-y-auto">
+              <div className="grid grid-cols-3 gap-2.5">
+                <div className="rounded-xl bg-muted/30 p-3 text-center border border-border/70">
+                  <div className="text-[11px] font-medium text-muted-foreground">Calls</div>
+                  <div className="text-lg font-bold text-foreground mt-0.5">{autoStats.callsMade}</div>
+                </div>
+                <div className="rounded-xl bg-emerald-500/10 p-3 text-center border border-emerald-500/20">
+                  <div className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">Connected</div>
+                  <div className="text-lg font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">{autoStats.connectedCalls}</div>
+                </div>
+                <div className="rounded-xl bg-indigo-500/10 p-3 text-center border border-indigo-500/20">
+                  <div className="text-[11px] font-medium text-indigo-700 dark:text-indigo-400">Tasks Done</div>
+                  <div className="text-lg font-bold text-indigo-700 dark:text-indigo-400 mt-0.5">{autoStats.tasksCompleted}</div>
+                </div>
               </div>
-              <div className="rounded-lg bg-slate-50 p-2 text-center border border-slate-100">
-                <div className="text-slate-500">Connected</div>
-                <div className="text-base font-bold text-emerald-700">{autoStats.connectedCalls}</div>
+
+              <div className="space-y-1.5">
+                <label className="block font-semibold text-foreground">Key Highlights / Notes</label>
+                <textarea
+                  rows={3}
+                  value={eodNotes}
+                  onChange={(e) => setEodNotes(e.target.value)}
+                  placeholder="Summary of hot leads, callbacks scheduled, or wins today..."
+                  className="w-full rounded-xl border border-border bg-background p-3 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500/30 resize-y"
+                />
               </div>
-              <div className="rounded-lg bg-slate-50 p-2 text-center border border-slate-100">
-                <div className="text-slate-500">Tasks Done</div>
-                <div className="text-base font-bold text-indigo-700">{autoStats.tasksCompleted}</div>
+
+              <div className="space-y-1.5">
+                <label className="block font-semibold text-foreground">Blockers / Help Needed</label>
+                <textarea
+                  rows={2}
+                  value={eodBlockers}
+                  onChange={(e) => setEodBlockers(e.target.value)}
+                  placeholder="Any issues, lead shortages, or escalations for your Team Lead..."
+                  className="w-full rounded-xl border border-border bg-background p-3 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500/30 resize-y"
+                />
               </div>
             </div>
 
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Key Highlights / Notes</label>
-              <textarea
-                rows={3}
-                value={eodNotes}
-                onChange={(e) => setEodNotes(e.target.value)}
-                placeholder="Summary of hot leads, callbacks scheduled, or wins today..."
-                className="w-full rounded-md border border-slate-200 p-2 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Blockers / Help Needed</label>
-              <textarea
-                rows={2}
-                value={eodBlockers}
-                onChange={(e) => setEodBlockers(e.target.value)}
-                placeholder="Any issues, lead shortages, or escalations for your Team Lead..."
-                className="w-full rounded-md border border-slate-200 p-2 text-xs focus:outline-none focus:ring-1 focus:ring-purple-500"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setShowEodModal(false)}>
+            <div className="px-6 py-3.5 border-t border-border/70 bg-muted/20 flex justify-end gap-2.5">
+              <Button type="button" variant="outline" size="sm" className="h-9 px-4 rounded-xl" onClick={() => setShowEodModal(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={savingEod} className="bg-purple-600 hover:bg-purple-700">
+              <Button type="submit" size="sm" disabled={savingEod} className="h-9 px-5 rounded-xl bg-purple-600 hover:bg-purple-700">
                 {savingEod ? "Submitting..." : "Submit EOD"}
               </Button>
             </div>

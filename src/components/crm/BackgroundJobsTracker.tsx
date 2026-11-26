@@ -20,11 +20,31 @@ interface BackgroundJobsTrackerProps {
   onJobCompleted?: (job: BackgroundJob) => void;
 }
 
+const DISMISSED_STORAGE_KEY = "dreamdesk_dismissed_job_ids";
+
+function readDismissedIds(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem(DISMISSED_STORAGE_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? new Set(arr.map(String)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function writeDismissedIds(ids: Set<string>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(DISMISSED_STORAGE_KEY, JSON.stringify(Array.from(ids).slice(-100)));
+  } catch {}
+}
+
 export function BackgroundJobsTracker({ onJobCompleted }: BackgroundJobsTrackerProps) {
   const [jobs, setJobs] = useState<BackgroundJob[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [openLogsMap, setOpenLogsMap] = useState<Record<string, boolean>>({});
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => readDismissedIds());
   const prevActiveIdsRef = useRef<Set<string>>(new Set());
 
   const fetchJobs = useCallback(async () => {
@@ -52,8 +72,16 @@ export function BackgroundJobsTracker({ onJobCompleted }: BackgroundJobsTrackerP
 
   useEffect(() => {
     fetchJobs();
-    const onQueued = () => {
-      setDismissed(false);
+    const onQueued = (ev: Event) => {
+      const detail = (ev as CustomEvent)?.detail;
+      if (detail?.id) {
+        setDismissedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(detail.id);
+          writeDismissedIds(next);
+          return next;
+        });
+      }
       setExpanded(true);
       fetchJobs();
     };
@@ -61,7 +89,10 @@ export function BackgroundJobsTracker({ onJobCompleted }: BackgroundJobsTrackerP
     return () => window.removeEventListener("background-job-queued", onQueued);
   }, [fetchJobs]);
 
-  const activeJobs = jobs.filter((j) => j.status === "queued" || j.status === "running");
+  const visibleJobs = jobs.filter(
+    (j) => j.status === "queued" || j.status === "running" || !dismissedIds.has(j.id)
+  );
+  const activeJobs = visibleJobs.filter((j) => j.status === "queued" || j.status === "running");
 
   // Only poll every 1.5s while at least one job is queued or running
   useEffect(() => {
@@ -70,11 +101,24 @@ export function BackgroundJobsTracker({ onJobCompleted }: BackgroundJobsTrackerP
     return () => clearInterval(timer);
   }, [activeJobs.length, fetchJobs]);
 
-  if (jobs.length === 0 || (dismissed && activeJobs.length === 0)) {
+  const handleDismissAll = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next = new Set(dismissedIds);
+    for (const j of visibleJobs) {
+      if (j.status !== "queued" && j.status !== "running") {
+        next.add(j.id);
+      }
+    }
+    writeDismissedIds(next);
+    setDismissedIds(next);
+    setExpanded(false);
+  };
+
+  if (visibleJobs.length === 0) {
     return null;
   }
 
-  const recentJobs = jobs.slice(0, 6);
+  const recentJobs = visibleJobs.slice(0, 6);
   const primaryActive = activeJobs[0];
   const activePct =
     primaryActive && primaryActive.total_items > 0
@@ -115,10 +159,7 @@ export function BackgroundJobsTracker({ onJobCompleted }: BackgroundJobsTrackerP
                 type="button"
                 size="icon"
                 variant="ghost"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setDismissed(true);
-                }}
+                onClick={handleDismissAll}
                 className="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
                 title="Dismiss"
               >

@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Papa from "papaparse";
+import { uploadCsvInChunks } from "@/lib/utils/chunkedUpload";
 import { Campaign, SchemaMeta } from "@/types/crm";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -121,6 +122,7 @@ export function ImportWorkspace({
 
   // Ingestion State
   const [isImporting, setIsImporting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [importResult, setImportResult] = useState<{
     importedCount: number;
     skippedDuplicates: number;
@@ -141,9 +143,11 @@ export function ImportWorkspace({
     setSourceName(selectedFile.name.replace(/\.[^/.]+$/, ""));
     setError(null);
 
+    // Parse only a 25-row preview so 60MB+ files detect headers instantaneously
     Papa.parse(selectedFile, {
       header: true,
       skipEmptyLines: true,
+      preview: 25,
       complete: (results) => {
         if (results.errors.length > 0 && results.data.length === 0) {
           setError("Failed to parse CSV file. Please verify file format.");
@@ -258,42 +262,40 @@ export function ImportWorkspace({
 
   // Execute Ingestion
   const handleExecuteImport = async () => {
-    if (!parsedData || parsedData.length === 0) return;
+    if (!file) return;
 
     setIsImporting(true);
+    setUploadProgress(0);
     setError(null);
 
     try {
-      const res = await fetch("/api/leads/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          records: parsedData,
-          sourceName: sourceName.trim() || "Batch CSV Import",
+      const data = await uploadCsvInChunks(
+        file,
+        {
+          sourceName: sourceName.trim() || file.name || "Batch CSV Import",
           campaignId: selectedCampaignId === "none" ? undefined : selectedCampaignId,
           skipDuplicates,
           fieldMapping,
           defaultStatus,
-        }),
-      });
+        },
+        (pct) => setUploadProgress(pct)
+      );
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Import failed");
-
-      window.dispatchEvent(new CustomEvent("background-job-queued"));
+      window.dispatchEvent(new CustomEvent("background-job-queued", { detail: data?.job }));
 
       setImportResult({
-        importedCount: data.importedCount ?? parsedData.length,
-        skippedDuplicates: data.skippedDuplicates ?? 0,
-        newHeadersFound: data.newHeadersFound || [],
+        importedCount: data?.estimatedRows ?? parsedData.length,
+        skippedDuplicates: 0,
+        newHeadersFound: [],
       });
 
-      onImportComplete(data.importedCount ?? parsedData.length, data.newHeadersFound || []);
+      onImportComplete(0, []);
       setCurrentStep(3);
     } catch (err: any) {
       setError(err.message || "Failed to import leads");
     } finally {
       setIsImporting(false);
+      setUploadProgress(0);
     }
   };
 
@@ -741,6 +743,21 @@ export function ImportWorkspace({
             </div>
 
             {/* Execution Buttons */}
+            {isImporting && (
+              <div className="space-y-1.5 pt-1">
+                <div className="flex justify-between text-xs font-semibold text-indigo-600">
+                  <span>Streaming 2MB chunks to server...</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-600 to-indigo-600 transition-all duration-150"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="pt-2 flex items-center justify-between">
               <Button
                 variant="outline"
@@ -761,12 +778,15 @@ export function ImportWorkspace({
                 {isImporting ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Ingesting {parsedData.length.toLocaleString()} Records...</span>
+                    <span>Uploading {uploadProgress}%...</span>
                   </>
                 ) : (
                   <>
                     <Upload className="w-3.5 h-3.5" />
-                    <span>Execute Batch Ingestion ({parsedData.length.toLocaleString()} Leads)</span>
+                    <span>
+                      Upload &amp; Queue Ingestion{" "}
+                      {file ? `(${(file.size / (1024 * 1024)).toFixed(1)} MB)` : ""}
+                    </span>
                   </>
                 )}
               </Button>

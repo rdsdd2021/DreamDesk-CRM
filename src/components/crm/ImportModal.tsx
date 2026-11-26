@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Papa from "papaparse";
+import { uploadCsvInChunks } from "@/lib/utils/chunkedUpload";
 import { Campaign } from "@/types/crm";
 import { cn } from "@/lib/utils";
 import {
@@ -144,38 +145,18 @@ export function ImportModal({
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("sourceName", file.name || "CSV Upload");
-      formData.append("campaignId", selectedCampaignId || "none");
-      formData.append("skipDuplicates", String(skipDuplicates));
+      const data = await uploadCsvInChunks(
+        file,
+        {
+          sourceName: file.name || "CSV Upload",
+          campaignId: selectedCampaignId === "none" ? undefined : selectedCampaignId,
+          skipDuplicates,
+        },
+        (pct) => setUploadProgress(pct)
+      );
 
-      const data = await new Promise<any>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/leads/import");
-        xhr.upload.onprogress = (ev) => {
-          if (ev.lengthComputable) {
-            setUploadProgress(Math.round((ev.loaded / ev.total) * 100));
-          }
-        };
-        xhr.onload = () => {
-          try {
-            const parsed = JSON.parse(xhr.responseText || "{}");
-            if (xhr.status >= 200 && xhr.status < 300) {
-              resolve(parsed);
-            } else {
-              reject(new Error(parsed.error || `Upload failed (${xhr.status})`));
-            }
-          } catch {
-            reject(new Error(`Upload failed (${xhr.status})`));
-          }
-        };
-        xhr.onerror = () => reject(new Error("Network error while uploading CSV file."));
-        xhr.send(formData);
-      });
-
-      window.dispatchEvent(new CustomEvent("background-job-queued", { detail: data.job }));
-      onImportComplete(data.importedCount || 0, data.newHeadersFound || []);
+      window.dispatchEvent(new CustomEvent("background-job-queued", { detail: data?.job }));
+      onImportComplete(data?.importedCount || 0, data?.newHeadersFound || []);
       onClose();
       resetState();
     } catch (err: any) {

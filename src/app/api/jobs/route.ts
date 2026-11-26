@@ -11,8 +11,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: errorResponse.error }, { status: errorResponse.status });
     }
 
-    const canViewAll = session.user.role === "admin" || session.user.role === "team_lead";
-    const jobs = JobsService.listJobs(session.user.id, canViewAll);
+    // Scope background jobs strictly to the user who initiated them
+    const jobs = JobsService.listJobs(session.user.id, false);
 
     return NextResponse.json({ jobs });
   } catch (error: any) {

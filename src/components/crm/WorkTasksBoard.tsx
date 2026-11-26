@@ -889,39 +889,45 @@ export function WorkTasksBoard({ roleMode, users }: WorkTasksBoardProps) {
       {/* Proof Notes Modal */}
       {proofTask && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+          className="fixed inset-0 z-[60] bg-slate-950/55 backdrop-blur-md flex items-center justify-center p-4"
           onClick={() => setProofTask(null)}
         >
           <form
             onSubmit={handleProofSubmit}
             onClick={(e) => e.stopPropagation()}
-            className="bg-card border border-border rounded-2xl max-w-md w-full p-4 space-y-3 shadow-2xl"
+            className="bg-card border border-border/80 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl"
           >
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold flex items-center gap-1.5">
+            <div className="px-6 py-4 border-b border-border/70 bg-muted/25 flex items-center justify-between">
+              <h3 className="text-sm font-bold flex items-center gap-2">
                 <FileCheck2 className="w-4 h-4 text-indigo-600" />
                 Completion Proof Required
               </h3>
-              <button type="button" onClick={() => setProofTask(null)}>
+              <button
+                type="button"
+                onClick={() => setProofTask(null)}
+                className="h-7 w-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/80"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Add a short proof note or summary for &quot;{proofTask.title}&quot; before marking it complete.
-            </p>
-            <textarea
-              rows={3}
-              required
-              value={proofText}
-              onChange={(e) => setProofText(e.target.value)}
-              placeholder="e.g. Updated 18 stale leads and scheduled callbacks for tomorrow 11 AM..."
-              className="w-full p-2.5 rounded-lg border border-border bg-background text-xs"
-            />
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setProofTask(null)}>
+            <div className="px-6 py-5 space-y-3">
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Add a short proof note or summary for &quot;{proofTask.title}&quot; before marking it complete.
+              </p>
+              <textarea
+                rows={3}
+                required
+                value={proofText}
+                onChange={(e) => setProofText(e.target.value)}
+                placeholder="e.g. Updated 18 stale leads and scheduled callbacks for tomorrow 11 AM..."
+                className="w-full p-3 rounded-xl border border-border bg-background text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30 resize-y"
+              />
+            </div>
+            <div className="px-6 py-3.5 border-t border-border/70 bg-muted/20 flex justify-end gap-2.5">
+              <Button type="button" variant="outline" size="sm" className="h-9 px-4 rounded-xl" onClick={() => setProofTask(null)}>
                 Cancel
               </Button>
-              <Button type="submit" size="sm">
+              <Button type="submit" size="sm" className="h-9 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700">
                 Submit Proof & Complete
               </Button>
             </div>
@@ -932,7 +938,7 @@ export function WorkTasksBoard({ roleMode, users }: WorkTasksBoardProps) {
       {/* Request Revision Feedback Modal */}
       {reviewTask && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+          className="fixed inset-0 z-[60] bg-slate-950/55 backdrop-blur-md flex items-center justify-center p-4"
           onClick={() => setReviewTask(null)}
         >
           <form
@@ -941,33 +947,39 @@ export function WorkTasksBoard({ roleMode, users }: WorkTasksBoardProps) {
               handleReviewDecision(reviewTask.id, "revision_requested", reviewFeedback);
             }}
             onClick={(e) => e.stopPropagation()}
-            className="bg-card border border-border rounded-2xl max-w-md w-full p-4 space-y-3 shadow-2xl"
+            className="bg-card border border-border/80 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl"
           >
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold flex items-center gap-1.5">
+            <div className="px-6 py-4 border-b border-border/70 bg-muted/25 flex items-center justify-between">
+              <h3 className="text-sm font-bold flex items-center gap-2">
                 <RotateCcw className="w-4 h-4 text-amber-600" />
                 Request Task Revision
               </h3>
-              <button type="button" onClick={() => setReviewTask(null)}>
+              <button
+                type="button"
+                onClick={() => setReviewTask(null)}
+                className="h-7 w-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/80"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Tell {reviewTask.assigned_user_name || "the caller"} what needs to be fixed on &quot;{reviewTask.title}&quot;.
-            </p>
-            <textarea
-              rows={3}
-              required
-              value={reviewFeedback}
-              onChange={(e) => setReviewFeedback(e.target.value)}
-              placeholder="e.g. Please include the list of lead IDs you followed up on..."
-              className="w-full p-2.5 rounded-lg border border-border bg-background text-xs"
-            />
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setReviewTask(null)}>
+            <div className="px-6 py-5 space-y-3">
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Tell {reviewTask.assigned_user_name || "the caller"} what needs to be fixed on &quot;{reviewTask.title}&quot;.
+              </p>
+              <textarea
+                rows={3}
+                required
+                value={reviewFeedback}
+                onChange={(e) => setReviewFeedback(e.target.value)}
+                placeholder="e.g. Please include the list of lead IDs you followed up on..."
+                className="w-full p-3 rounded-xl border border-border bg-background text-xs focus:outline-none focus:ring-2 focus:ring-amber-500/30 resize-y"
+              />
+            </div>
+            <div className="px-6 py-3.5 border-t border-border/70 bg-muted/20 flex justify-end gap-2.5">
+              <Button type="button" variant="outline" size="sm" className="h-9 px-4 rounded-xl" onClick={() => setReviewTask(null)}>
                 Cancel
               </Button>
-              <Button type="submit" size="sm" className="bg-amber-600 hover:bg-amber-700">
+              <Button type="submit" size="sm" className="h-9 px-5 rounded-xl bg-amber-600 hover:bg-amber-700">
                 Send Back for Revision
               </Button>
             </div>

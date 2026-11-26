@@ -130,18 +130,18 @@ export function SopPlaybookModal({ open, onOpenChange, users, onDeployed }: SopP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl bg-white max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base">
+      <DialogContent className="sm:max-w-2xl p-0 max-h-[88vh]">
+        <DialogHeader className="px-6 py-4 border-b border-border/70 bg-muted/25">
+          <DialogTitle className="flex items-center gap-2 text-base font-bold">
             <BookOpen className="h-4 w-4 text-indigo-600" />
             SOP Playbooks & One-Click Daily Assignment
           </DialogTitle>
-          <DialogDescription className="text-xs">
+          <DialogDescription className="text-xs text-muted-foreground">
             Select reusable SOP templates and deploy them to your callers in one click.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 text-xs">
+        <div className="px-6 py-5 space-y-5 text-xs overflow-y-auto max-h-[65vh]">
           <div className="flex items-center justify-between">
             <span className="font-bold text-slate-800">1. Choose SOP Templates</span>
             <Button
@@ -317,25 +317,26 @@ export function SopPlaybookModal({ open, onOpenChange, users, onDeployed }: SopP
           </div>
 
           {resultMsg && (
-            <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-emerald-800 font-medium">
+            <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 px-3.5 py-2.5 text-emerald-700 dark:text-emerald-400 font-medium">
               {resultMsg}
             </div>
           )}
+        </div>
 
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Close
-            </Button>
-            <Button
-              type="button"
-              disabled={deploying || selectedTemplateIds.length === 0 || selectedUserIds.length === 0}
-              onClick={handleDeploy}
-              className="gap-1.5 bg-indigo-600 hover:bg-indigo-700"
-            >
-              <Rocket className="h-3.5 w-3.5" />
-              {deploying ? "Deploying..." : "Deploy Playbook"}
-            </Button>
-          </div>
+        <div className="px-6 py-3.5 border-t border-border/70 bg-muted/20 flex justify-end gap-2.5">
+          <Button type="button" variant="outline" size="sm" className="h-9 px-4 rounded-xl" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            disabled={deploying || selectedTemplateIds.length === 0 || selectedUserIds.length === 0}
+            onClick={handleDeploy}
+            className="h-9 px-5 rounded-xl gap-1.5 bg-indigo-600 hover:bg-indigo-700"
+          >
+            <Rocket className="h-3.5 w-3.5" />
+            {deploying ? "Deploying..." : "Deploy Playbook"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

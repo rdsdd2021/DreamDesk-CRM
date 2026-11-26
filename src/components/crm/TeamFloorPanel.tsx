@@ -376,13 +376,13 @@ export function TeamFloorPanel({ users, currentUser }: TeamFloorPanelProps) {
 
       {/* EOD Summary Modal */}
       <Dialog open={Boolean(eodPreviewMember)} onOpenChange={(o) => !o && setEodPreviewMember(null)}>
-        <DialogContent className="sm:max-w-md bg-white">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
+        <DialogContent className="sm:max-w-lg p-0">
+          <DialogHeader className="px-6 py-4 border-b border-border/70 bg-muted/25">
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
               <Sparkles className="h-4 w-4 text-purple-600" />
               EOD Summary — {eodPreviewMember?.user.name}
             </DialogTitle>
-            <DialogDescription className="text-xs">
+            <DialogDescription className="text-xs text-muted-foreground">
               Submitted at{" "}
               {eodPreviewMember?.checkin?.eod_submitted_at
                 ? new Date(eodPreviewMember.checkin.eod_submitted_at).toLocaleTimeString([], {
@@ -393,38 +393,38 @@ export function TeamFloorPanel({ users, currentUser }: TeamFloorPanelProps) {
             </DialogDescription>
           </DialogHeader>
           {eodPreviewMember && (
-            <div className="space-y-3 text-xs">
-              <div className="grid grid-cols-3 gap-2">
-                <div className="rounded-lg bg-slate-50 p-2 text-center border border-slate-100">
-                  <div className="text-slate-500">Calls</div>
-                  <div className="text-base font-bold text-slate-900">
+            <div className="px-6 py-5 space-y-4 text-xs">
+              <div className="grid grid-cols-3 gap-2.5">
+                <div className="rounded-xl bg-muted/30 p-3 text-center border border-border/70">
+                  <div className="text-[11px] text-muted-foreground">Calls</div>
+                  <div className="text-lg font-bold text-foreground mt-0.5">
                     {eodPreviewMember.checkin?.eod_auto_stats?.callsMade ?? eodPreviewMember.autoStats.callsMade}
                   </div>
                 </div>
-                <div className="rounded-lg bg-slate-50 p-2 text-center border border-slate-100">
-                  <div className="text-slate-500">Connected</div>
-                  <div className="text-base font-bold text-emerald-700">
+                <div className="rounded-xl bg-emerald-500/10 p-3 text-center border border-emerald-500/20">
+                  <div className="text-[11px] text-emerald-700 dark:text-emerald-400">Connected</div>
+                  <div className="text-lg font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">
                     {eodPreviewMember.checkin?.eod_auto_stats?.connectedCalls ??
                       eodPreviewMember.autoStats.connectedCalls}
                   </div>
                 </div>
-                <div className="rounded-lg bg-slate-50 p-2 text-center border border-slate-100">
-                  <div className="text-slate-500">Tasks Done</div>
-                  <div className="text-base font-bold text-indigo-700">
+                <div className="rounded-xl bg-indigo-500/10 p-3 text-center border border-indigo-500/20">
+                  <div className="text-[11px] text-indigo-700 dark:text-indigo-400">Tasks Done</div>
+                  <div className="text-lg font-bold text-indigo-700 dark:text-indigo-400 mt-0.5">
                     {eodPreviewMember.checkin?.eod_auto_stats?.tasksCompleted ??
                       eodPreviewMember.autoStats.tasksCompleted}
                   </div>
                 </div>
               </div>
-              <div className="rounded-lg border border-slate-200 p-2.5 bg-slate-50/50">
-                <div className="font-semibold text-slate-700 mb-1">Caller Notes</div>
-                <p className="text-slate-600 whitespace-pre-wrap">
+              <div className="rounded-xl border border-border/70 p-3 bg-muted/20">
+                <div className="font-semibold text-foreground mb-1">Caller Notes</div>
+                <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed">
                   {eodPreviewMember.checkin?.eod_notes || "No notes provided."}
                 </p>
               </div>
-              <div className="rounded-lg border border-amber-200 p-2.5 bg-amber-50/40">
-                <div className="font-semibold text-amber-800 mb-1">Blockers / Help Needed</div>
-                <p className="text-amber-900 whitespace-pre-wrap">
+              <div className="rounded-xl border border-amber-500/30 p-3 bg-amber-500/10">
+                <div className="font-semibold text-amber-800 dark:text-amber-300 mb-1">Blockers / Help Needed</div>
+                <p className="text-amber-900 dark:text-amber-200 whitespace-pre-wrap leading-relaxed">
                   {eodPreviewMember.checkin?.eod_blockers || "None reported."}
                 </p>
               </div>
@@ -435,86 +435,93 @@ export function TeamFloorPanel({ users, currentUser }: TeamFloorPanelProps) {
 
       {/* Daily Targets Config Modal */}
       <Dialog open={showTargetsModal} onOpenChange={setShowTargetsModal}>
-        <DialogContent className="sm:max-w-md bg-white">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
+        <DialogContent className="sm:max-w-md p-0">
+          <DialogHeader className="px-6 py-4 border-b border-border/70 bg-muted/25">
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
               <Target className="h-4 w-4 text-indigo-600" />
               Configure Daily Quotas & Targets
             </DialogTitle>
-            <DialogDescription className="text-xs">
+            <DialogDescription className="text-xs text-muted-foreground">
               Set the team-wide daily baseline or override targets for a specific caller.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSaveTargets} className="space-y-3 text-xs">
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Target Scope</label>
-              <select
-                value={targetScopeUserId}
-                onChange={(e) => handleScopeChange(e.target.value)}
-                className="w-full h-9 rounded-md border border-slate-200 bg-white px-2.5 text-xs"
-              >
-                <option value="__default__">Team-Wide Default (All Callers)</option>
-                {users
-                  .filter((u) => u.status === "active" && u.role !== "admin")
-                  .map((u) => (
-                    <option key={u.id} value={u.id}>
-                      Override: {u.name} ({u.role.replace("_", " ")})
-                    </option>
-                  ))}
-              </select>
+          <form onSubmit={handleSaveTargets}>
+            <div className="px-6 py-5 space-y-4 text-xs">
+              <div className="space-y-1.5">
+                <label className="block font-semibold text-foreground">Target Scope</label>
+                <select
+                  value={targetScopeUserId}
+                  onChange={(e) => handleScopeChange(e.target.value)}
+                  className="w-full h-10 rounded-xl border border-border bg-background px-3 text-xs"
+                >
+                  <option value="__default__">Team-Wide Default (All Callers)</option>
+                  {users
+                    .filter((u) => u.status === "active" && u.role !== "admin")
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        Override: {u.name} ({u.role.replace("_", " ")})
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block font-medium text-muted-foreground">Calls / Day</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    className="h-9 rounded-xl"
+                    value={targetForm.calls_target}
+                    onChange={(e) => setTargetForm({ ...targetForm, calls_target: Number(e.target.value) })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block font-medium text-muted-foreground">Connected Calls</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    className="h-9 rounded-xl"
+                    value={targetForm.connected_target}
+                    onChange={(e) => setTargetForm({ ...targetForm, connected_target: Number(e.target.value) })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block font-medium text-muted-foreground">WhatsApp Sent</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    className="h-9 rounded-xl"
+                    value={targetForm.whatsapp_target}
+                    onChange={(e) => setTargetForm({ ...targetForm, whatsapp_target: Number(e.target.value) })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="block font-medium text-muted-foreground">Work Tasks Done</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    className="h-9 rounded-xl"
+                    value={targetForm.tasks_target}
+                    onChange={(e) => setTargetForm({ ...targetForm, tasks_target: Number(e.target.value) })}
+                  />
+                </div>
+                <div className="col-span-2 space-y-1">
+                  <label className="block font-medium text-muted-foreground">Admissions / Conversions</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    className="h-9 rounded-xl"
+                    value={targetForm.conversions_target}
+                    onChange={(e) => setTargetForm({ ...targetForm, conversions_target: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block font-medium text-slate-600 mb-1">Calls / Day</label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={targetForm.calls_target}
-                  onChange={(e) => setTargetForm({ ...targetForm, calls_target: Number(e.target.value) })}
-                />
-              </div>
-              <div>
-                <label className="block font-medium text-slate-600 mb-1">Connected Calls</label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={targetForm.connected_target}
-                  onChange={(e) => setTargetForm({ ...targetForm, connected_target: Number(e.target.value) })}
-                />
-              </div>
-              <div>
-                <label className="block font-medium text-slate-600 mb-1">WhatsApp Sent</label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={targetForm.whatsapp_target}
-                  onChange={(e) => setTargetForm({ ...targetForm, whatsapp_target: Number(e.target.value) })}
-                />
-              </div>
-              <div>
-                <label className="block font-medium text-slate-600 mb-1">Work Tasks Done</label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={targetForm.tasks_target}
-                  onChange={(e) => setTargetForm({ ...targetForm, tasks_target: Number(e.target.value) })}
-                />
-              </div>
-              <div className="col-span-2">
-                <label className="block font-medium text-slate-600 mb-1">Admissions / Conversions</label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={targetForm.conversions_target}
-                  onChange={(e) => setTargetForm({ ...targetForm, conversions_target: Number(e.target.value) })}
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setShowTargetsModal(false)}>
+            <div className="px-6 py-3.5 border-t border-border/70 bg-muted/20 flex justify-end gap-2.5">
+              <Button type="button" variant="outline" size="sm" className="h-9 px-4 rounded-xl" onClick={() => setShowTargetsModal(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={savingTarget}>
+              <Button type="submit" size="sm" className="h-9 px-5 rounded-xl" disabled={savingTarget}>
                 {savingTarget ? "Saving..." : "Save Targets"}
               </Button>
             </div>
