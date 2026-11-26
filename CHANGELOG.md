@@ -4,6 +4,15 @@ All notable changes, architectural enhancements, schema migrations, and feature 
 
 ---
 
+## [v1.4.0] — 2026-11-27
+
+### 🛡️ Background Job Crash Recovery, Cancel Button & Full-Page Morning Check-In
+- **Automatic Server-Startup Job Recovery (`JobsService.recoverStaleJobs`)**: On server boot, any orphaned `queued`/`running` jobs from a previous server crash or restart are automatically marked `failed` (`Interrupted by server restart or crash`) with an `error` log entry so jobs never stay stuck at 50%.
+- **Manual Cancel API & Button (`/api/jobs/[id]/cancel`, `BackgroundJobsTracker.tsx`)**: Added a **Cancel** button on active job cards to abort running loops (`isCancelled()`) and clear stuck jobs immediately.
+- **Full-Page Mandatory Morning Check-In Screen (`MorningCheckinGate.tsx`, `page.tsx`)**: Replaced the floating overlay and hidden Tasks check-in button with a dedicated **full-page Morning Check-In screen** (`min-h-screen`) that blocks CRM access every day for all non-admin staff until submitted.
+
+---
+
 ## [v1.3.9] — 2026-11-27
 
 ### 🌅 Mandatory Morning Check-In Gate, Live Status Dropdown & Admin Attendance Log

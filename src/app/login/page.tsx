@@ -142,9 +142,11 @@ export default function LoginPage() {
         <div className="bg-card/90 backdrop-blur-xl border border-border/80 shadow-2xl rounded-3xl p-7 sm:p-9 space-y-6">
           {/* Header & Logo */}
           <div className="text-center space-y-2">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-primary text-primary-foreground shadow-md shadow-primary/25 mb-1">
-              <GraduationCap className="w-6 h-6" />
-            </div>
+            <img
+              src="/logo.png"
+              alt="DreamDesk CRM"
+              className="w-12 h-12 rounded-2xl object-contain mx-auto bg-white p-1 shadow-md mb-1 ring-1 ring-border/50"
+            />
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
               DreamDesk CRM
             </h1>

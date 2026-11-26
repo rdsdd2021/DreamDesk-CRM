@@ -152,9 +152,11 @@ export function AppSidebar({
         <div className="p-3.5 border-b border-border/60 flex items-center justify-between h-14">
           {!isCollapsed && (
             <div className="flex items-center gap-2.5 overflow-hidden">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white shadow-sm shadow-blue-500/25 shrink-0 ring-1 ring-white/20">
-                <GraduationCap className="w-4 h-4 stroke-[2]" />
-              </div>
+              <img
+                src="/logo.png"
+                alt="DreamDesk CRM"
+                className="w-8 h-8 rounded-lg object-contain shrink-0 bg-white/90 p-0.5 shadow-sm ring-1 ring-border/50"
+              />
               <div className="truncate flex items-center gap-1.5">
                 <span className="font-bold text-xs tracking-tight text-foreground truncate">
                   DreamDesk
@@ -170,9 +172,11 @@ export function AppSidebar({
           )}
 
           {isCollapsed && (
-            <div className="w-7 h-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center mx-auto shadow-xs">
-              <GraduationCap className="w-3.5 h-3.5" />
-            </div>
+            <img
+              src="/logo.png"
+              alt="DreamDesk CRM"
+              className="w-7 h-7 rounded-lg object-contain mx-auto bg-white/90 p-0.5 shadow-xs ring-1 ring-border/50"
+            />
           )}
 
           {!isMobileDrawer ? (

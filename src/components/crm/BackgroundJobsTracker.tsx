@@ -13,6 +13,7 @@ import {
   ChevronUp,
   ChevronDown,
   Terminal,
+  StopCircle,
   X,
 } from "lucide-react";
 
@@ -114,6 +115,19 @@ export function BackgroundJobsTracker({ onJobCompleted }: BackgroundJobsTrackerP
     setExpanded(false);
   };
 
+  const handleCancelJob = async (jobId: string) => {
+    try {
+      const res = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/cancel`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        fetchJobs();
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   if (visibleJobs.length === 0) {
     return null;
   }
@@ -206,13 +220,20 @@ export function BackgroundJobsTracker({ onJobCompleted }: BackgroundJobsTrackerP
                   </div>
 
                   {(job.status === "queued" || job.status === "running") && (
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
                       <Progress value={pct} className="h-1.5" />
                       <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
                         <span>
-                          {job.processed_items.toLocaleString()} / {job.total_items.toLocaleString()}
+                          {job.processed_items.toLocaleString()} / {job.total_items.toLocaleString()} ({pct}%)
                         </span>
-                        <span>{pct}%</span>
+                        <button
+                          type="button"
+                          onClick={() => handleCancelJob(job.id)}
+                          className="inline-flex items-center gap-1 text-rose-600 hover:text-rose-700 font-sans font-semibold cursor-pointer"
+                        >
+                          <StopCircle className="w-3 h-3" />
+                          <span>Cancel</span>
+                        </button>
                       </div>
                     </div>
                   )}

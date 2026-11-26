@@ -1418,9 +1418,11 @@ export default function CRMPage() {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background text-foreground">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary animate-pulse shadow-sm">
-            <GraduationCap className="w-5 h-5" />
-          </div>
+          <img
+            src="/logo.png"
+            alt="DreamDesk CRM"
+            className="w-10 h-10 rounded-xl object-contain bg-white p-1 animate-pulse shadow-sm ring-1 ring-border/50"
+          />
           <p className="text-xs font-semibold text-muted-foreground animate-pulse">
             Verifying staff permissions...
           </p>
@@ -1431,6 +1433,7 @@ export default function CRMPage() {
 
   return (
     <GlobalErrorBoundary>
+      <MorningCheckinGate currentUser={currentUser} onLogout={handleLogout}>
       <div className="flex h-screen bg-background overflow-hidden text-foreground">
         {/* Floating Network Offline/Online Indicator */}
         <NetworkStatusPill />
@@ -1521,19 +1524,14 @@ export default function CRMPage() {
         <header className="h-14 border-b border-border/80 bg-card/80 backdrop-blur-md px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 shrink-0">
           {/* Breadcrumb & Section Info */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            {/* Mobile Navigation Drawer Trigger */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsMobileNavOpen(true)}
-              className="md:hidden h-8 w-8 text-muted-foreground hover:text-foreground shrink-0 -ml-1 mr-0.5"
-              aria-label="Open Navigation Menu"
-            >
-              <Menu className="w-5 h-5" />
-            </Button>
-
             <h1 className="text-xs sm:text-base font-bold text-foreground capitalize flex items-center gap-2 truncate">
-              {currentView === "leads" && <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />}
+              {currentView === "leads" && (
+                <img
+                  src="/logo.png"
+                  alt="DreamDesk CRM"
+                  className="w-5 h-5 rounded object-contain shrink-0 bg-white/90 p-0.5 ring-1 ring-border/40"
+                />
+              )}
               {currentView === "dashboard" && <LayoutDashboard className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 shrink-0" />}
               {currentView === "pipeline" && <Kanban className="w-4 h-4 sm:w-5 sm:h-5 text-violet-500 shrink-0" />}
               {currentView === "campaigns" && <Target className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500 shrink-0" />}
@@ -1580,7 +1578,6 @@ export default function CRMPage() {
 
           {/* Right Header Actions */}
           <div className="flex items-center gap-2">
-            <MorningCheckinGate currentUser={currentUser} />
             {/* Live Presence Status Pill */}
             {currentUser && <DailyPresencePill />}
 
@@ -2408,6 +2405,7 @@ export default function CRMPage() {
         }}
       />
     </div>
+      </MorningCheckinGate>
   </GlobalErrorBoundary>
   );
 }

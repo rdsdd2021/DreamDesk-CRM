@@ -313,31 +313,17 @@ export function DailyCheckinBanner() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {!isCheckedIn ? (
-            <Button
-              size="sm"
-              onClick={() => {
-                setFocusInput("");
-                setShowCheckinModal(true);
-              }}
-              className="h-8 text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700"
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Morning Check-In
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setFocusInput(checkin?.morning_focus || "");
-                setShowCheckinModal(true);
-              }}
-              className="h-8 text-xs"
-            >
-              Edit Focus
-            </Button>
-          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setFocusInput(checkin?.morning_focus || "");
+              setShowCheckinModal(true);
+            }}
+            className="h-8 text-xs"
+          >
+            Edit Focus
+          </Button>
 
           <Button
             size="sm"

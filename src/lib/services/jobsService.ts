@@ -5,10 +5,65 @@ import { BackgroundJob, BackgroundJobLogEntry, BackgroundJobType, User } from "@
 export interface JobProgressHelpers {
   updateProgress: (processed: number, success?: number, skipped?: number, total?: number) => void;
   appendLog: (level: "info" | "warn" | "error", message: string) => void;
+  isCancelled: () => boolean;
   yieldLoop: () => Promise<void>;
 }
 
+const g = globalThis as unknown as {
+  __dreamdeskActiveJobs?: Set<string>;
+  __dreamdeskCancelledJobs?: Set<string>;
+  __dreamdeskJobsRecovered?: boolean;
+};
+
+function getActiveJobSet(): Set<string> {
+  if (!g.__dreamdeskActiveJobs) g.__dreamdeskActiveJobs = new Set<string>();
+  return g.__dreamdeskActiveJobs;
+}
+
+function getCancelledJobSet(): Set<string> {
+  if (!g.__dreamdeskCancelledJobs) g.__dreamdeskCancelledJobs = new Set<string>();
+  return g.__dreamdeskCancelledJobs;
+}
+
 export class JobsService {
+  static recoverStaleJobs(): void {
+    if (g.__dreamdeskJobsRecovered) return;
+    g.__dreamdeskJobsRecovered = true;
+
+    const db = getDatabase();
+    const active = getActiveJobSet();
+    const staleRows = db
+      .prepare("SELECT id, logs FROM background_jobs WHERE status IN ('queued', 'running')")
+      .all() as { id: string; logs?: string }[];
+
+    for (const row of staleRows) {
+      if (active.has(row.id)) continue;
+      let logs: BackgroundJobLogEntry[] = [];
+      try {
+        logs = row.logs ? JSON.parse(row.logs) : [];
+      } catch {
+        logs = [];
+      }
+      logs.push({
+        ts: new Date().toISOString(),
+        level: "error",
+        message: "Job interrupted because the server restarted or crashed. You can dismiss or retry.",
+      });
+      withDbRetry(() => {
+        db.prepare(
+          `
+          UPDATE background_jobs
+          SET status = 'failed',
+              error_message = 'Interrupted by server restart or crash',
+              logs = ?,
+              updated_at = CURRENT_TIMESTAMP,
+              completed_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `
+        ).run(JSON.stringify(logs.slice(-100)), row.id);
+      });
+    }
+  }
   private static mapRow(row: any): BackgroundJob {
     let summary: Record<string, any> | null = null;
     if (row.result_summary) {
@@ -47,12 +102,14 @@ export class JobsService {
   }
 
   static getJob(jobId: string): BackgroundJob | null {
+    this.recoverStaleJobs();
     const db = getDatabase();
     const row = db.prepare("SELECT * FROM background_jobs WHERE id = ?").get(jobId) as any;
     return row ? this.mapRow(row) : null;
   }
 
   static listJobs(userId?: string | null, canViewAll: boolean = true): BackgroundJob[] {
+    this.recoverStaleJobs();
     const db = getDatabase();
     const rows = canViewAll || !userId
       ? (db.prepare("SELECT * FROM background_jobs ORDER BY created_at DESC LIMIT 20").all() as any[])
@@ -90,6 +147,7 @@ export class JobsService {
     });
 
     const initialJob = this.getJob(jobId)!;
+    getActiveJobSet().add(jobId);
 
     setTimeout(async () => {
       const workerDb = getDatabase();
@@ -139,10 +197,14 @@ export class JobsService {
             });
           },
           appendLog: pushLog,
+          isCancelled: () => getCancelledJobSet().has(jobId),
           yieldLoop: () => new Promise((resolve) => setTimeout(resolve, 5)),
         };
 
         const result = await params.run(helpers);
+        if (getCancelledJobSet().has(jobId)) {
+          return;
+        }
         const finalSummary = result || {};
         pushLog("info", "Job completed successfully.");
 
@@ -166,21 +228,58 @@ export class JobsService {
           });
         } catch {}
       } catch (err: any) {
-        console.error(`Background job ${jobId} failed:`, err);
-        pushLog("error", err?.message || "Job failed unexpectedly");
-        withDbRetry(() => {
-          workerDb.prepare(`
-            UPDATE background_jobs
-            SET status = 'failed',
-                error_message = ?,
-                updated_at = CURRENT_TIMESTAMP,
-                completed_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-          `).run(err?.message || "Job failed", jobId);
-        });
+        if (!getCancelledJobSet().has(jobId)) {
+          console.error(`Background job ${jobId} failed:`, err);
+          pushLog("error", err?.message || "Job failed unexpectedly");
+          withDbRetry(() => {
+            workerDb.prepare(`
+              UPDATE background_jobs
+              SET status = 'failed',
+                  error_message = ?,
+                  updated_at = CURRENT_TIMESTAMP,
+                  completed_at = CURRENT_TIMESTAMP
+              WHERE id = ?
+            `).run(err?.message || "Job failed", jobId);
+          });
+        }
+      } finally {
+        getActiveJobSet().delete(jobId);
+        getCancelledJobSet().delete(jobId);
       }
     }, 10);
 
     return initialJob;
+  }
+
+  static cancelJob(jobId: string, actorName: string): BackgroundJob | null {
+    const db = getDatabase();
+    const existing = this.getJob(jobId);
+    if (!existing) return null;
+
+    getCancelledJobSet().add(jobId);
+    getActiveJobSet().delete(jobId);
+
+    const logs = existing.logs ? [...existing.logs] : [];
+    logs.push({
+      ts: new Date().toISOString(),
+      level: "warn",
+      message: `Cancelled by ${actorName}.`,
+    });
+
+    withDbRetry(() => {
+      db.prepare(
+        `
+        UPDATE background_jobs
+        SET status = 'failed',
+            error_message = 'Cancelled by user',
+            logs = ?,
+            updated_at = CURRENT_TIMESTAMP,
+            completed_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `
+      ).run(JSON.stringify(logs.slice(-100)), jobId);
+    });
+
+    return this.getJob(jobId);
   }
 }

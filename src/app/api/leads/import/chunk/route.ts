@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
       title: `Import CSV: ${sourceName} (${sizeMb} MB, ~${estimatedRows.toLocaleString()} rows)`,
       totalItems: estimatedRows,
       createdBy: currentUser,
-      run: async ({ updateProgress, appendLog, yieldLoop }) => {
+      run: async ({ updateProgress, appendLog, isCancelled, yieldLoop }) => {
         const CHUNK_SIZE = 500;
         let rowBuffer: any[] = [];
         let processedTotal = 0;
@@ -94,6 +94,7 @@ export async function POST(request: NextRequest) {
         appendLog("info", `Received ${sourceName} (${sizeMb} MB). Starting server-side streaming ingestion...`);
 
         const flushBuffer = async () => {
+          if (isCancelled()) throw new Error("Cancelled by user");
           if (rowBuffer.length === 0) return;
           const batch = rowBuffer;
           rowBuffer = [];

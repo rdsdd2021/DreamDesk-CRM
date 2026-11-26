@@ -124,3 +124,4 @@ A protected administrative tool for permanently purging obsolete or corrupted le
 
 - **Server-Side Background Queue (`background_jobs`, `JobsService`, `/api/jobs`)**: Heavy bulk operations (bulk assign, status updates, tagging, campaign changes, bulk delete, auto-distribute, and 60MB+ CSV imports) immediately return `202 Accepted` and execute asynchronously in chunks on the server.
 - **Persistent Progress & Log Console (`BackgroundJobsTracker.tsx`)**: A floating job tracker polls active jobs, renders live percentage progress bars, and includes an expandable terminal-style **Task Logs** box (`INFO`, `WARN`, `ERROR`) persisted in SQLite so progress survives browser closes or refreshes.
+- **Crash Recovery & Manual Cancel (`JobsService.recoverStaleJobs`, `/api/jobs/[id]/cancel`)**: Orphaned jobs from a server crash/restart automatically mark as `failed` on reboot, and users can cancel active jobs anytime via the **Cancel** button.
