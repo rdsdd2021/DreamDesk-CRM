@@ -62,6 +62,8 @@ export async function POST(request: NextRequest) {
       created_by_name: session.user.name,
       depends_on_task_id: body?.depends_on_task_id ? Number(body.depends_on_task_id) : null,
       checklist: Array.isArray(body?.checklist) ? body.checklist : undefined,
+      requires_proof: Boolean(body?.requires_proof),
+      requires_approval: Boolean(body?.requires_approval),
     });
 
     return NextResponse.json({ success: true, task }, { status: 201 });

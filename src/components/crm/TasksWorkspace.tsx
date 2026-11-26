@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { WorkTasksBoard } from "@/components/crm/WorkTasksBoard";
 import { WorkTasksPrintReport } from "@/components/crm/WorkTasksPrintReport";
+import { DailyCheckinBanner } from "@/components/crm/DailyCheckinBanner";
 
 export interface UnifiedTaskItem {
   id: number;
@@ -344,6 +345,10 @@ export function TasksWorkspace({
 
   return (
     <div className="space-y-3 max-w-7xl mx-auto pb-8">
+      <div className="print:hidden">
+        <DailyCheckinBanner />
+      </div>
+
       {/* Top Mode Switcher: Calling Tasks vs Daily & Team Tasks vs Track & Print */}
       <div className="print:hidden flex items-center gap-1.5 bg-card border border-border/80 rounded-xl p-1.5 w-full sm:w-fit overflow-x-auto">
         <button

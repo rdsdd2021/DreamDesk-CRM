@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, email, role, password } = body;
+    const { name, email, role, password, team_lead_id } = body;
 
     if (!name || !email) {
       return NextResponse.json({ error: "Name and email are required" }, { status: 400 });
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const newUser = LeadsService.createUser({ name, email, role, password });
+    const newUser = LeadsService.createUser({ name, email, role, password, team_lead_id: team_lead_id || null });
     return NextResponse.json(newUser, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || "Failed to create counselor" }, { status: 500 });
@@ -60,7 +60,15 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { userId, status, newPassword, action } = body;
+    const { userId, status, newPassword, action, team_lead_id } = body;
+
+    if (action === "assign_team_lead") {
+      if (!userId) {
+        return NextResponse.json({ error: "userId is required" }, { status: 400 });
+      }
+      LeadsService.updateUserTeamLead(userId, team_lead_id || null, session.user.name);
+      return NextResponse.json({ success: true, message: "Team Lead assignment updated." });
+    }
 
     // Handle Password Reset Request
     if (action === "reset_password" || newPassword) {

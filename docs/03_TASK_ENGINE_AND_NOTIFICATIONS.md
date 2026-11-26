@@ -31,6 +31,16 @@ flowchart TD
 
 ---
 
+## Daily Team Operations, SOP Playbooks & Team Lead Hierarchy (`v1.3.4`–`v1.3.6`)
+
+- **Team Lead Pod Hierarchy (`users.team_lead_id`)**: Assign callers to a specific Team Lead in `TeamWorkspace.tsx`. Approvals, EOD visibility, and Team Floor views automatically scope to each Team Lead's pod (Admin retains full cross-team oversight).
+- **Live Presence & Morning Check-In (`DailyCheckinBanner.tsx`)**: Top-bar status pill (`Available`, `On Calls`, `Break`, `Wrap Up`) + Morning Check-In focus + auto-computed End-of-Day (EOD) summaries.
+- **Daily Targets (`daily_targets`)**: Team-wide default quotas (`Calls`, `Connected`, `WhatsApp`, `Tasks Done`, `Conversions`) with optional per-caller overrides.
+- **SOP Playbooks (`work_task_templates`, `SopPlaybookModal.tsx`)**: Reusable Morning/Midday/Evening SOP checklists deployable by Admins/Team Leads in 1 click. Callers cannot create, deploy, or delete work tasks.
+- **Task Proof, Sign-Off & Overdue Nudges (`WorkTasksBoard.tsx`)**: Supports mandatory completion proof notes, Team Lead `Approve` / `Revise` review flow, and overdue `Nudge` escalations.
+
+---
+
 ## 2. Dynamic Priority & SLA Tiers
 
 When scheduling tasks from any bulk modal or manual entry, tasks feature automated SLA due dates:

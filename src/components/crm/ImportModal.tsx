@@ -51,6 +51,7 @@ export function ImportModal({
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("none");
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -75,9 +76,11 @@ export function ImportModal({
     setFile(selectedFile);
     setError(null);
 
+    // Only parse a 25-row preview in browser so 60MB+ CSVs never freeze or OOM the tab
     Papa.parse(selectedFile, {
       header: true,
       skipEmptyLines: true,
+      preview: 25,
       complete: (results) => {
         if (results.errors.length > 0 && results.data.length === 0) {
           setError("Failed to parse CSV file. Please verify file format.");
@@ -134,33 +137,52 @@ export function ImportModal({
   };
 
   const handleExecuteImport = async () => {
-    if (!parsedData || parsedData.length === 0) return;
+    if (!file) return;
 
     setLoading(true);
+    setUploadProgress(0);
     setError(null);
 
     try {
-      const res = await fetch("/api/leads/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          records: parsedData,
-          sourceName: file?.name || "CSV Upload",
-          campaignId: selectedCampaignId === "none" ? undefined : selectedCampaignId,
-          skipDuplicates,
-        }),
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("sourceName", file.name || "CSV Upload");
+      formData.append("campaignId", selectedCampaignId || "none");
+      formData.append("skipDuplicates", String(skipDuplicates));
+
+      const data = await new Promise<any>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/leads/import");
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) {
+            setUploadProgress(Math.round((ev.loaded / ev.total) * 100));
+          }
+        };
+        xhr.onload = () => {
+          try {
+            const parsed = JSON.parse(xhr.responseText || "{}");
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(parsed);
+            } else {
+              reject(new Error(parsed.error || `Upload failed (${xhr.status})`));
+            }
+          } catch {
+            reject(new Error(`Upload failed (${xhr.status})`));
+          }
+        };
+        xhr.onerror = () => reject(new Error("Network error while uploading CSV file."));
+        xhr.send(formData);
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Import failed");
-
-      onImportComplete(data.importedCount, data.newHeadersFound || []);
+      window.dispatchEvent(new CustomEvent("background-job-queued", { detail: data.job }));
+      onImportComplete(data.importedCount || 0, data.newHeadersFound || []);
       onClose();
       resetState();
     } catch (err: any) {
       setError(err.message || "Failed to import leads");
     } finally {
       setLoading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -300,17 +322,34 @@ export function ImportModal({
           )}
 
           {/* Parsed Preview */}
-          {parsedData.length > 0 && (
+          {file && parsedData.length > 0 && (
             <div className="space-y-3 bg-muted/20 border rounded-lg p-3">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-foreground flex items-center gap-1.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                  <span>Found {parsedData.length.toLocaleString()} rows</span>
+                  <span>
+                    Ready to stream ({(file.size / (1024 * 1024)).toFixed(2)} MB)
+                  </span>
                 </span>
                 <span className="text-muted-foreground text-[11px]">
                   {detectedHeaders.length} headers detected
                 </span>
               </div>
+
+              {loading && (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[11px] font-medium text-primary">
+                    <span>Uploading file to server...</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all duration-150"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Detected Headers Pills */}
               <div className="space-y-1.5">
@@ -351,19 +390,21 @@ export function ImportModal({
           <Button
             size="sm"
             onClick={handleExecuteImport}
-            disabled={loading || parsedData.length === 0}
+            disabled={loading || !file || parsedData.length === 0}
             className="text-xs gap-2 font-semibold h-9 px-5 rounded-lg shadow-2xs bg-primary text-primary-foreground"
           >
             {loading ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>Ingesting {parsedData.length.toLocaleString()} rows...</span>
+                <span>Uploading {uploadProgress}%...</span>
               </>
             ) : (
               <>
                 <Upload className="w-4 h-4" />
                 <span>
-                  Import {parsedData.length > 0 ? `${parsedData.length.toLocaleString()} Leads` : "CSV"}
+                  {file
+                    ? `Upload & Import (${(file.size / (1024 * 1024)).toFixed(1)} MB)`
+                    : "Import CSV"}
                 </span>
               </>
             )}

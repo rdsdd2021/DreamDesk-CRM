@@ -1795,8 +1795,10 @@ export class LeadsService {
     const users = db.prepare(`
       SELECT 
         users.*,
+        tl.name as team_lead_name,
         COUNT(leads.id) as assigned_count
       FROM users
+      LEFT JOIN users tl ON users.team_lead_id = tl.id
       LEFT JOIN leads ON users.id = leads.assigned_to
       GROUP BY users.id
       ORDER BY users.name ASC
@@ -1811,7 +1813,7 @@ export class LeadsService {
   /**
    * Creates a new counselor / team member.
    */
-  static createUser(data: { name: string; email: string; role?: string; password?: string }): User {
+  static createUser(data: { name: string; email: string; role?: string; password?: string; team_lead_id?: string | null }): User {
     const db = getDatabase();
     const cleanEmail = data.email.toLowerCase().trim();
     const id = `usr_${Date.now()}`;
@@ -1823,10 +1825,11 @@ export class LeadsService {
       : "password123";
 
     const { hash, salt } = AuthService.hashPassword(initialPassword);
+    const teamLeadId = data.team_lead_id ? String(data.team_lead_id).trim() : null;
 
     db.prepare(`
-      INSERT INTO users (id, name, email, role, status, avatar_color, password_hash, salt)
-      VALUES (@id, @name, @email, @role, 'active', @avatar_color, @password_hash, @salt)
+      INSERT INTO users (id, name, email, role, status, avatar_color, password_hash, salt, team_lead_id)
+      VALUES (@id, @name, @email, @role, 'active', @avatar_color, @password_hash, @salt, @team_lead_id)
     `).run({
       id,
       name: data.name.trim(),
@@ -1835,6 +1838,7 @@ export class LeadsService {
       avatar_color,
       password_hash: hash,
       salt: salt,
+      team_lead_id: teamLeadId,
     });
 
     db.prepare(`
@@ -1849,9 +1853,23 @@ export class LeadsService {
       role: (data.role as any) || "counselor",
       status: "active",
       avatar_color,
+      team_lead_id: teamLeadId,
       assigned_count: 0,
       created_at: new Date().toISOString(),
     };
+  }
+
+  static updateUserTeamLead(userId: string, teamLeadId: string | null, performedBy: string): void {
+    const db = getDatabase();
+    const cleanLeadId = teamLeadId && teamLeadId !== userId ? teamLeadId : null;
+    db.prepare("UPDATE users SET team_lead_id = ? WHERE id = ?").run(cleanLeadId, userId);
+    db.prepare(`
+      INSERT INTO activity_logs (action_type, description, affected_count, performed_by)
+      VALUES ('user_update', @desc, 1, @by)
+    `).run({
+      desc: `Updated team lead assignment for user ${userId} -> ${cleanLeadId || "Unassigned (Admin)"}`,
+      by: performedBy,
+    });
   }
 
   /**

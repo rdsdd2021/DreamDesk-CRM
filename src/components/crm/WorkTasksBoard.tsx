@@ -22,7 +22,13 @@ import {
   CheckSquare,
   Square,
   Sparkles,
+  BookOpen,
+  ShieldCheck,
+  FileCheck2,
+  Send,
+  RotateCcw,
 } from "lucide-react";
+import { SopPlaybookModal } from "@/components/crm/SopPlaybookModal";
 
 interface WorkTasksBoardProps {
   roleMode: "admin" | "counselor";
@@ -50,7 +56,16 @@ export function WorkTasksBoard({ roleMode, users }: WorkTasksBoardProps) {
   const [newAssignedTo, setNewAssignedTo] = useState<string>("");
   const [newDependsOnId, setNewDependsOnId] = useState<string>("");
   const [newChecklistText, setNewChecklistText] = useState<string>("");
+  const [newRequiresProof, setNewRequiresProof] = useState(false);
+  const [newRequiresApproval, setNewRequiresApproval] = useState(false);
   const [creating, setCreating] = useState(false);
+
+  // Playbook, Proof, Review & Nudge Modals
+  const [isPlaybookOpen, setIsPlaybookOpen] = useState(false);
+  const [proofTask, setProofTask] = useState<WorkTask | null>(null);
+  const [proofText, setProofText] = useState("");
+  const [reviewTask, setReviewTask] = useState<WorkTask | null>(null);
+  const [reviewFeedback, setReviewFeedback] = useState("");
 
   const loadTasks = useCallback(async () => {
     try {
@@ -102,6 +117,8 @@ export function WorkTasksBoard({ roleMode, users }: WorkTasksBoardProps) {
           assigned_to: newAssignedTo || undefined,
           depends_on_task_id: newDependsOnId ? Number(newDependsOnId) : null,
           checklist: checklist.length > 0 ? checklist : undefined,
+          requires_proof: newRequiresProof,
+          requires_approval: newRequiresApproval,
         }),
       });
       if (res.ok) {
@@ -111,6 +128,8 @@ export function WorkTasksBoard({ roleMode, users }: WorkTasksBoardProps) {
         setNewDueAt("");
         setNewDependsOnId("");
         setNewChecklistText("");
+        setNewRequiresProof(false);
+        setNewRequiresApproval(false);
         loadTasks();
       }
     } finally {
@@ -152,6 +171,68 @@ export function WorkTasksBoard({ roleMode, users }: WorkTasksBoardProps) {
     const res = await fetch(`/api/work-tasks/${taskId}`, { method: "DELETE" });
     if (res.ok) {
       setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    }
+  };
+
+  const handleToggleDone = async (task: WorkTask) => {
+    if (task.status !== "done" && task.requires_proof && !task.proof_notes) {
+      setProofTask(task);
+      setProofText("");
+      return;
+    }
+    await handlePatchTask(task.id, {
+      status: task.status === "done" ? "todo" : "done",
+    });
+  };
+
+  const handleProofSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!proofTask || !proofText.trim()) return;
+    await handlePatchTask(proofTask.id, {
+      status: "done",
+      proof_notes: proofText.trim(),
+    });
+    setProofTask(null);
+    setProofText("");
+  };
+
+  const handleReviewDecision = async (taskId: number, decision: "approved" | "revision_requested", feedback?: string) => {
+    setBusyTaskId(taskId);
+    try {
+      const res = await fetch(`/api/work-tasks/${taskId}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision, feedback }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.task) {
+          setTasks((prev) => prev.map((t) => (t.id === taskId ? data.task : t)));
+        }
+        setReviewTask(null);
+        setReviewFeedback("");
+      }
+    } finally {
+      setBusyTaskId(null);
+    }
+  };
+
+  const handleNudge = async (taskId: number) => {
+    setBusyTaskId(taskId);
+    try {
+      const res = await fetch(`/api/work-tasks/${taskId}/nudge`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.task) {
+          setTasks((prev) => prev.map((t) => (t.id === taskId ? data.task : t)));
+        }
+      }
+    } finally {
+      setBusyTaskId(null);
     }
   };
 
@@ -202,14 +283,28 @@ export function WorkTasksBoard({ roleMode, users }: WorkTasksBoardProps) {
             <option value="done">Done</option>
           </select>
 
-          <Button
-            size="sm"
-            onClick={() => setIsCreateOpen(true)}
-            className="h-8 gap-1.5 text-xs font-semibold"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>New Task</span>
-          </Button>
+          {roleMode === "admin" && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsPlaybookOpen(true)}
+                className="h-8 gap-1.5 text-xs font-semibold border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>SOP Playbooks</span>
+              </Button>
+
+              <Button
+                size="sm"
+                onClick={() => setIsCreateOpen(true)}
+                className="h-8 gap-1.5 text-xs font-semibold"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>New Task</span>
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -226,10 +321,12 @@ export function WorkTasksBoard({ roleMode, users }: WorkTasksBoardProps) {
           <p className="text-xs text-muted-foreground max-w-md mx-auto">
             Create daily recurring checklists, timed tasks, or tasks linked to a teammate&apos;s task.
           </p>
-          <Button size="sm" onClick={() => setIsCreateOpen(true)} className="mt-2 gap-1.5 text-xs">
-            <Plus className="w-3.5 h-3.5" />
-            <span>Create First Task</span>
-          </Button>
+          {roleMode === "admin" && (
+            <Button size="sm" onClick={() => setIsCreateOpen(true)} className="mt-2 gap-1.5 text-xs">
+              <Plus className="w-3.5 h-3.5" />
+              <span>Create First Task</span>
+            </Button>
+          )}
         </div>
       ) : (
         <div className="space-y-2.5">
@@ -255,11 +352,7 @@ export function WorkTasksBoard({ roleMode, users }: WorkTasksBoardProps) {
                   <button
                     type="button"
                     disabled={busyTaskId === task.id}
-                    onClick={() =>
-                      handlePatchTask(task.id, {
-                        status: isDone ? "todo" : "done",
-                      })
-                    }
+                    onClick={() => handleToggleDone(task)}
                     className="mt-0.5 shrink-0 cursor-pointer transition-transform active:scale-90"
                     title={isDone ? "Mark as To Do" : "Mark Done"}
                   >
@@ -290,14 +383,16 @@ export function WorkTasksBoard({ roleMode, users }: WorkTasksBoardProps) {
                         )}
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(task.id)}
-                        className="text-muted-foreground/60 hover:text-destructive p-1 cursor-pointer"
-                        title="Archive task"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {roleMode === "admin" && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(task.id)}
+                          className="text-muted-foreground/60 hover:text-destructive p-1 cursor-pointer"
+                          title="Archive task"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
 
                     {/* Badges Row */}
@@ -348,7 +443,53 @@ export function WorkTasksBoard({ roleMode, users }: WorkTasksBoardProps) {
                           Owner: {task.assigned_user_name}
                         </Badge>
                       )}
+
+                      {task.requires_proof && (
+                        <Badge variant="outline" className="text-[10px] gap-1 bg-slate-50 text-slate-600">
+                          <FileCheck2 className="w-3 h-3" />
+                          Proof Required
+                        </Badge>
+                      )}
+
+                      {task.approval_status === "pending_review" && (
+                        <Badge variant="outline" className="text-[10px] gap-1 bg-amber-50 text-amber-700 border-amber-200">
+                          <ShieldCheck className="w-3 h-3" />
+                          Pending Sign-off
+                        </Badge>
+                      )}
+                      {task.approval_status === "approved" && (
+                        <Badge variant="outline" className="text-[10px] gap-1 bg-emerald-50 text-emerald-700 border-emerald-200">
+                          <ShieldCheck className="w-3 h-3" />
+                          Approved{task.reviewed_by_name ? ` by ${task.reviewed_by_name}` : ""}
+                        </Badge>
+                      )}
+                      {task.approval_status === "revision_requested" && (
+                        <Badge variant="outline" className="text-[10px] gap-1 bg-rose-50 text-rose-700 border-rose-200">
+                          <RotateCcw className="w-3 h-3" />
+                          Revision Requested
+                        </Badge>
+                      )}
+                      {(task.nudge_count || 0) > 0 && !isDone && (
+                        <Badge variant="outline" className="text-[10px] gap-1 bg-rose-600 text-white border-rose-600">
+                          <BellRing className="w-3 h-3" />
+                          Nudged ({task.nudge_count}x)
+                        </Badge>
+                      )}
                     </div>
+
+                    {task.proof_notes && (
+                      <div className="rounded-lg bg-slate-50 border border-slate-200/80 px-2.5 py-1.5 text-[11px] text-slate-700">
+                        <span className="font-semibold text-slate-900">Proof: </span>
+                        {task.proof_notes}
+                      </div>
+                    )}
+
+                    {task.review_feedback && task.approval_status === "revision_requested" && (
+                      <div className="rounded-lg bg-rose-50 border border-rose-200 px-2.5 py-1.5 text-[11px] text-rose-800">
+                        <span className="font-semibold">Lead Feedback: </span>
+                        {task.review_feedback}
+                      </div>
+                    )}
 
                     {/* Soft Dependency Warning + 1-Tap Remind */}
                     {task.depends_on && (
@@ -449,6 +590,47 @@ export function WorkTasksBoard({ roleMode, users }: WorkTasksBoardProps) {
                             <Play className="w-3 h-3" />
                             <span>Start</span>
                           </Button>
+                        )}
+                        {roleMode === "admin" && isOverdue && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={busyTaskId === task.id}
+                            onClick={() => handleNudge(task.id)}
+                            className="h-7 px-2 text-[11px] gap-1 text-rose-600 border-rose-200 hover:bg-rose-50"
+                          >
+                            <Send className="w-3 h-3" />
+                            <span>Nudge</span>
+                          </Button>
+                        )}
+                        {roleMode === "admin" && task.approval_status === "pending_review" && (
+                          <>
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={busyTaskId === task.id}
+                              onClick={() => handleReviewDecision(task.id, "approved")}
+                              className="h-7 px-2 text-[11px] gap-1 bg-emerald-600 hover:bg-emerald-700"
+                            >
+                              <ShieldCheck className="w-3 h-3" />
+                              <span>Approve</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={busyTaskId === task.id}
+                              onClick={() => {
+                                setReviewTask(task);
+                                setReviewFeedback("");
+                              }}
+                              className="h-7 px-2 text-[11px] gap-1 text-amber-700 border-amber-200 hover:bg-amber-50"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span>Revise</span>
+                            </Button>
+                          </>
                         )}
                         {[25, 50, 75].map((pct) => (
                           <button
@@ -657,6 +839,25 @@ export function WorkTasksBoard({ roleMode, users }: WorkTasksBoardProps) {
                   className="w-full p-2.5 rounded-lg border border-border bg-background text-xs resize-y"
                 />
               </div>
+
+              <div className="flex flex-wrap items-center gap-4 pt-1">
+                <label className="flex items-center gap-1.5 cursor-pointer font-medium">
+                  <input
+                    type="checkbox"
+                    checked={newRequiresProof}
+                    onChange={(e) => setNewRequiresProof(e.target.checked)}
+                  />
+                  Require proof notes on completion
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer font-medium">
+                  <input
+                    type="checkbox"
+                    checked={newRequiresApproval}
+                    onChange={(e) => setNewRequiresApproval(e.target.checked)}
+                  />
+                  Require Team Lead sign-off
+                </label>
+              </div>
             </div>
 
             <div className="p-4 border-t border-border flex items-center justify-end gap-2 bg-muted/20">
@@ -671,6 +872,103 @@ export function WorkTasksBoard({ roleMode, users }: WorkTasksBoardProps) {
               <Button type="submit" size="sm" disabled={creating} className="gap-1.5">
                 {creating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 <span>Create Task</span>
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* SOP Playbooks Modal */}
+      <SopPlaybookModal
+        open={isPlaybookOpen}
+        onOpenChange={setIsPlaybookOpen}
+        users={users}
+        onDeployed={loadTasks}
+      />
+
+      {/* Proof Notes Modal */}
+      {proofTask && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setProofTask(null)}
+        >
+          <form
+            onSubmit={handleProofSubmit}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-card border border-border rounded-2xl max-w-md w-full p-4 space-y-3 shadow-2xl"
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold flex items-center gap-1.5">
+                <FileCheck2 className="w-4 h-4 text-indigo-600" />
+                Completion Proof Required
+              </h3>
+              <button type="button" onClick={() => setProofTask(null)}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Add a short proof note or summary for &quot;{proofTask.title}&quot; before marking it complete.
+            </p>
+            <textarea
+              rows={3}
+              required
+              value={proofText}
+              onChange={(e) => setProofText(e.target.value)}
+              placeholder="e.g. Updated 18 stale leads and scheduled callbacks for tomorrow 11 AM..."
+              className="w-full p-2.5 rounded-lg border border-border bg-background text-xs"
+            />
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setProofTask(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm">
+                Submit Proof & Complete
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Request Revision Feedback Modal */}
+      {reviewTask && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setReviewTask(null)}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleReviewDecision(reviewTask.id, "revision_requested", reviewFeedback);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-card border border-border rounded-2xl max-w-md w-full p-4 space-y-3 shadow-2xl"
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold flex items-center gap-1.5">
+                <RotateCcw className="w-4 h-4 text-amber-600" />
+                Request Task Revision
+              </h3>
+              <button type="button" onClick={() => setReviewTask(null)}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Tell {reviewTask.assigned_user_name || "the caller"} what needs to be fixed on &quot;{reviewTask.title}&quot;.
+            </p>
+            <textarea
+              rows={3}
+              required
+              value={reviewFeedback}
+              onChange={(e) => setReviewFeedback(e.target.value)}
+              placeholder="e.g. Please include the list of lead IDs you followed up on..."
+              className="w-full p-2.5 rounded-lg border border-border bg-background text-xs"
+            />
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setReviewTask(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" className="bg-amber-600 hover:bg-amber-700">
+                Send Back for Revision
               </Button>
             </div>
           </form>

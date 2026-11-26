@@ -1,9 +1,10 @@
 import { getDatabase, withDbRetry } from "@/lib/db/database";
 import { SyncService } from "@/lib/services/syncService";
-import { BackgroundJob, BackgroundJobType, User } from "@/types/crm";
+import { BackgroundJob, BackgroundJobLogEntry, BackgroundJobType, User } from "@/types/crm";
 
 export interface JobProgressHelpers {
   updateProgress: (processed: number, success?: number, skipped?: number, total?: number) => void;
+  appendLog: (level: "info" | "warn" | "error", message: string) => void;
   yieldLoop: () => Promise<void>;
 }
 
@@ -17,6 +18,14 @@ export class JobsService {
         summary = null;
       }
     }
+    let logs: BackgroundJobLogEntry[] = [];
+    if (row.logs) {
+      try {
+        logs = typeof row.logs === "string" ? JSON.parse(row.logs) : row.logs;
+      } catch {
+        logs = [];
+      }
+    }
     return {
       id: row.id,
       job_type: row.job_type,
@@ -28,6 +37,7 @@ export class JobsService {
       skipped_count: Number(row.skipped_count || 0),
       error_message: row.error_message || null,
       result_summary: summary,
+      logs: Array.isArray(logs) ? logs : [],
       created_by: row.created_by || null,
       created_by_name: row.created_by_name || null,
       created_at: row.created_at,
@@ -60,15 +70,20 @@ export class JobsService {
     const db = getDatabase();
     const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
+    const initialLogs: BackgroundJobLogEntry[] = [
+      { ts: new Date().toISOString(), level: "info", message: `Queued: ${params.title}` },
+    ];
+
     withDbRetry(() => {
       db.prepare(`
-        INSERT INTO background_jobs (id, job_type, title, status, total_items, processed_items, created_by, created_by_name)
-        VALUES (?, ?, ?, 'queued', ?, 0, ?, ?)
+        INSERT INTO background_jobs (id, job_type, title, status, total_items, processed_items, logs, created_by, created_by_name)
+        VALUES (?, ?, ?, 'queued', ?, 0, ?, ?, ?)
       `).run(
         jobId,
         params.jobType,
         params.title,
         Math.max(0, params.totalItems),
+        JSON.stringify(initialLogs),
         params.createdBy?.id || null,
         params.createdBy?.name || "System"
       );
@@ -78,12 +93,30 @@ export class JobsService {
 
     setTimeout(async () => {
       const workerDb = getDatabase();
+      const pushLog = (level: "info" | "warn" | "error", message: string) => {
+        withDbRetry(() => {
+          const row = workerDb.prepare("SELECT logs FROM background_jobs WHERE id = ?").get(jobId) as { logs?: string } | undefined;
+          let arr: BackgroundJobLogEntry[] = [];
+          try {
+            arr = row?.logs ? JSON.parse(row.logs) : [];
+          } catch {
+            arr = [];
+          }
+          arr.push({ ts: new Date().toISOString(), level, message });
+          if (arr.length > 100) arr = arr.slice(-100);
+          workerDb
+            .prepare("UPDATE background_jobs SET logs = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+            .run(JSON.stringify(arr), jobId);
+        });
+      };
+
       try {
         withDbRetry(() => {
           workerDb.prepare(
             "UPDATE background_jobs SET status = 'running', updated_at = CURRENT_TIMESTAMP WHERE id = ?"
           ).run(jobId);
         });
+        pushLog("info", "Job started on server.");
 
         const helpers: JobProgressHelpers = {
           updateProgress: (processed: number, success?: number, skipped?: number, total?: number) => {
@@ -105,11 +138,13 @@ export class JobsService {
               );
             });
           },
+          appendLog: pushLog,
           yieldLoop: () => new Promise((resolve) => setTimeout(resolve, 5)),
         };
 
         const result = await params.run(helpers);
         const finalSummary = result || {};
+        pushLog("info", "Job completed successfully.");
 
         withDbRetry(() => {
           workerDb.prepare(`
@@ -132,6 +167,7 @@ export class JobsService {
         } catch {}
       } catch (err: any) {
         console.error(`Background job ${jobId} failed:`, err);
+        pushLog("error", err?.message || "Job failed unexpectedly");
         withDbRetry(() => {
           workerDb.prepare(`
             UPDATE background_jobs

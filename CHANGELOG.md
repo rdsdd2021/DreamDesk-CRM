@@ -4,6 +4,26 @@ All notable changes, architectural enhancements, schema migrations, and feature 
 
 ---
 
+## [v1.3.6] — 2026-11-27
+
+### 👥 Team Lead Pod Hierarchy, Daily Team Ops, & Task Governance
+- **Specific Team Lead Pod Assignment (`users.team_lead_id`)**: Admins/Team Leads can assign callers to any specific Team Lead, Senior Counselor, or Admin by name in `TeamWorkspace.tsx`.
+- **Strict Task Creation & Deployment Guardrails**: Locked down **New Task**, **SOP Playbooks**, and **Archive/Delete** in `WorkTasksBoard.tsx` to Admin & Team Lead roles only (`roleMode === "admin"`). Callers can only complete assigned tasks and submit required proof notes.
+- **Live Team Floor (`TeamFloorPanel.tsx`)**: Real-time caller presence (`Available`, `On Calls`, `Break`, `Wrap Up`), daily quota attainment bars, automatic bottleneck flags (`Overdue Tasks`, `Pending Sign-off`, `0 Fresh Leads`, `Not Checked In`), EOD Summary modal, and Team-wide / Per-caller **Daily Targets** configuration.
+- **Morning Check-In, Top-Bar Presence Pill & Auto-Computed EOD (`DailyCheckinBanner.tsx`)**: Callers check in with daily focus, track live quotas, and submit EOD summaries with auto-computed calls, connected calls, tasks completed, and conversions.
+- **SOP Playbooks, Proof Notes, Sign-Off & Overdue Nudges (`SopPlaybookModal.tsx`, `workTasksService.ts`)**: Added reusable SOP playbook templates with 1-click deployment, optional/required completion proof notes, `Pending Sign-off → Approved / Revision Requested` workflow auto-routed to the caller's Team Lead, and live overdue **Nudge** escalations.
+
+---
+
+## [v1.3.5] — 2026-11-27
+
+### 🚀 60MB+ Streaming CSV Import & Live Background Job Console
+- **Streaming Multipart File Upload (`ImportModal.tsx`, `/api/leads/import`)**: Replaced full-file browser parsing + giant JSON payloads with 25-row instant header preview and `FormData` streaming upload (`XMLHttpRequest` progress bar).
+- **Server-Side Chunked Ingestion**: `/api/leads/import` streams uploaded CSVs directly to `data/uploads/` and parses in 500-row chunks inside `JobsService`, continuing seamlessly even if the browser is closed.
+- **Persistent Job Activity Log Console (`BackgroundJobsTracker.tsx`, `jobsService.ts`)**: Added `background_jobs.logs` persistence and a live terminal-style log box showing timestamped `INFO`, `WARN`, and `ERROR` entries per job.
+
+---
+
 ## [v2.13.0] — 2026-10-28
 
 ### ⚡ Low-End Android Optimization, OOM Crash Elimination & Full-Width School Name Visibility

@@ -33,6 +33,7 @@ export async function PATCH(
         start_timer: Boolean(body?.start_timer),
         remind_dependency: Boolean(body?.remind_dependency),
         notes: body?.notes,
+        proof_notes: body?.proof_notes,
         title: body?.title,
         due_at: body?.due_at,
         priority: body?.priority,

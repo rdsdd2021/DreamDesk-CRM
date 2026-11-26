@@ -44,6 +44,7 @@ function initializeSchema(db: Database.Database) {
       avatar_color TEXT DEFAULT '#3b82f6',
       password_hash TEXT,
       salt TEXT,
+      team_lead_id TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -329,6 +330,7 @@ function initializeSchema(db: Database.Database) {
       skipped_count INTEGER NOT NULL DEFAULT 0,
       error_message TEXT,
       result_summary TEXT,
+      logs TEXT DEFAULT '[]',
       created_by TEXT,
       created_by_name TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -488,7 +490,86 @@ function initializeSchema(db: Database.Database) {
     );
     CREATE INDEX IF NOT EXISTS idx_work_logs_task ON work_task_logs(task_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_work_logs_date ON work_task_logs(cycle_date, user_id);
+
+    CREATE TABLE IF NOT EXISTS daily_checkins (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      checkin_date TEXT NOT NULL,
+      presence_status TEXT NOT NULL DEFAULT 'available', -- 'available' | 'on_calls' | 'break' | 'wrap_up' | 'offline'
+      morning_focus TEXT,
+      checked_in_at DATETIME,
+      eod_submitted_at DATETIME,
+      eod_notes TEXT,
+      eod_blockers TEXT,
+      eod_auto_stats TEXT,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, checkin_date)
+    );
+    CREATE INDEX IF NOT EXISTS idx_daily_checkins_date ON daily_checkins(checkin_date, user_id);
+
+    CREATE TABLE IF NOT EXISTS daily_targets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT, -- NULL = team-wide default, non-null = per-caller override
+      calls_target INTEGER NOT NULL DEFAULT 50,
+      connected_target INTEGER NOT NULL DEFAULT 15,
+      whatsapp_target INTEGER NOT NULL DEFAULT 15,
+      tasks_target INTEGER NOT NULL DEFAULT 5,
+      conversions_target INTEGER NOT NULL DEFAULT 1,
+      updated_by TEXT,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_targets_user ON daily_targets(COALESCE(user_id, '__default__'));
+
+    CREATE TABLE IF NOT EXISTS work_task_templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      task_type TEXT NOT NULL DEFAULT 'one_time',
+      recurrence_rule TEXT,
+      time_limit_minutes INTEGER,
+      priority TEXT NOT NULL DEFAULT 'normal',
+      requires_proof INTEGER NOT NULL DEFAULT 0,
+      requires_approval INTEGER NOT NULL DEFAULT 0,
+      playbook_slot TEXT NOT NULL DEFAULT 'morning', -- 'morning' | 'midday' | 'evening' | 'custom'
+      checklist_json TEXT NOT NULL DEFAULT '[]',
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_by TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
+
+  // Safe migrations for existing users & work_tasks tables
+  const userCols = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
+  const userColNames = new Set(userCols.map((c) => c.name));
+  if (!userColNames.has("team_lead_id")) {
+    db.exec("ALTER TABLE users ADD COLUMN team_lead_id TEXT;");
+  }
+
+  const wtCols = db.prepare("PRAGMA table_info(work_tasks)").all() as { name: string }[];
+  const wtColNames = new Set(wtCols.map((c) => c.name));
+
+  const jobCols = db.prepare("PRAGMA table_info(background_jobs)").all() as { name: string }[];
+  const jobColNames = new Set(jobCols.map((c) => c.name));
+  if (!jobColNames.has("logs")) {
+    db.exec("ALTER TABLE background_jobs ADD COLUMN logs TEXT DEFAULT '[]';");
+  }
+  const wtMigrations: [string, string][] = [
+    ["requires_proof", "INTEGER NOT NULL DEFAULT 0"],
+    ["requires_approval", "INTEGER NOT NULL DEFAULT 0"],
+    ["proof_notes", "TEXT"],
+    ["approval_status", "TEXT NOT NULL DEFAULT 'none'"],
+    ["reviewed_by", "TEXT"],
+    ["reviewed_at", "DATETIME"],
+    ["review_feedback", "TEXT"],
+    ["last_nudged_at", "DATETIME"],
+    ["nudge_count", "INTEGER NOT NULL DEFAULT 0"],
+    ["template_id", "INTEGER"],
+  ];
+  for (const [col, def] of wtMigrations) {
+    if (!wtColNames.has(col)) {
+      db.exec(`ALTER TABLE work_tasks ADD COLUMN ${col} ${def};`);
+    }
+  }
 
   seedInitialData(db);
   initPolicies(db);

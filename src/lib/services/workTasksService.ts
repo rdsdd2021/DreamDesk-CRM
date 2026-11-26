@@ -91,6 +91,7 @@ export class WorkTasksService {
           u.name AS assigned_user_name,
           u.avatar_color AS assigned_user_color,
           cu.name AS created_by_name,
+          rev.name AS reviewed_by_name,
           dep.title AS dep_title,
           dep.status AS dep_status,
           dep.assigned_to AS dep_assigned_to,
@@ -99,6 +100,7 @@ export class WorkTasksService {
         FROM work_tasks wt
         LEFT JOIN users u ON wt.assigned_to = u.id
         LEFT JOIN users cu ON wt.created_by = cu.id
+        LEFT JOIN users rev ON wt.reviewed_by = rev.id
         LEFT JOIN work_tasks dep ON wt.depends_on_task_id = dep.id
         LEFT JOIN users dep_u ON dep.assigned_to = dep_u.id
         ${where}
@@ -206,6 +208,17 @@ export class WorkTasksService {
         is_archived: Boolean(r.is_archived),
         checklist,
         completion_count: r.completion_count || 0,
+        requires_proof: Boolean(r.requires_proof),
+        requires_approval: Boolean(r.requires_approval),
+        proof_notes: r.proof_notes || null,
+        approval_status: r.approval_status || "none",
+        reviewed_by: r.reviewed_by || null,
+        reviewed_by_name: r.reviewed_by_name || null,
+        reviewed_at: r.reviewed_at || null,
+        review_feedback: r.review_feedback || null,
+        last_nudged_at: r.last_nudged_at || null,
+        nudge_count: r.nudge_count || 0,
+        template_id: r.template_id || null,
         created_at: r.created_at,
         updated_at: r.updated_at,
       });
@@ -227,6 +240,9 @@ export class WorkTasksService {
     created_by_name: string;
     depends_on_task_id?: number | null;
     checklist?: string[];
+    requires_proof?: boolean;
+    requires_approval?: boolean;
+    template_id?: number | null;
   }): WorkTask {
     const db = getDatabase();
     const todayStr = getTodayDateStr();
@@ -237,10 +253,12 @@ export class WorkTasksService {
           `
           INSERT INTO work_tasks (
             title, description, task_type, recurrence_rule, time_limit_minutes,
-            due_at, status, progress_pct, priority, assigned_to, created_by, depends_on_task_id
+            due_at, status, progress_pct, priority, assigned_to, created_by, depends_on_task_id,
+            requires_proof, requires_approval, approval_status, template_id
           ) VALUES (
             @title, @description, @task_type, @recurrence_rule, @time_limit_minutes,
-            @due_at, 'todo', 0, @priority, @assigned_to, @created_by, @depends_on_task_id
+            @due_at, 'todo', 0, @priority, @assigned_to, @created_by, @depends_on_task_id,
+            @requires_proof, @requires_approval, 'none', @template_id
           )
         `
         )
@@ -259,6 +277,9 @@ export class WorkTasksService {
           assigned_to: input.assigned_to,
           created_by: input.created_by,
           depends_on_task_id: input.depends_on_task_id || null,
+          requires_proof: input.requires_proof ? 1 : 0,
+          requires_approval: input.requires_approval ? 1 : 0,
+          template_id: input.template_id || null,
         });
 
       const taskId = Number(info.lastInsertRowid);
@@ -324,6 +345,7 @@ export class WorkTasksService {
       start_timer?: boolean;
       remind_dependency?: boolean;
       notes?: string;
+      proof_notes?: string;
       title?: string;
       due_at?: string | null;
       priority?: TaskPriority;
@@ -423,6 +445,10 @@ export class WorkTasksService {
       }
 
       if (nextStatus === "done") {
+        const finalProof = patch.proof_notes?.trim() || existing.proof_notes || patch.notes?.trim();
+        if (existing.requires_proof && !finalProof) {
+          throw new Error("Proof / completion notes are required before marking this task done.");
+        }
         nextProgress = 100;
         nextLastCompletedAt = new Date().toISOString();
         logAction = "completed";
@@ -430,11 +456,24 @@ export class WorkTasksService {
         nextProgress = 0;
         nextStartedAt = null;
       } else if (nextProgress >= 100 && patch.progress_pct !== undefined) {
+        const finalProof = patch.proof_notes?.trim() || existing.proof_notes || patch.notes?.trim();
+        if (existing.requires_proof && !finalProof) {
+          throw new Error("Proof / completion notes are required before marking this task done.");
+        }
         nextStatus = "done";
         nextLastCompletedAt = new Date().toISOString();
         logAction = "completed";
       } else if (nextProgress > 0 && nextStatus === "todo") {
         nextStatus = "in_progress";
+      }
+
+      const nextProofNotes =
+        patch.proof_notes !== undefined ? patch.proof_notes.trim() || null : existing.proof_notes;
+      let nextApprovalStatus = existing.approval_status || "none";
+      if (nextStatus === "done" && existing.requires_approval) {
+        nextApprovalStatus = "pending_review";
+      } else if (nextStatus !== "done" && existing.approval_status === "pending_review") {
+        nextApprovalStatus = "none";
       }
 
       let durationSeconds: number | null = null;
@@ -456,6 +495,8 @@ export class WorkTasksService {
           progress_pct = @progress_pct,
           started_at = @started_at,
           last_completed_at = @last_completed_at,
+          proof_notes = @proof_notes,
+          approval_status = @approval_status,
           updated_at = CURRENT_TIMESTAMP
         WHERE id = @id
       `
@@ -469,7 +510,30 @@ export class WorkTasksService {
         progress_pct: nextProgress,
         started_at: nextStartedAt,
         last_completed_at: nextLastCompletedAt,
+        proof_notes: nextProofNotes,
+        approval_status: nextApprovalStatus,
       });
+
+      // Auto-route approval request to assignee's Team Lead (or Admin fallback)
+      if (nextStatus === "done" && existing.requires_approval && existing.approval_status !== "pending_review") {
+        const assignee = db
+          .prepare(`SELECT name, team_lead_id FROM users WHERE id = ?`)
+          .get(existing.assigned_to) as { name?: string; team_lead_id?: string | null } | undefined;
+        const reviewerId = assignee?.team_lead_id || "usr_admin";
+        if (reviewerId !== actor.id) {
+          db.prepare(
+            `
+            INSERT INTO user_notifications (user_id, title, message, type, priority, metadata)
+            VALUES (?, ?, ?, 'task', 'high', ?)
+          `
+          ).run(
+            reviewerId,
+            "Task Ready for Sign-off",
+            `${assignee?.name || actor.name} completed "${existing.title}" and needs your approval.`,
+            JSON.stringify({ work_task_id: taskId, action: "pending_review" })
+          );
+        }
+      }
 
       db.prepare(
         `
@@ -618,5 +682,117 @@ export class WorkTasksService {
       },
       logs,
     };
+  }
+
+  static reviewWorkTask(
+    taskId: number,
+    reviewer: { id: string; name: string; role: string },
+    decision: "approved" | "revision_requested",
+    feedback?: string
+  ): WorkTask | null {
+    const db = getDatabase();
+    const existing = db.prepare(`SELECT * FROM work_tasks WHERE id = ?`).get(taskId) as any;
+    if (!existing) return null;
+
+    const assignee = db
+      .prepare(`SELECT name, team_lead_id FROM users WHERE id = ?`)
+      .get(existing.assigned_to) as { name?: string; team_lead_id?: string | null } | undefined;
+
+    if (
+      reviewer.role !== "admin" &&
+      !(reviewer.role === "team_lead" && (assignee?.team_lead_id === reviewer.id || !assignee?.team_lead_id))
+    ) {
+      throw new Error("Only the assigned Team Lead or Admin can review this task.");
+    }
+
+    const now = new Date().toISOString();
+    const todayStr = getTodayDateStr();
+
+    db.transaction(() => {
+      if (decision === "approved") {
+        db.prepare(
+          `UPDATE work_tasks SET approval_status = 'approved', reviewed_by = ?, reviewed_at = ?, review_feedback = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+        ).run(reviewer.id, now, feedback?.trim() || null, taskId);
+      } else {
+        db.prepare(
+          `UPDATE work_tasks SET status = 'in_progress', progress_pct = 75, approval_status = 'revision_requested', reviewed_by = ?, reviewed_at = ?, review_feedback = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+        ).run(reviewer.id, now, feedback?.trim() || "Revision requested by Team Lead.", taskId);
+      }
+
+      db.prepare(
+        `INSERT INTO work_task_logs (task_id, user_id, user_name, action, cycle_date, progress_pct, notes) VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ).run(
+        taskId,
+        reviewer.id,
+        reviewer.name,
+        decision === "approved" ? "approved" : "revision_requested",
+        todayStr,
+        decision === "approved" ? 100 : 75,
+        feedback?.trim() || null
+      );
+
+      db.prepare(
+        `INSERT INTO user_notifications (user_id, title, message, type, priority, metadata) VALUES (?, ?, ?, 'task', ?, ?)`
+      ).run(
+        existing.assigned_to,
+        decision === "approved" ? "Task Approved" : "Task Needs Revision",
+        decision === "approved"
+          ? `${reviewer.name} approved "${existing.title}".`
+          : `${reviewer.name} requested revision on "${existing.title}": ${feedback?.trim() || "Please review notes."}`,
+        decision === "approved" ? "normal" : "high",
+        JSON.stringify({ work_task_id: taskId, decision })
+      );
+    })();
+
+    SyncService.publish("task_updated", String(taskId));
+    return (
+      this.listWorkTasks({ canViewAll: true, includeArchived: true }).find((t) => t.id === taskId) ||
+      null
+    );
+  }
+
+  static nudgeWorkTask(
+    taskId: number,
+    actor: { id: string; name: string },
+    message?: string
+  ): WorkTask | null {
+    const db = getDatabase();
+    const existing = db.prepare(`SELECT * FROM work_tasks WHERE id = ?`).get(taskId) as any;
+    if (!existing) return null;
+
+    const now = new Date().toISOString();
+    const todayStr = getTodayDateStr();
+
+    db.transaction(() => {
+      db.prepare(
+        `UPDATE work_tasks SET last_nudged_at = ?, nudge_count = COALESCE(nudge_count, 0) + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+      ).run(now, taskId);
+
+      db.prepare(
+        `INSERT INTO work_task_logs (task_id, user_id, user_name, action, cycle_date, progress_pct, notes) VALUES (?, ?, ?, 'nudged', ?, ?, ?)`
+      ).run(
+        taskId,
+        actor.id,
+        actor.name,
+        todayStr,
+        existing.progress_pct || 0,
+        message?.trim() || "Overdue task nudge sent"
+      );
+
+      db.prepare(
+        `INSERT INTO user_notifications (user_id, title, message, type, priority, metadata) VALUES (?, ?, ?, 'task', 'urgent', ?)`
+      ).run(
+        existing.assigned_to,
+        "Overdue Task Nudge",
+        `${actor.name} nudged you on "${existing.title}"${message?.trim() ? `: ${message.trim()}` : "."}`,
+        JSON.stringify({ work_task_id: taskId, nudged: true })
+      );
+    })();
+
+    SyncService.publish("task_updated", String(taskId));
+    return (
+      this.listWorkTasks({ canViewAll: true, includeArchived: true }).find((t) => t.id === taskId) ||
+      null
+    );
   }
 }

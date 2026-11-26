@@ -13,6 +13,8 @@ export interface User {
   last_login_location?: string | null;
   deactivated_at?: string | null;
   deactivated_by?: string | null;
+  team_lead_id?: string | null;
+  team_lead_name?: string | null;
   created_at: string;
 }
 
@@ -258,8 +260,88 @@ export interface WorkTask {
   is_archived: boolean;
   checklist?: WorkTaskChecklistItem[];
   completion_count?: number;
+  requires_proof?: boolean;
+  requires_approval?: boolean;
+  proof_notes?: string | null;
+  approval_status?: 'none' | 'pending_review' | 'approved' | 'revision_requested';
+  reviewed_by?: string | null;
+  reviewed_by_name?: string | null;
+  reviewed_at?: string | null;
+  review_feedback?: string | null;
+  last_nudged_at?: string | null;
+  nudge_count?: number;
+  template_id?: number | null;
   created_at: string;
   updated_at: string;
+}
+
+export type PresenceStatus = 'available' | 'on_calls' | 'break' | 'wrap_up' | 'offline';
+
+export interface DailyAutoStats {
+  callsMade: number;
+  connectedCalls: number;
+  whatsappSent: number;
+  tasksCompleted: number;
+  conversions: number;
+}
+
+export interface DailyCheckin {
+  id: number;
+  user_id: string;
+  checkin_date: string;
+  presence_status: PresenceStatus;
+  morning_focus: string | null;
+  checked_in_at: string | null;
+  eod_submitted_at: string | null;
+  eod_notes: string | null;
+  eod_blockers: string | null;
+  eod_auto_stats?: DailyAutoStats | null;
+  updated_at: string;
+}
+
+export interface DailyTarget {
+  id?: number;
+  user_id: string | null;
+  calls_target: number;
+  connected_target: number;
+  whatsapp_target: number;
+  tasks_target: number;
+  conversions_target: number;
+  is_override?: boolean;
+}
+
+export interface WorkTaskTemplate {
+  id: number;
+  title: string;
+  description: string | null;
+  task_type: WorkTaskType;
+  recurrence_rule: WorkTaskRecurrence | null;
+  time_limit_minutes: number | null;
+  priority: TaskPriority;
+  requires_proof: boolean;
+  requires_approval: boolean;
+  playbook_slot: 'morning' | 'midday' | 'evening' | 'custom';
+  checklist: string[];
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface TeamFloorMember {
+  user: User;
+  checkin: DailyCheckin | null;
+  autoStats: DailyAutoStats;
+  target: DailyTarget;
+  tasks: {
+    todo: number;
+    inProgress: number;
+    overdue: number;
+    pendingReview: number;
+    completedToday: number;
+    nudged: number;
+  };
+  freshLeadsRemaining: number;
+  bottlenecks: string[];
 }
 
 export interface WorkTaskLog {
@@ -371,6 +453,12 @@ export type BackgroundJobType =
 
 export type BackgroundJobStatus = 'queued' | 'running' | 'completed' | 'failed';
 
+export interface BackgroundJobLogEntry {
+  ts: string;
+  level: 'info' | 'warn' | 'error';
+  message: string;
+}
+
 export interface BackgroundJob {
   id: string;
   job_type: BackgroundJobType;
@@ -382,6 +470,7 @@ export interface BackgroundJob {
   skipped_count: number;
   error_message?: string | null;
   result_summary?: Record<string, any> | null;
+  logs?: BackgroundJobLogEntry[];
   created_by?: string | null;
   created_by_name?: string | null;
   created_at: string;

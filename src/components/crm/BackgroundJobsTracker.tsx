@@ -12,6 +12,7 @@ import {
   Layers,
   ChevronUp,
   ChevronDown,
+  Terminal,
   X,
 } from "lucide-react";
 
@@ -22,6 +23,7 @@ interface BackgroundJobsTrackerProps {
 export function BackgroundJobsTracker({ onJobCompleted }: BackgroundJobsTrackerProps) {
   const [jobs, setJobs] = useState<BackgroundJob[]>([]);
   const [expanded, setExpanded] = useState(false);
+  const [openLogsMap, setOpenLogsMap] = useState<Record<string, boolean>>({});
   const [dismissed, setDismissed] = useState(false);
   const prevActiveIdsRef = useRef<Set<string>>(new Set());
 
@@ -80,7 +82,7 @@ export function BackgroundJobsTracker({ onJobCompleted }: BackgroundJobsTrackerP
       : 0;
 
   return (
-    <div className="fixed bottom-16 sm:bottom-4 right-3 sm:right-4 z-40 w-[calc(100%-1.5rem)] sm:w-80">
+    <div className="fixed bottom-16 sm:bottom-4 right-3 sm:right-4 z-40 w-[calc(100%-1.5rem)] sm:w-96">
       <div className="bg-card/95 backdrop-blur-md border border-border/80 rounded-2xl shadow-2xl overflow-hidden">
         {/* Compact Header Pill */}
         <div
@@ -188,6 +190,53 @@ export function BackgroundJobsTracker({ onJobCompleted }: BackgroundJobsTrackerP
                     <div className="text-[11px] text-rose-600 flex items-center gap-1">
                       <AlertCircle className="w-3 h-3 shrink-0" />
                       <span className="truncate">{job.error_message || "Job failed"}</span>
+                    </div>
+                  )}
+
+                  {/* Job Activity Log Box */}
+                  {job.logs && job.logs.length > 0 && (
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenLogsMap((prev) => ({
+                            ...prev,
+                            [job.id]: !(prev[job.id] ?? (job.status === "running" || job.status === "failed")),
+                          }))
+                        }
+                        className="text-[10px] font-semibold text-indigo-600 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Terminal className="w-3 h-3" />
+                        <span>
+                          {(openLogsMap[job.id] ?? (job.status === "running" || job.status === "failed"))
+                            ? "Hide Task Logs"
+                            : `View Task Logs (${job.logs.length})`}
+                        </span>
+                      </button>
+
+                      {(openLogsMap[job.id] ?? (job.status === "running" || job.status === "failed")) && (
+                        <div className="mt-1.5 rounded-lg bg-slate-950 text-slate-100 p-2 font-mono text-[10px] max-h-28 overflow-y-auto space-y-1 border border-slate-800">
+                          {job.logs.map((entry, idx) => (
+                            <div key={idx} className="leading-tight break-words">
+                              <span className="text-slate-500 mr-1.5">
+                                [{new Date(entry.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}]
+                              </span>
+                              <span
+                                className={
+                                  entry.level === "error"
+                                    ? "text-rose-400 font-semibold"
+                                    : entry.level === "warn"
+                                    ? "text-amber-400"
+                                    : "text-emerald-400"
+                                }
+                              >
+                                {entry.level.toUpperCase()}:
+                              </span>{" "}
+                              <span className="text-slate-200">{entry.message}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

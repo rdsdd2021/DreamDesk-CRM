@@ -35,6 +35,7 @@ import { BulkAssignModal } from "@/components/crm/BulkAssignModal";
 import { BulkTagsModal } from "@/components/crm/BulkTagsModal";
 import { BulkCampaignModal } from "@/components/crm/BulkCampaignModal";
 import { NotificationBell } from "@/components/crm/NotificationBell";
+import { DailyPresencePill } from "@/components/crm/DailyCheckinBanner";
 import { EnhancedLeadDrawer } from "@/components/crm/EnhancedLeadDrawer";
 import { TasksModal } from "@/components/crm/TasksModal";
 import { DuplicatesModal } from "@/components/crm/DuplicatesModal";
@@ -1578,6 +1579,9 @@ export default function CRMPage() {
 
           {/* Right Header Actions */}
           <div className="flex items-center gap-2">
+            {/* Live Presence Status Pill */}
+            {currentUser && <DailyPresencePill />}
+
             {/* Notification Bell Dropdown */}
             <NotificationBell
               currentUser={currentUser}

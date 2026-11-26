@@ -37,6 +37,15 @@ graph TD
 
 ---
 
+## Streaming Large CSV Ingestion & Background Job Console (`v1.3.5`)
+
+- **Browser-Safe Upload (`ImportModal.tsx`)**: Parses only a 25-row preview in-browser for instant header detection and streams the raw CSV via `multipart/form-data` with a live upload progress bar.
+- **Server-Side Background Execution (`/api/leads/import`, `JobsService`)**: Streams incoming files to disk (`data/uploads/`), enqueues a persistent SQLite `background_jobs` record, ingests in 500-row chunks via `Papa.parse`, and cleans up temporary files automatically — continuing even if the user closes the browser.
+- **Live Task Log Console (`BackgroundJobsTracker.tsx`)**: Displays live progress bars alongside a terminal-style log viewer (`INFO`, `WARN`, `ERROR`) persisted in `background_jobs.logs`.
+```
+
+---
+
 ## 2. Component 1: Intelligent Header Auto-Mapping
 
 When an operator uploads a CSV or Excel sheet:

@@ -36,6 +36,8 @@ import {
   Check,
 } from "lucide-react";
 
+import { TeamFloorPanel } from "@/components/crm/TeamFloorPanel";
+
 interface TeamWorkspaceProps {
   users: User[];
   totalCount: number;
@@ -67,6 +69,7 @@ export function TeamWorkspace({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("counselor");
+  const [teamLeadId, setTeamLeadId] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -106,6 +109,7 @@ export function TeamWorkspace({
           name: name.trim(),
           email: email.trim(),
           role,
+          team_lead_id: teamLeadId || null,
           password: password.trim() || undefined,
         }),
       });
@@ -114,6 +118,7 @@ export function TeamWorkspace({
 
       setName("");
       setEmail("");
+      setTeamLeadId("");
       setPassword("");
       setShowPassword(false);
       setShowAddForm(false);
@@ -191,6 +196,32 @@ export function TeamWorkspace({
       else onUserAdded();
     } catch (err: any) {
       setError(err.message || "Failed to update user status");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleUpdateTeamLead = async (userId: string, nextLeadId: string) => {
+    setActionLoadingId(userId);
+    setError(null);
+    try {
+      const res = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          action: "assign_team_lead",
+          team_lead_id: nextLeadId || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update Team Lead");
+      setSuccessMsg("Team Lead pod assignment updated.");
+      setTimeout(() => setSuccessMsg(null), 3500);
+      if (onUserUpdated) onUserUpdated();
+      else onUserAdded();
+    } catch (err: any) {
+      setError(err.message || "Failed to update Team Lead");
     } finally {
       setActionLoadingId(null);
     }
@@ -357,6 +388,25 @@ export function TeamWorkspace({
             </div>
 
             <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground">Reports To (Team Lead)</label>
+              <select
+                value={teamLeadId}
+                onChange={(e) => setTeamLeadId(e.target.value)}
+                disabled={role === "admin"}
+                className="w-full h-8 rounded-lg border border-border/80 bg-background px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+              >
+                <option value="">Unassigned (Default Admin)</option>
+                {users
+                  .filter((u) => u.status === "active" && ["team_lead", "admin", "senior_counselor"].includes(u.role))
+                  .map((tl) => (
+                    <option key={tl.id} value={tl.id}>
+                      {tl.name} ({tl.role.replace("_", " ")})
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-muted-foreground">Initial Password</label>
                 <span className="text-[10px] text-muted-foreground">Optional</span>
@@ -407,6 +457,9 @@ export function TeamWorkspace({
           </div>
         </form>
       )}
+
+      {/* Live Team Floor & Daily Standup */}
+      <TeamFloorPanel users={users} currentUser={currentUser} />
 
       {/* Counselor Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -463,6 +516,39 @@ export function TeamWorkspace({
                   </div>
                   <Progress value={isDeactivated ? 0 : percentage} className="h-1.5" />
                 </div>
+
+                {/* Team Lead Pod Assignment */}
+                {user.role !== "admin" && (
+                  <div className="flex items-center justify-between gap-2 text-[11px] pt-1">
+                    <span className="text-muted-foreground font-medium">Reports To:</span>
+                    {canManageTeam ? (
+                      <select
+                        value={user.team_lead_id || ""}
+                        disabled={isActionLoading}
+                        onChange={(e) => handleUpdateTeamLead(user.id, e.target.value)}
+                        className="h-6 rounded border border-border/80 bg-background px-1.5 text-[11px] text-foreground max-w-[165px]"
+                      >
+                        <option value="">Unassigned (Admin)</option>
+                        {users
+                          .filter(
+                            (u) =>
+                              u.id !== user.id &&
+                              u.status === "active" &&
+                              ["team_lead", "admin", "senior_counselor"].includes(u.role)
+                          )
+                          .map((tl) => (
+                            <option key={tl.id} value={tl.id}>
+                              {tl.name} ({tl.role.replace("_", " ")})
+                            </option>
+                          ))}
+                      </select>
+                    ) : (
+                      <span className="font-medium text-foreground">
+                        {user.team_lead_name || "Admin"}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {/* Audit & Location Telemetry Box */}
                 <div className="pt-2.5 border-t border-border/50 text-xs space-y-1.5">

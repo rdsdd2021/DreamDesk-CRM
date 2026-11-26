@@ -93,7 +93,7 @@ export function ProfileScreen() {
           <Text style={styles.sectionTitle}>ABOUT DREAMDESK MOBILE</Text>
         </View>
         <Text style={styles.aboutText}>
-          DreamDesk Native Telecaller Suite v1.3.3{"\n"}
+          DreamDesk Native Telecaller Suite v1.3.6{"\n"}
           Optimized for low-RAM devices, 60fps gesture rendering, and direct Android telephony integration.
         </Text>
       </View>
