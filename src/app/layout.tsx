@@ -25,8 +25,9 @@ export const metadata: Metadata = {
     title: "DreamDesk CRM",
   },
   icons: {
-    icon: "/icons/icon-192.png",
-    apple: "/icons/icon-192.png",
+    icon: "/logo.png",
+    shortcut: "/logo.png",
+    apple: "/logo.png",
   },
 };
 
