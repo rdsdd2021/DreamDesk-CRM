@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Lead,
@@ -579,9 +579,12 @@ export default function CRMPage() {
     [pageSize, sortBy, sortOrder, debouncedSearch, selectedFacets, roleMode, activeCounselorId]
   );
 
-  // Load Leads with Filters
-  const fetchLeads = useCallback(async () => {
-    setLoading(true);
+  // Load Leads with Filters (silent=true avoids flashing loading skeletons during background sync)
+  const lastLocalMutationRef = useRef<number>(0);
+  const syncDebounceRef = useRef<any>(null);
+
+  const fetchLeads = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const params = getFilterQueryParams(page);
       const res = await fetch(`/api/leads?${params.toString()}`);
@@ -607,9 +610,9 @@ export default function CRMPage() {
       }
     } catch (err) {
       console.error("Failed to fetch leads:", err);
-      showToast("Error retrieving leads", "error");
+      if (!silent) showToast("Error retrieving leads", "error");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [page, getFilterQueryParams, router]);
 
@@ -617,17 +620,19 @@ export default function CRMPage() {
     fetchLeads();
   }, [fetchLeads]);
 
-  // Realtime Sync Engine: Listen for live updates from other counselors or background operations
+  // Realtime Sync Engine: Debounced & silent, ignoring self-triggered mutations within 2s
   const handleRealtimeLeadSync = useCallback(() => {
-    fetchLeads();
-    loadMetaAndUsers();
-  }, [fetchLeads, loadMetaAndUsers]);
+    if (Date.now() - lastLocalMutationRef.current < 2000) {
+      return;
+    }
+    if (syncDebounceRef.current) clearTimeout(syncDebounceRef.current);
+    syncDebounceRef.current = setTimeout(() => {
+      fetchLeads(true);
+    }, 600);
+  }, [fetchLeads]);
 
   useRealtimeSync({
     onLeadChange: handleRealtimeLeadSync,
-    onTaskChange: () => {
-      loadMetaAndUsers();
-    },
     enabled: true,
   });
 
@@ -709,13 +714,31 @@ export default function CRMPage() {
     }
   };
 
-  // Fast In-Table Call Outcome Logging
+  // Fast In-Table Call Outcome Logging (0ms optimistic update)
   const handleQuickDispositionChange = async (
     leadId: number,
     dispositionId: string,
     extra?: { call_outcome?: string; callback_at?: string; notes?: string; sub_disposition_id?: string }
   ) => {
     const disp = dispositions.find((d) => d.id === dispositionId);
+    lastLocalMutationRef.current = Date.now();
+
+    // Instant optimistic UI update
+    if (disp) {
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadId
+            ? {
+                ...l,
+                disposition_id: disp.id,
+                disposition_name: disp.name,
+                disposition_color: disp.color,
+              }
+            : l
+        )
+      );
+    }
+
     try {
       const res = await fetch(`/api/leads/${leadId}/disposition`, {
         method: "PATCH",
@@ -729,6 +752,7 @@ export default function CRMPage() {
         }),
       });
       if (!res.ok) throw new Error("Failed to update disposition");
+      lastLocalMutationRef.current = Date.now();
       const updatedLead = await res.json();
       setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, ...updatedLead } : l)));
 
@@ -740,7 +764,7 @@ export default function CRMPage() {
       }
     } catch (err: any) {
       showToast(err.message || "Failed to update disposition", "error");
-      fetchLeads();
+      fetchLeads(true);
     }
   };
 
@@ -2194,6 +2218,7 @@ export default function CRMPage() {
         onAssignLead={handleAssignSingleLead}
         onLeadUpdated={(rawUpdatedLead, isAdvancing) => {
           if (!rawUpdatedLead) return;
+          lastLocalMutationRef.current = Date.now();
           const updatedLead: Lead = (rawUpdatedLead as any).lead || rawUpdatedLead;
           if (!updatedLead || !updatedLead.id) return;
 

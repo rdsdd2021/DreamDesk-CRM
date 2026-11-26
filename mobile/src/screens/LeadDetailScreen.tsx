@@ -289,8 +289,18 @@ export function LeadDetailScreen({ route }: any) {
           setIsRapidLoggerOpen(false);
           setCallDuration(0);
         }}
-        onSuccess={() => {
-          fetchLeadDetails(true);
+        onSuccess={(updatedLead) => {
+          if (updatedLead?.id) {
+            setLead((prev) => (prev ? { ...prev, ...updatedLead } : updatedLead));
+          }
+          // Silently refresh timeline in background without blocking
+          MobileApiClient.fetchJson<{ activities: ActivityItem[] }>(
+            `/api/leads/${lead.id}/activities`
+          ).then(({ data }) => {
+            if (Array.isArray(data?.activities)) {
+              setActivities(data.activities);
+            }
+          });
         }}
       />
     </View>

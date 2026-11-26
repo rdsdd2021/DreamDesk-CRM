@@ -86,11 +86,47 @@ export function TasksScreen({ navigation }: any) {
   const loadTasks = useCallback(async (isPull = false) => {
     try {
       if (!isPull && tasks.length === 0) setLoading(true);
-      const { data } = await MobileApiClient.fetchJson<{ tasks: MobileTask[] }>("/api/tasks");
+      const { data } = await MobileApiClient.fetchJson<{
+        tasks?: MobileTask[];
+        overdue?: any[];
+        today?: any[];
+        upcoming?: any[];
+        completed?: any[];
+      }>("/api/tasks");
+
+      const normalize = (t: any, completedFlag?: boolean): MobileTask => ({
+        ...t,
+        is_completed:
+          completedFlag !== undefined
+            ? completedFlag
+              ? 1
+              : 0
+            : t.status === "completed" || Boolean(t.is_completed)
+            ? 1
+            : 0,
+      });
+
+      let merged: MobileTask[] = [];
       if (Array.isArray(data?.tasks)) {
-        setTasks(data.tasks);
-        MobileCache.set("tasks_list", data.tasks);
+        merged = data.tasks.map((t) => normalize(t));
+      } else if (data) {
+        const seen = new Set<number>();
+        const pushList = (arr: any[] | undefined, done: boolean) => {
+          for (const item of arr || []) {
+            if (!seen.has(item.id)) {
+              seen.add(item.id);
+              merged.push(normalize(item, done));
+            }
+          }
+        };
+        pushList(data.overdue, false);
+        pushList(data.today, false);
+        pushList(data.upcoming, false);
+        pushList(data.completed, true);
       }
+
+      setTasks(merged);
+      MobileCache.set("tasks_list", merged);
     } catch {
       // ignore
     } finally {
@@ -132,21 +168,50 @@ export function TasksScreen({ navigation }: any) {
   }, [loadTasks, loadWorkTasks]);
 
   const handleToggleComplete = async (task: MobileTask) => {
+    const nextVal = task.is_completed ? 0 : 1;
+    const nextStatus = nextVal ? "completed" : "pending";
     try {
-      const nextVal = task.is_completed ? 0 : 1;
       setTasks((prev) =>
         prev.map((t) => (t.id === task.id ? { ...t, is_completed: nextVal } : t))
       );
-      await MobileApiClient.fetchJson(`/api/tasks/${task.id}`, {
+      const { error } = await MobileApiClient.fetchJson(`/api/tasks/${task.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ is_completed: nextVal }),
+        body: JSON.stringify({ status: nextStatus }),
       });
+      if (error) {
+        throw new Error(error.message);
+      }
     } catch {
-      loadTasks();
+      loadTasks(true);
     }
   };
 
   const handlePatchWorkTask = async (taskId: number, payload: Record<string, any>) => {
+    // Instant optimistic UI update for 0ms responsiveness
+    if (!payload.remind_dependency) {
+      setWorkTasks((prev) =>
+        prev.map((t) => {
+          if (t.id !== taskId) return t;
+          const nextStatus =
+            payload.status ??
+            (payload.progress_pct >= 100
+              ? "done"
+              : payload.progress_pct > 0 && t.status === "todo"
+              ? "in_progress"
+              : t.status);
+          const nextPct =
+            payload.progress_pct !== undefined
+              ? payload.progress_pct
+              : payload.status === "done"
+              ? 100
+              : payload.status === "todo"
+              ? 0
+              : t.progress_pct;
+          return { ...t, status: nextStatus, progress_pct: nextPct };
+        })
+      );
+    }
+
     const { data, error } = await MobileApiClient.fetchJson<{ task: MobileWorkTask }>(
       `/api/work-tasks/${taskId}`,
       {
@@ -156,10 +221,15 @@ export function TasksScreen({ navigation }: any) {
     );
     if (error) {
       Alert.alert("Update Failed", error.message);
+      loadWorkTasks(true);
       return;
     }
     if (data?.task) {
-      setWorkTasks((prev) => prev.map((t) => (t.id === taskId ? data.task : t)));
+      setWorkTasks((prev) => {
+        const next = prev.map((t) => (t.id === taskId ? data.task : t));
+        MobileCache.set("work_tasks_list", next);
+        return next;
+      });
     }
     if (payload.remind_dependency) {
       Alert.alert("Reminder Sent", "The linked task owner has been notified.");

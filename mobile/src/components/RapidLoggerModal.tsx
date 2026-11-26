@@ -28,7 +28,7 @@ interface RapidLoggerModalProps {
   studentName: string;
   dispositions: DispositionOption[];
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (updatedLead?: any) => void;
   initialDurationSeconds?: number;
 }
 
@@ -90,7 +90,7 @@ export function RapidLoggerModal({
     try {
       setSubmitting(true);
       const callbackAt = computeCallbackIso(callbackPreset);
-      const { error } = await MobileApiClient.fetchJson<{ success: boolean }>(
+      const { data, error } = await MobileApiClient.fetchJson<{ success: boolean; lead?: any }>(
         `/api/leads/${leadId}/disposition`,
         {
           method: "POST",
@@ -109,7 +109,7 @@ export function RapidLoggerModal({
         return;
       }
 
-      onSuccess();
+      onSuccess(data?.lead || data);
       onClose();
     } catch (err: any) {
       Alert.alert("Error", err?.message || "Failed to log disposition");

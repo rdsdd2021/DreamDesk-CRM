@@ -10,10 +10,15 @@ export interface ApiResponse<T> {
 }
 
 export class MobileApiClient {
+  private static cachedServerUrl: string | null = null;
+  private static cachedCookie: string | null | undefined = undefined;
+
   static async getServerUrl(): Promise<string> {
+    if (this.cachedServerUrl) return this.cachedServerUrl;
     try {
       const url = await AsyncStorage.getItem(SERVER_URL_KEY);
-      return url || DEFAULT_SERVER_URL;
+      this.cachedServerUrl = url || DEFAULT_SERVER_URL;
+      return this.cachedServerUrl;
     } catch {
       return DEFAULT_SERVER_URL;
     }
@@ -21,18 +26,22 @@ export class MobileApiClient {
 
   static async setServerUrl(url: string): Promise<void> {
     const trimmed = url.trim().replace(/\/+$/, "");
+    this.cachedServerUrl = trimmed;
     await AsyncStorage.setItem(SERVER_URL_KEY, trimmed);
   }
 
   static async getSessionCookie(): Promise<string | null> {
+    if (this.cachedCookie !== undefined) return this.cachedCookie;
     try {
-      return await AsyncStorage.getItem(SESSION_COOKIE_KEY);
+      this.cachedCookie = await AsyncStorage.getItem(SESSION_COOKIE_KEY);
+      return this.cachedCookie;
     } catch {
       return null;
     }
   }
 
   static async setSessionCookie(cookie: string | null): Promise<void> {
+    this.cachedCookie = cookie;
     if (cookie) {
       await AsyncStorage.setItem(SESSION_COOKIE_KEY, cookie);
     } else {
@@ -45,13 +54,15 @@ export class MobileApiClient {
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     try {
-      const baseUrl = await this.getServerUrl();
-      const cookie = await this.getSessionCookie();
+      const [baseUrl, cookie] = await Promise.all([
+        this.getServerUrl(),
+        this.getSessionCookie(),
+      ]);
 
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
         Accept: "application/json",
-        ...(options.headers as Record<string, string> || {}),
+        ...((options.headers as Record<string, string>) || {}),
       };
 
       if (cookie) {
@@ -66,7 +77,6 @@ export class MobileApiClient {
         headers,
       });
 
-      // Intercept set-cookie header on login
       const setCookie = res.headers.get("set-cookie");
       if (setCookie && setCookie.includes("dreamdesk_session=")) {
         const match = setCookie.match(/dreamdesk_session=([^;]+)/);

@@ -327,8 +327,20 @@ export function LeadsScreen({ navigation }: any) {
             setIsRapidLoggerOpen(false);
             setActiveCallLead(null);
           }}
-          onSuccess={() => {
-            fetchLeads(1, true);
+          onSuccess={(updatedLead) => {
+            if (updatedLead?.id) {
+              setLeads((prev) => {
+                const next = prev.map((l) =>
+                  l.id === updatedLead.id ? { ...l, ...updatedLead } : l
+                );
+                if (!debouncedSearch && Object.keys(filters).length === 0) {
+                  MobileCache.set("leads_default", next);
+                }
+                return next;
+              });
+            } else {
+              fetchLeads(1, true);
+            }
           }}
         />
       )}
