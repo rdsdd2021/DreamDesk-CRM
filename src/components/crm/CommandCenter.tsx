@@ -33,6 +33,8 @@ interface CommandCenterProps {
   onSelectLead: (lead: Lead) => void;
   onOpenImport: () => void;
   onOpenGenerate?: () => void;
+  allowedViews?: string[];
+  canImportLeads?: boolean;
 }
 
 export function CommandCenter({
@@ -42,7 +44,10 @@ export function CommandCenter({
   onSelectLead,
   onOpenImport,
   onOpenGenerate,
+  allowedViews = ["leads"],
+  canImportLeads = false,
 }: CommandCenterProps) {
+  const canView = (view: string) => allowedViews.includes(view);
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(false);
@@ -130,125 +135,162 @@ export function CommandCenter({
 
         <CommandSeparator />
 
-        {/* Navigation Views */}
-        <CommandGroup heading="Navigation">
-          <CommandItem
-            onSelect={() => {
-              onSelectView("leads");
-              onOpenChange(false);
-            }}
-            className="text-xs cursor-pointer"
-          >
-            <GraduationCap className="w-4 h-4 mr-2 text-primary" />
-            <span>Leads Workspace (DataGrid)</span>
-          </CommandItem>
+        {/* Navigation Views (Strictly filtered by role allowedViews) */}
+        {allowedViews.length > 0 && (
+          <CommandGroup heading="Navigation">
+            {canView("leads") && (
+              <CommandItem
+                onSelect={() => {
+                  onSelectView("leads");
+                  onOpenChange(false);
+                }}
+                className="text-xs cursor-pointer"
+              >
+                <GraduationCap className="w-4 h-4 mr-2 text-primary" />
+                <span>Leads Workspace</span>
+              </CommandItem>
+            )}
 
-          <CommandItem
-            onSelect={() => {
-              onSelectView("dashboard");
-              onOpenChange(false);
-            }}
-            className="text-xs cursor-pointer"
-          >
-            <LayoutDashboard className="w-4 h-4 mr-2 text-blue-500" />
-            <span>Dashboard & Analytics</span>
-          </CommandItem>
+            {canView("tasks") && (
+              <CommandItem
+                onSelect={() => {
+                  onSelectView("tasks");
+                  onOpenChange(false);
+                }}
+                className="text-xs cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 mr-2 text-amber-500" />
+                <span>Tasks & Callbacks</span>
+              </CommandItem>
+            )}
 
-          <CommandItem
-            onSelect={() => {
-              onSelectView("pipeline");
-              onOpenChange(false);
-            }}
-            className="text-xs cursor-pointer"
-          >
-            <Kanban className="w-4 h-4 mr-2 text-violet-500" />
-            <span>Pipeline & Kanban Board</span>
-          </CommandItem>
+            {canView("dashboard") && (
+              <CommandItem
+                onSelect={() => {
+                  onSelectView("dashboard");
+                  onOpenChange(false);
+                }}
+                className="text-xs cursor-pointer"
+              >
+                <LayoutDashboard className="w-4 h-4 mr-2 text-blue-500" />
+                <span>Dashboard & Analytics</span>
+              </CommandItem>
+            )}
 
-          <CommandItem
-            onSelect={() => {
-              onSelectView("campaigns");
-              onOpenChange(false);
-            }}
-            className="text-xs cursor-pointer"
-          >
-            <Target className="w-4 h-4 mr-2 text-amber-500" />
-            <span>Campaigns & Sources</span>
-          </CommandItem>
+            {canView("pipeline") && (
+              <CommandItem
+                onSelect={() => {
+                  onSelectView("pipeline");
+                  onOpenChange(false);
+                }}
+                className="text-xs cursor-pointer"
+              >
+                <Kanban className="w-4 h-4 mr-2 text-violet-500" />
+                <span>Pipeline & Kanban Board</span>
+              </CommandItem>
+            )}
 
-          <CommandItem
-            onSelect={() => {
-              onSelectView("dispositions");
-              onOpenChange(false);
-            }}
-            className="text-xs cursor-pointer"
-          >
-            <Phone className="w-4 h-4 mr-2 text-rose-500" />
-            <span>Call Outcomes & Dispositions</span>
-          </CommandItem>
+            {canView("campaigns") && (
+              <CommandItem
+                onSelect={() => {
+                  onSelectView("campaigns");
+                  onOpenChange(false);
+                }}
+                className="text-xs cursor-pointer"
+              >
+                <Target className="w-4 h-4 mr-2 text-amber-500" />
+                <span>Campaigns & Sources</span>
+              </CommandItem>
+            )}
 
-          <CommandItem
-            onSelect={() => {
-              onSelectView("whatsapp");
-              onOpenChange(false);
-            }}
-            className="text-xs cursor-pointer"
-          >
-            <MessageSquare className="w-4 h-4 mr-2 text-emerald-500" />
-            <span>WhatsApp Templates Studio</span>
-          </CommandItem>
+            {canView("dispositions") && (
+              <CommandItem
+                onSelect={() => {
+                  onSelectView("dispositions");
+                  onOpenChange(false);
+                }}
+                className="text-xs cursor-pointer"
+              >
+                <Phone className="w-4 h-4 mr-2 text-rose-500" />
+                <span>Call Outcomes & Dispositions</span>
+              </CommandItem>
+            )}
 
-          <CommandItem
-            onSelect={() => {
-              onSelectView("fields");
-              onOpenChange(false);
-            }}
-            className="text-xs cursor-pointer"
-          >
-            <SlidersHorizontal className="w-4 h-4 mr-2 text-emerald-500" />
-            <span>Dynamic Schema & Fields Builder</span>
-          </CommandItem>
+            {canView("whatsapp") && (
+              <CommandItem
+                onSelect={() => {
+                  onSelectView("whatsapp");
+                  onOpenChange(false);
+                }}
+                className="text-xs cursor-pointer"
+              >
+                <MessageSquare className="w-4 h-4 mr-2 text-emerald-500" />
+                <span>WhatsApp Templates Studio</span>
+              </CommandItem>
+            )}
 
-          <CommandItem
-            onSelect={() => {
-              onSelectView("team");
-              onOpenChange(false);
-            }}
-            className="text-xs cursor-pointer"
-          >
-            <Users className="w-4 h-4 mr-2 text-indigo-500" />
-            <span>Counselors & Team Workload</span>
-          </CommandItem>
-        </CommandGroup>
+            {canView("fields") && (
+              <CommandItem
+                onSelect={() => {
+                  onSelectView("fields");
+                  onOpenChange(false);
+                }}
+                className="text-xs cursor-pointer"
+              >
+                <SlidersHorizontal className="w-4 h-4 mr-2 text-emerald-500" />
+                <span>Dynamic Schema & Fields Builder</span>
+              </CommandItem>
+            )}
 
-        <CommandSeparator />
+            {canView("team") && (
+              <CommandItem
+                onSelect={() => {
+                  onSelectView("team");
+                  onOpenChange(false);
+                }}
+                className="text-xs cursor-pointer"
+              >
+                <Users className="w-4 h-4 mr-2 text-indigo-500" />
+                <span>Counselors & Team Workload</span>
+              </CommandItem>
+            )}
+          </CommandGroup>
+        )}
 
-        {/* Quick Operations */}
-        <CommandGroup heading="Quick Operations">
-          <CommandItem
-            onSelect={() => {
-              onOpenImport();
-              onOpenChange(false);
-            }}
-            className="text-xs cursor-pointer"
-          >
-            <Upload className="w-4 h-4 mr-2 text-emerald-500" />
-            <span>Import Student Leads from CSV</span>
-          </CommandItem>
+        {(canImportLeads || onOpenGenerate) && (
+          <>
+            <CommandSeparator />
 
-          {onOpenGenerate && (
-            <CommandItem
-              onSelect={() => {
-                onOpenGenerate();
-                onOpenChange(false);
-              }}
-              className="text-xs cursor-pointer"
-            >
-              <Sparkles className="w-4 h-4 mr-2 text-primary" />
-              <span>Generate Synthetic Test Data</span>
-            </CommandItem>
-          )}
-        </CommandGroup>
+            {/* Quick Operations */}
+            <CommandGroup heading="Quick Operations">
+              {canImportLeads && canView("import") && (
+                <CommandItem
+                  onSelect={() => {
+                    onOpenImport();
+                    onOpenChange(false);
+                  }}
+                  className="text-xs cursor-pointer"
+                >
+                  <Upload className="w-4 h-4 mr-2 text-emerald-500" />
+                  <span>Import Student Leads from CSV</span>
+                </CommandItem>
+              )}
+
+              {onOpenGenerate && (
+                <CommandItem
+                  onSelect={() => {
+                    onOpenGenerate();
+                    onOpenChange(false);
+                  }}
+                  className="text-xs cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4 mr-2 text-primary" />
+                  <span>Generate Synthetic Test Data</span>
+                </CommandItem>
+              )}
+            </CommandGroup>
+          </>
+        )}
       </CommandList>
     </CommandDialog>
   );

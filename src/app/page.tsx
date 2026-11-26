@@ -177,6 +177,21 @@ export default function CRMPage() {
   const [isCommandCenterOpen, setIsCommandCenterOpen] = useState(false);
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
 
+  const canAccessView = useCallback(
+    (viewId: string) => {
+      if (!permissions?.allowedViews) return viewId === "leads";
+      if (viewId === "studio") return permissions.allowedViews.includes("campaigns");
+      return permissions.allowedViews.includes(viewId);
+    },
+    [permissions]
+  );
+
+  useEffect(() => {
+    if (permissions?.allowedViews && !canAccessView(currentView)) {
+      setCurrentView("leads");
+    }
+  }, [permissions, currentView, canAccessView]);
+
   // Right Filter Sidebar State (persisted in localStorage after hydration)
   const [filterSidebarOpen, setFilterSidebarOpen] = useState<boolean>(true);
 
@@ -1434,7 +1449,10 @@ export default function CRMPage() {
       <CommandCenter
         open={isCommandCenterOpen}
         onOpenChange={setIsCommandCenterOpen}
+        allowedViews={permissions?.allowedViews}
+        canImportLeads={Boolean(permissions?.canImportLeads)}
         onSelectView={(v) => {
+          if (!canAccessView(v)) return;
           if (v === "fields") {
             setStudioTab("fields");
             setCurrentView("fields");
@@ -1452,7 +1470,11 @@ export default function CRMPage() {
           }
         }}
         onSelectLead={(l) => setSelectedLeadForDetail(l)}
-        onOpenImport={() => setCurrentView("import")}
+        onOpenImport={() => {
+          if (canAccessView("import") && permissions?.canImportLeads) {
+            setCurrentView("import");
+          }
+        }}
       />
 
       {/* Modern Collapsible Sidebar */}
@@ -1871,7 +1893,7 @@ export default function CRMPage() {
           )}
 
           {/* VIEW 2: DASHBOARD & INSIGHTS */}
-          {currentView === "dashboard" && (
+          {currentView === "dashboard" && canAccessView("dashboard") && (
             <WorkspaceErrorBoundary workspaceName="Analytics Dashboard">
               <div className="max-w-7xl mx-auto">
                 <AnalyticsDashboard
@@ -1894,7 +1916,7 @@ export default function CRMPage() {
           )}
 
           {/* VIEW 3: PIPELINE & KANBAN */}
-          {currentView === "pipeline" && (
+          {currentView === "pipeline" && canAccessView("pipeline") && (
             <WorkspaceErrorBoundary workspaceName="Pipeline & Kanban">
               <div className="max-w-7xl mx-auto">
                 <div className="flex items-center justify-between mb-4">
@@ -1921,7 +1943,7 @@ export default function CRMPage() {
           )}
 
           {/* VIEW 4A: DEDICATED CAMPAIGNS & SOURCES WORKSPACE */}
-          {currentView === "campaigns" && (
+          {currentView === "campaigns" && canAccessView("campaigns") && (
             <WorkspaceErrorBoundary workspaceName="Campaigns & Marketing Outreach">
               <div className="max-w-7xl mx-auto">
                 <CampaignsWorkspace
@@ -1936,7 +1958,7 @@ export default function CRMPage() {
           )}
 
           {/* VIEW 4B: ADMISSIONS PLAYBOOK & SMART OUTCOMES STUDIO */}
-          {currentView === "dispositions" && (
+          {currentView === "dispositions" && canAccessView("dispositions") && (
             <WorkspaceErrorBoundary workspaceName="Admissions Playbook & Smart Outcomes">
               <div className="max-w-7xl mx-auto">
                 <PlaybookStudioWorkspace
@@ -1950,7 +1972,7 @@ export default function CRMPage() {
           )}
 
           {/* VIEW 4B-2: WHATSAPP TEMPLATES STUDIO */}
-          {currentView === "whatsapp" && (
+          {currentView === "whatsapp" && canAccessView("whatsapp") && (
             <WorkspaceErrorBoundary workspaceName="WhatsApp Template Studio">
               <div className="max-w-7xl mx-auto">
                 <WhatsAppTemplatesWorkspace />
@@ -1959,7 +1981,7 @@ export default function CRMPage() {
           )}
 
           {/* VIEW 4C: DEDICATED DYNAMIC SCHEMA & FIELDS STUDIO */}
-          {currentView === "fields" && (
+          {currentView === "fields" && canAccessView("fields") && (
             <WorkspaceErrorBoundary workspaceName="Dynamic Schema & Fields Studio">
               <div className="max-w-7xl mx-auto">
                 <SchemaStudioWorkspace
@@ -1975,7 +1997,7 @@ export default function CRMPage() {
           )}
 
           {/* VIEW 4D: ARCHITECTURE LINKAGE STUDIO (FALLBACK/CROSS-MATRIX) */}
-          {currentView === "studio" && (
+          {currentView === "studio" && canAccessView("studio") && (
             <WorkspaceErrorBoundary workspaceName="Linkage Studio">
               <div className="max-w-7xl mx-auto">
                 <CampaignsSchemaStudio
@@ -1996,7 +2018,7 @@ export default function CRMPage() {
           )}
 
           {/* VIEW 5: DEDICATED TASKS & SCHEDULED CALLBACKS WORKSPACE */}
-          {currentView === "tasks" && (
+          {currentView === "tasks" && canAccessView("tasks") && (
             <WorkspaceErrorBoundary workspaceName="Tasks & Scheduled Callbacks">
               <div className="max-w-7xl mx-auto">
                 <TasksWorkspace
@@ -2026,7 +2048,7 @@ export default function CRMPage() {
           )}
 
           {/* VIEW 6: DEDICATED COUNSELORS & TEAM WORKLOAD WORKSPACE */}
-          {currentView === "team" && (
+          {currentView === "team" && canAccessView("team") && (
             <WorkspaceErrorBoundary workspaceName="Counselors & Team Workload">
               <div className="max-w-7xl mx-auto">
                 <TeamWorkspace
@@ -2055,7 +2077,7 @@ export default function CRMPage() {
           )}
 
           {/* VIEW 7: DEDICATED BATCH CSV INGESTION & FIELD MAPPING STUDIO */}
-          {currentView === "import" && (
+          {currentView === "import" && canAccessView("import") && (
             <WorkspaceErrorBoundary workspaceName="Batch Ingestion & Field Mapping">
               <div className="max-w-7xl mx-auto">
                 <ImportWorkspace
@@ -2078,7 +2100,7 @@ export default function CRMPage() {
           )}
 
           {/* VIEW 8: DEDICATED AUDIT & ACTIVITY LOGS WORKSPACE */}
-          {currentView === "activity" && (
+          {currentView === "activity" && canAccessView("activity") && (
             <WorkspaceErrorBoundary workspaceName="Compliance & Activity Audit Trail">
               <div className="max-w-7xl mx-auto">
                 <ActivityWorkspace />
@@ -2087,7 +2109,7 @@ export default function CRMPage() {
           )}
 
           {/* VIEW 9: DEDICATED GOVERNANCE & CRM POLICIES WORKSPACE */}
-          {currentView === "policies" && (
+          {currentView === "policies" && canAccessView("policies") && (
             <WorkspaceErrorBoundary workspaceName="Governance & CRM Policies">
               <div className="max-w-7xl mx-auto">
                 <PoliciesWorkspace />
