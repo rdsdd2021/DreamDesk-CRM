@@ -177,19 +177,6 @@ export function CommandCenter({
               </CommandItem>
             )}
 
-            {canView("pipeline") && (
-              <CommandItem
-                onSelect={() => {
-                  onSelectView("pipeline");
-                  onOpenChange(false);
-                }}
-                className="text-xs cursor-pointer"
-              >
-                <Kanban className="w-4 h-4 mr-2 text-violet-500" />
-                <span>Pipeline & Kanban Board</span>
-              </CommandItem>
-            )}
-
             {canView("campaigns") && (
               <CommandItem
                 onSelect={() => {

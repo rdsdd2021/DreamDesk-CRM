@@ -44,11 +44,6 @@ export function MobileBottomNav({
       badge: pendingTasksCount > 0 ? (pendingTasksCount > 99 ? "99+" : pendingTasksCount) : null,
       badgeColor: "bg-amber-500 text-white",
     },
-    {
-      id: "pipeline",
-      label: "Pipeline",
-      icon: Kanban,
-    },
   ];
 
   const tabs = allowedViews && allowedViews.length > 0

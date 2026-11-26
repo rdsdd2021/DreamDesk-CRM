@@ -85,11 +85,6 @@ export function AppSidebar({
       icon: LayoutDashboard,
     },
     {
-      id: "pipeline",
-      label: "Pipeline & Kanban",
-      icon: Kanban,
-    },
-    {
       id: "campaigns",
       label: "Campaigns & Sources",
       icon: Target,
@@ -163,9 +158,6 @@ export function AppSidebar({
                 </span>
                 <span className="text-[9px] font-mono font-bold tracking-widest px-1.5 py-0.2 rounded bg-primary/10 text-primary border border-primary/20">
                   CRM
-                </span>
-                <span className="text-[9px] font-mono font-semibold px-1 py-0.2 rounded bg-muted/80 text-muted-foreground border border-border/60">
-                  {APP_VERSION}
                 </span>
               </div>
             </div>

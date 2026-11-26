@@ -179,7 +179,7 @@ export function DailyPresencePill() {
           className={`h-8 rounded-full border px-2.5 text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer transition-all hover:opacity-90 ${meta.pillClass}`}
         >
           <span className={`h-2 w-2 rounded-full shrink-0 ${meta.dotClass}`} />
-          <span className="hidden sm:inline">{meta.label}</span>
+          <span>{meta.label}</span>
           <ChevronDown className="h-3 w-3 opacity-70" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44 p-1 rounded-xl">
