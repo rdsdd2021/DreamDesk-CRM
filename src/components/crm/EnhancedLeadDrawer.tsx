@@ -143,11 +143,20 @@ export function EnhancedLeadDrawer({
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [fieldSearchQuery, setFieldSearchQuery] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [swipeOffsetX, setSwipeOffsetX] = useState(0);
+  const touchSwipeRef = useRef<{
+    x: number;
+    y: number;
+    time: number;
+    axis: "x" | "y" | null;
+  } | null>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = 0;
     }
+    setSwipeOffsetX(0);
+    touchSwipeRef.current = null;
   }, [lead?.id]);
 
   // Counselor Ownership Lock Policy State
@@ -645,6 +654,65 @@ export function EnhancedLeadDrawer({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, hasPrevLead, hasNextLead, onPrevLead, onNextLead, isNavigationLocked]);
+
+  const handleDrawerTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (selectedDispId || isAddContactOpen || isWhatsAppModalOpen) return;
+    if (e.touches.length !== 1) return;
+    const target = e.target as HTMLElement | null;
+    if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+    const t = e.touches[0];
+    touchSwipeRef.current = { x: t.clientX, y: t.clientY, time: Date.now(), axis: null };
+  };
+
+  const handleDrawerTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    const start = touchSwipeRef.current;
+    if (!start || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+
+    if (!start.axis) {
+      if (Math.abs(dx) < 14 && Math.abs(dy) < 14) return;
+      start.axis = Math.abs(dx) > Math.abs(dy) * 1.4 ? "x" : "y";
+    }
+
+    if (start.axis === "x") {
+      const clamped = Math.max(-72, Math.min(72, dx * 0.45));
+      setSwipeOffsetX(clamped);
+    }
+  };
+
+  const handleDrawerTouchEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+    const start = touchSwipeRef.current;
+    touchSwipeRef.current = null;
+    if (!start || start.axis !== "x") {
+      setSwipeOffsetX(0);
+      return;
+    }
+
+    const t = e.changedTouches[0];
+    const dx = t ? t.clientX - start.x : 0;
+    const elapsed = Date.now() - start.time;
+    const isSwipe = Math.abs(dx) > 60 || (Math.abs(dx) > 35 && elapsed < 260);
+    setSwipeOffsetX(0);
+
+    if (!isSwipe) return;
+
+    if (isNavigationLocked) {
+      setToastMessage("Please save the call outcome before navigating to another student.");
+      setSuccessToast(true);
+      setTimeout(() => setSuccessToast(false), 3000);
+      return;
+    }
+
+    if (dx < 0 && hasNextLead && onNextLead) {
+      setSlideDirection("next");
+      onNextLead();
+    } else if (dx > 0 && hasPrevLead && onPrevLead) {
+      setSlideDirection("prev");
+      onPrevLead();
+    }
+  };
 
   if (!lead) return null;
 
@@ -1200,8 +1268,15 @@ export function EnhancedLeadDrawer({
         <div
           ref={scrollRef}
           key={lead.id}
+          onTouchStart={handleDrawerTouchStart}
+          onTouchMove={handleDrawerTouchMove}
+          onTouchEnd={handleDrawerTouchEnd}
+          style={{
+            transform: swipeOffsetX !== 0 ? `translateX(${swipeOffsetX}px)` : undefined,
+            transition: swipeOffsetX === 0 ? "transform 180ms ease-out" : "none",
+          }}
           className={cn(
-            "flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4 pb-6 overscroll-contain",
+            "flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4 pb-6 overscroll-contain touch-pan-y",
             slideDirection === "next" && "animate-in slide-in-from-right-8 duration-300 ease-out fade-in-60",
             slideDirection === "prev" && "animate-in slide-in-from-left-8 duration-300 ease-out fade-in-60",
             slideDirection === "none" && "animate-in fade-in-60 duration-200"
