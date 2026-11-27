@@ -966,6 +966,28 @@ export function WhatsAppInboxWorkspace({
                 {copiedWebhook ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{copiedWebhook ? "Copied" : "Copy"}</span>
               </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="default"
+                onClick={async () => {
+                  try {
+                    const res = await fetch("/api/whatsapp/settings", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "register_webhook", webhook_url: webhookUrl }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || "Webhook registration failed");
+                    onShowToast?.(data.message || "Webhook registered with Kapso!", "success");
+                  } catch (err: any) {
+                    onShowToast?.(err?.message || "Failed to register webhook", "error");
+                  }
+                }}
+                className="h-8 text-xs gap-1 bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shrink-0"
+              >
+                <span>Register with Kapso</span>
+              </Button>
             </div>
           </div>
 

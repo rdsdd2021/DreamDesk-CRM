@@ -27,6 +27,10 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+    if (body?.action === "register_webhook") {
+      const res = await KapsoWhatsappService.registerWebhookWithKapso(String(body.webhook_url || ""));
+      return NextResponse.json(res);
+    }
     const settings = KapsoWhatsappService.saveConfig(body || {});
     return NextResponse.json({ success: true, settings });
   } catch (err: any) {

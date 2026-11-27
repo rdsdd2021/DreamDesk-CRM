@@ -207,9 +207,51 @@ export class KapsoWhatsappService {
     );
     const json = await res.json().catch(() => ({}));
     if (!res.ok || !json?.id) {
-      throw new Error(json?.error?.message || json?.message || `Kapso Media Upload HTTP ${res.status}`);
+      const detail = json?.error?.message || json?.message || `Kapso Media Upload HTTP ${res.status}`;
+      throw new Error(`${detail} [${resolvedMime}, ${fileBuffer.length}B]`);
     }
     return { id: String(json.id), url: json.url };
+  }
+
+  static async registerWebhookWithKapso(webhookUrl: string): Promise<{ ok: boolean; webhook?: any; message: string }> {
+    const cfg = this.getRawConfig();
+    if (!cfg.kapso_api_key || !cfg.phone_number_id) {
+      throw new Error("Kapso API Key and Phone Number ID are required.");
+    }
+    const cleanUrl = String(webhookUrl || "").trim();
+    if (!cleanUrl.startsWith("https://")) {
+      throw new Error("Webhook URL must be a public https:// URL.");
+    }
+
+    const res = await fetch(
+      `${KAPSO_API_BASE}/platform/v1/whatsapp/phone_numbers/${cfg.phone_number_id}/webhooks`,
+      {
+        method: "POST",
+        headers: {
+          "X-API-Key": cfg.kapso_api_key,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          whatsapp_webhook: {
+            kind: "kapso",
+            url: cleanUrl,
+            events: [
+              "whatsapp.message.received",
+              "whatsapp.message.sent",
+              "whatsapp.message.delivered",
+              "whatsapp.message.read",
+              "whatsapp.message.failed",
+            ],
+            ...(cfg.webhook_secret ? { secret_key: cfg.webhook_secret } : {}),
+          },
+        }),
+      }
+    );
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(json?.error?.message || json?.message || `Kapso Webhook HTTP ${res.status}`);
+    }
+    return { ok: true, webhook: json?.data || json, message: "Webhook registered with Kapso successfully!" };
   }
 
   static listTemplates(onlyApproved = false): WhatsAppTemplate[] {
@@ -550,11 +592,17 @@ export class KapsoWhatsappService {
       const phoneDigits = normalizePhoneDigits(rawPhone);
       if (!phoneDigits) continue;
 
-      const matchedLead = db
-        .prepare(
-          `SELECT id, name, assigned_to FROM leads WHERE phone_digits = ? OR phone_digits LIKE ? LIMIT 1`
-        )
-        .get(phoneDigits, `%${phoneDigits.slice(-10)}`) as any;
+      const last10 = phoneDigits.slice(-10);
+      const matchedLead =
+        last10.length >= 10
+          ? (db
+              .prepare(
+                `SELECT id, name, assigned_to FROM leads
+                 WHERE phone_digits = ? OR phone_digits LIKE ? OR alternate_contacts LIKE ?
+                 LIMIT 1`
+              )
+              .get(phoneDigits, `%${last10}`, `%${last10}%`) as any)
+          : null;
 
       const now = c?.last_active_at || c?.updated_at || new Date().toISOString();
       let localConv = db
@@ -600,7 +648,14 @@ export class KapsoWhatsappService {
         );
         const msgJson = await msgRes.json().catch(() => ({}));
         const msgs: any[] = Array.isArray(msgJson?.data) ? msgJson.data : [];
+        let latestInboundAt: string | null = null;
+        let latestMsgAt: string | null = null;
+        let latestPreview: string | null = null;
+        let latestDir: string | null = null;
+
         for (const m of msgs) {
+          const k = m?.kapso || {};
+          if (k?.conversation_id && k.conversation_id !== c.id) continue;
           const kapsoMsgId = m?.id ? String(m.id) : null;
           if (kapsoMsgId) {
             const exists = db
@@ -608,10 +663,17 @@ export class KapsoWhatsappService {
               .get(kapsoMsgId);
             if (exists) continue;
           }
-          const k = m?.kapso || {};
           const direction = k?.direction === "outbound" ? "outbound" : "inbound";
           const bodyText = k?.content || m?.text?.body || "[WhatsApp Message]";
           const createdAt = m?.timestamp || k?.timestamp || now;
+          if (direction === "inbound" && (!latestInboundAt || createdAt > latestInboundAt)) {
+            latestInboundAt = createdAt;
+          }
+          if (!latestMsgAt || createdAt > latestMsgAt) {
+            latestMsgAt = createdAt;
+            latestPreview = String(bodyText).slice(0, 120);
+            latestDir = direction;
+          }
           db.prepare(
             `
             INSERT INTO whatsapp_messages (
@@ -631,6 +693,17 @@ export class KapsoWhatsappService {
             createdAt
           );
           messagesSynced++;
+        }
+
+        if (latestMsgAt || latestInboundAt) {
+          db.prepare(
+            `UPDATE whatsapp_conversations
+             SET last_inbound_at = COALESCE(?, last_inbound_at),
+                 last_message_at = COALESCE(?, last_message_at),
+                 last_message_preview = COALESCE(?, last_message_preview),
+                 last_message_direction = COALESCE(?, last_message_direction)
+             WHERE id = ?`
+          ).run(latestInboundAt, latestMsgAt, latestPreview, latestDir, localConv.id);
         }
       }
     }
