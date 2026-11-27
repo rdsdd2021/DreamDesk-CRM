@@ -43,12 +43,6 @@ const PRESENCE_META: Record<
     badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200",
     icon: <CheckCircle2 className="h-3 w-3" />,
   },
-  on_calls: {
-    label: "On Calls",
-    dotClass: "bg-blue-500 animate-pulse",
-    badgeClass: "bg-blue-50 text-blue-700 border-blue-200",
-    icon: <PhoneCall className="h-3 w-3" />,
-  },
   busy: {
     label: "Busy",
     dotClass: "bg-rose-500",
@@ -180,7 +174,7 @@ export function TeamFloorPanel({ users, currentUser }: TeamFloorPanelProps) {
   };
 
   const checkedInCount = members.filter((m) => m.checkin?.checked_in_at).length;
-  const onCallsCount = members.filter((m) => m.checkin?.presence_status === "on_calls").length;
+  const availableCount = members.filter((m) => m.checkin?.presence_status === "available").length;
   const overdueTotal = members.reduce((acc, m) => acc + m.tasks.overdue, 0);
   const pendingReviewTotal = members.reduce((acc, m) => acc + m.tasks.pendingReview, 0);
   const eodCount = members.filter((m) => m.checkin?.eod_submitted_at).length;
@@ -273,9 +267,9 @@ export function TeamFloorPanel({ users, currentUser }: TeamFloorPanelProps) {
             {checkedInCount} <span className="text-xs font-normal text-slate-400">/ {members.length}</span>
           </div>
         </div>
-        <div className="rounded-lg border border-blue-100 bg-blue-50/50 px-3 py-2">
-          <div className="text-[11px] font-medium text-blue-600">On Calls Now</div>
-          <div className="text-lg font-bold text-blue-700">{onCallsCount}</div>
+        <div className="rounded-lg border border-emerald-100 bg-emerald-50/50 px-3 py-2">
+          <div className="text-[11px] font-medium text-emerald-600">Available Now</div>
+          <div className="text-lg font-bold text-emerald-700">{availableCount}</div>
         </div>
         <div className="rounded-lg border border-rose-100 bg-rose-50/50 px-3 py-2">
           <div className="text-[11px] font-medium text-rose-600">Overdue Tasks</div>

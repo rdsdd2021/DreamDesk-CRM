@@ -495,7 +495,7 @@ function initializeSchema(db: Database.Database) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       checkin_date TEXT NOT NULL,
-      presence_status TEXT NOT NULL DEFAULT 'available', -- 'available' | 'on_calls' | 'break' | 'wrap_up' | 'offline'
+      presence_status TEXT NOT NULL DEFAULT 'available', -- 'available' | 'busy' | 'break' | 'wrap_up' | 'offline'
       morning_focus TEXT,
       checked_in_at DATETIME,
       eod_submitted_at DATETIME,
@@ -506,6 +506,7 @@ function initializeSchema(db: Database.Database) {
       UNIQUE(user_id, checkin_date)
     );
     CREATE INDEX IF NOT EXISTS idx_daily_checkins_date ON daily_checkins(checkin_date, user_id);
+    UPDATE daily_checkins SET presence_status = 'available' WHERE presence_status = 'on_calls';
 
     CREATE TABLE IF NOT EXISTS daily_targets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -277,7 +277,7 @@ export interface WorkTask {
   updated_at: string;
 }
 
-export type PresenceStatus = 'available' | 'on_calls' | 'busy' | 'break' | 'wrap_up' | 'offline';
+export type PresenceStatus = 'available' | 'busy' | 'break' | 'wrap_up' | 'offline';
 
 export interface DailyAutoStats {
   callsMade: number;

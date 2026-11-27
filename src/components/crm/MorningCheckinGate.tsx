@@ -112,8 +112,7 @@ export function MorningCheckinGate({
   const isCallerPaused =
     isCallerRole &&
     !needsCheckin &&
-    presenceStatus !== "available" &&
-    presenceStatus !== "on_calls";
+    presenceStatus !== "available";
 
   useEffect(() => {
     if (!isCallerPaused) return;
@@ -121,17 +120,17 @@ export function MorningCheckinGate({
     return () => clearInterval(timer);
   }, [isCallerPaused]);
 
-  const handleResumeActive = async (nextStatus: "available" | "on_calls") => {
+  const handleResumeActive = async () => {
     setResuming(true);
     try {
       const res = await fetch("/api/daily-ops/checkin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "presence", presence_status: nextStatus }),
+        body: JSON.stringify({ action: "presence", presence_status: "available" }),
       });
       if (res.ok) {
         const data = await res.json();
-        setPresenceStatus(data?.checkin?.presence_status || nextStatus);
+        setPresenceStatus(data?.checkin?.presence_status || "available");
         setPresenceUpdatedAt(data?.checkin?.updated_at || new Date().toISOString());
         window.dispatchEvent(new CustomEvent("daily-ops-updated"));
       }
@@ -200,25 +199,15 @@ export function MorningCheckinGate({
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+          <div className="pt-1">
             <Button
               type="button"
               disabled={resuming}
-              onClick={() => handleResumeActive("available")}
-              className="h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs gap-1.5 cursor-pointer"
+              onClick={handleResumeActive}
+              className="w-full h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs gap-1.5 cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4" />
               <span>{resuming ? "Resuming..." : "Go Available"}</span>
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={resuming}
-              onClick={() => handleResumeActive("on_calls")}
-              className="h-10 rounded-xl border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 font-semibold text-xs gap-1.5 cursor-pointer"
-            >
-              <PhoneCall className="w-4 h-4" />
-              <span>Go On Calls</span>
             </Button>
           </div>
         </div>
@@ -363,36 +352,6 @@ export function MorningCheckinGate({
               <p className="text-[11px] text-muted-foreground">
                 Your Team Lead &amp; Admin will see your check-in timestamp and message on the Live Attendance Log.
               </p>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block font-semibold text-foreground">Starting Status</label>
-              <div className="grid grid-cols-2 gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setStartingStatus("available")}
-                  className={`h-10 rounded-xl border px-3 flex items-center justify-center gap-2 font-semibold cursor-pointer transition-all ${
-                    startingStatus === "available"
-                      ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                      : "border-border bg-background text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  <span>Available</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStartingStatus("on_calls")}
-                  className={`h-10 rounded-xl border px-3 flex items-center justify-center gap-2 font-semibold cursor-pointer transition-all ${
-                    startingStatus === "on_calls"
-                      ? "border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-400"
-                      : "border-border bg-background text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <PhoneCall className="h-3.5 w-3.5" />
-                  <span>Starting On Calls</span>
-                </button>
-              </div>
             </div>
 
             {error && (

@@ -39,12 +39,6 @@ const PRESENCE_OPTIONS: {
     pillClass: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
   },
   {
-    value: "on_calls",
-    label: "On Calls",
-    dotClass: "bg-blue-500 animate-pulse",
-    pillClass: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30",
-  },
-  {
     value: "busy",
     label: "Busy",
     dotClass: "bg-rose-500",
