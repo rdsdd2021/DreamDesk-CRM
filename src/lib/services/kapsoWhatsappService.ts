@@ -223,6 +223,28 @@ export class KapsoWhatsappService {
       throw new Error("Webhook URL must be a public https:// URL.");
     }
 
+    // Check existing webhooks first to avoid 422 duplicate URL errors
+    const listRes = await fetch(
+      `${KAPSO_API_BASE}/platform/v1/whatsapp/phone_numbers/${cfg.phone_number_id}/webhooks`,
+      { headers: { "X-API-Key": cfg.kapso_api_key } }
+    );
+    if (listRes.ok) {
+      const listJson = await listRes.json().catch(() => ({}));
+      const existingList: any[] = Array.isArray(listJson?.data)
+        ? listJson.data
+        : Array.isArray(listJson?.whatsapp_webhooks)
+        ? listJson.whatsapp_webhooks
+        : [];
+      const already = existingList.find((w) => String(w?.url || "").trim() === cleanUrl);
+      if (already) {
+        return {
+          ok: true,
+          webhook: already,
+          message: `Webhook already registered with Kapso (${cleanUrl}).`,
+        };
+      }
+    }
+
     const res = await fetch(
       `${KAPSO_API_BASE}/platform/v1/whatsapp/phone_numbers/${cfg.phone_number_id}/webhooks`,
       {
@@ -242,14 +264,19 @@ export class KapsoWhatsappService {
               "whatsapp.message.read",
               "whatsapp.message.failed",
             ],
-            ...(cfg.webhook_secret ? { secret_key: cfg.webhook_secret } : {}),
+            ...(cfg.webhook_secret && cfg.webhook_secret.length >= 8 ? { secret_key: cfg.webhook_secret } : {}),
           },
         }),
       }
     );
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(json?.error?.message || json?.message || `Kapso Webhook HTTP ${res.status}`);
+      const errDetail =
+        json?.error?.message ||
+        json?.message ||
+        (Array.isArray(json?.errors) ? json.errors.map((e: any) => e?.message || JSON.stringify(e)).join("; ") : null) ||
+        JSON.stringify(json);
+      throw new Error(`Kapso Webhook HTTP ${res.status}: ${errDetail}`);
     }
     return { ok: true, webhook: json?.data || json, message: "Webhook registered with Kapso successfully!" };
   }
