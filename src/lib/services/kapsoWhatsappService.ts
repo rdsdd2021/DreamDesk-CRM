@@ -236,11 +236,38 @@ export class KapsoWhatsappService {
         ? listJson.whatsapp_webhooks
         : [];
       const already = existingList.find((w) => String(w?.url || "").trim() === cleanUrl);
+      const desiredEvents = [
+        "whatsapp.message.received",
+        "whatsapp.message.sent",
+        "whatsapp.message.delivered",
+        "whatsapp.message.read",
+        "whatsapp.message.failed",
+      ];
       if (already) {
+        // Ensure all 5 events & kind="kapso" are active on the existing webhook
+        if (already.id) {
+          await fetch(
+            `${KAPSO_API_BASE}/platform/v1/whatsapp/phone_numbers/${cfg.phone_number_id}/webhooks/${already.id}`,
+            {
+              method: "PATCH",
+              headers: {
+                "X-API-Key": cfg.kapso_api_key,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                whatsapp_webhook: {
+                  kind: "kapso",
+                  active: true,
+                  events: desiredEvents,
+                },
+              }),
+            }
+          ).catch(() => {});
+        }
         return {
           ok: true,
           webhook: already,
-          message: `Webhook already registered with Kapso (${cleanUrl}).`,
+          message: `Webhook verified & synced with Kapso (${desiredEvents.length} events active).`,
         };
       }
     }
@@ -1211,15 +1238,39 @@ export class KapsoWhatsappService {
       const convData = ev?.conversation || ev?.data?.conversation || null;
       const kapsoMsg = msg?.kapso || {};
 
-      if (msg?.id && kapsoMsg?.status && eventType.includes("status")) {
-        const mappedStatus = ["sent", "delivered", "read", "failed"].includes(kapsoMsg.status)
-          ? kapsoMsg.status
-          : null;
+      const isStatusEvent =
+        eventType.includes("status") ||
+        [
+          "whatsapp.message.sent",
+          "whatsapp.message.delivered",
+          "whatsapp.message.read",
+          "whatsapp.message.failed",
+        ].includes(eventType) ||
+        (kapsoMsg?.direction === "outbound" && Boolean(msg?.id) && Boolean(kapsoMsg?.status));
+
+      if (msg?.id && isStatusEvent) {
+        const rawStatus =
+          kapsoMsg?.status ||
+          (eventType.endsWith(".sent")
+            ? "sent"
+            : eventType.endsWith(".delivered")
+            ? "delivered"
+            : eventType.endsWith(".read")
+            ? "read"
+            : eventType.endsWith(".failed")
+            ? "failed"
+            : null);
+        const mappedStatus =
+          rawStatus && ["sent", "delivered", "read", "failed"].includes(rawStatus)
+            ? rawStatus
+            : null;
         if (mappedStatus) {
-          db.prepare(`UPDATE whatsapp_messages SET status = ? WHERE kapso_message_id = ?`).run(
-            mappedStatus,
-            msg.id
-          );
+          const updated = db
+            .prepare(`UPDATE whatsapp_messages SET status = ? WHERE kapso_message_id = ?`)
+            .run(mappedStatus, msg.id);
+          if (updated.changes > 0) {
+            SyncService.publish("system", `wa_status:${msg.id}`);
+          }
           processed++;
         }
         continue;
