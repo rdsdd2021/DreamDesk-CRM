@@ -488,29 +488,41 @@ export function TeamWorkspace({
           return (
             <div
               key={user.id}
-              className={`bg-card border rounded-xl p-3.5 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between gap-3 group ${
+              className={`bg-card border rounded-xl p-3.5 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between gap-3 group overflow-hidden min-w-0 ${
                 isDeactivated
-                  ? "border-destructive/30 bg-destructive/5 opacity-85"
+                  ? "border-destructive/30 bg-destructive/5 opacity-90"
                   : "border-border/80"
               }`}
             >
-              <div className="space-y-2.5">
+              <div className="space-y-2.5 min-w-0">
                 {/* Counselor Info Header */}
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-start gap-2.5 min-w-0">
                   <div
                     className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-white text-sm shadow-2xs shrink-0"
                     style={{ backgroundColor: isDeactivated ? "#64748b" : user.avatar_color || "#3b82f6" }}
                   >
                     {user.name.charAt(0)}
                   </div>
-                  <div className="truncate flex-1">
-                    <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-1.5">
                       <div className="font-bold text-xs sm:text-sm text-foreground truncate">
                         {user.name}
                       </div>
-                      <Badge variant="outline" className="text-[10px] capitalize font-medium">
-                        {user.role.replace("_", " ")}
-                      </Badge>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {isDeactivated ? (
+                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-5 gap-1 font-semibold">
+                            <UserX className="w-2.5 h-2.5" />
+                            <span>Inactive</span>
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-medium">
+                            ● Active
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 capitalize font-medium">
+                          {user.role.replace("_", " ")}
+                        </Badge>
+                      </div>
                     </div>
                     <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 truncate mt-0.5">
                       <Mail className="w-3 h-3 opacity-70 shrink-0" />
@@ -606,96 +618,81 @@ export function TeamWorkspace({
                 </div>
               </div>
 
-              {/* Card Footer: Status & Actions */}
-              <div className="pt-3 border-t border-border/60 flex items-center justify-between gap-2">
-                <div>
-                  {isDeactivated ? (
-                    <Badge variant="destructive" className="text-[10px] gap-1 font-semibold">
-                      <UserX className="w-2.5 h-2.5" />
-                      <span>Deactivated</span>
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-medium">
-                      ● Active
-                    </Badge>
-                  )}
-                </div>
+              {/* Card Footer: Actions */}
+              <div className="pt-2.5 border-t border-border/60 flex flex-wrap items-center justify-between gap-1.5">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => onFilterByCounselor(user.id, user.name)}
+                  className="h-7 px-2 text-[11px] gap-1 text-primary hover:text-primary hover:bg-primary/10 shrink-0"
+                  title="View assigned leads"
+                >
+                  <span>Leads</span>
+                  <ArrowRight className="w-3 h-3" />
+                </Button>
 
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => onFilterByCounselor(user.id, user.name)}
-                    className="h-7 text-xs gap-1 text-primary hover:text-primary hover:bg-primary/10"
-                    title="View assigned leads"
-                  >
-                    <span>Leads</span>
-                    <ArrowRight className="w-3 h-3" />
-                  </Button>
+                {/* Password, Manage & Status Actions */}
+                {canManageTeam && (
+                  <div className="flex flex-wrap items-center justify-end gap-1.5 ml-auto">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setTargetUserToManage(user)}
+                      className="h-7 px-2 text-[11px] gap-1 border-border/80 text-foreground hover:bg-muted cursor-pointer"
+                      title="Edit user details, permissions & sessions"
+                    >
+                      <UserCog className="w-3 h-3 text-indigo-500" />
+                      <span>Manage</span>
+                    </Button>
 
-                  {/* Password, Manage & Status Actions */}
-                  {canManageTeam && (
-                    <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setTargetUserToResetPassword(user);
+                        setNewPasswordInput("");
+                        setPasswordCopied(false);
+                        setShowNewPassword(false);
+                      }}
+                      className="h-7 px-2 text-[11px] gap-1 border-border/80 text-foreground hover:bg-muted cursor-pointer"
+                      title="Set or reset password"
+                    >
+                      <KeyRound className="w-3 h-3 text-amber-500" />
+                      <span>Password</span>
+                    </Button>
+
+                    {isCurrentUser ? (
+                      <span className="text-[10px] text-muted-foreground italic px-1.5">
+                        You
+                      </span>
+                    ) : isPrimaryAdmin ? (
+                      <span className="text-[10px] text-muted-foreground italic px-1.5">
+                        Protected
+                      </span>
+                    ) : isDeactivated ? (
+                      <Button
+                        size="sm"
+                        onClick={() => handleToggleStatus(user.id, "active")}
+                        disabled={isActionLoading}
+                        className="h-7 px-2 text-[11px] gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-2xs cursor-pointer"
+                      >
+                        <UserCheck className="w-3 h-3" />
+                        <span>{isActionLoading ? "Reactivating..." : "Reactivate"}</span>
+                      </Button>
+                    ) : (
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setTargetUserToManage(user)}
-                        className="h-7 text-xs gap-1 border-border/80 text-foreground hover:bg-muted cursor-pointer"
-                        title="Edit user details, permissions & sessions"
+                        onClick={() => setTargetUserToDeactivate(user)}
+                        disabled={isActionLoading}
+                        className="h-7 px-2 text-[11px] gap-1 border-destructive/30 text-destructive hover:bg-destructive/10 hover:border-destructive/60 cursor-pointer"
                       >
-                        <UserCog className="w-3 h-3 text-indigo-500" />
-                        <span className="hidden sm:inline">Manage</span>
+                        <UserX className="w-3 h-3" />
+                        <span>Deactivate</span>
                       </Button>
-
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setTargetUserToResetPassword(user);
-                          setNewPasswordInput("");
-                          setPasswordCopied(false);
-                          setShowNewPassword(false);
-                        }}
-                        className="h-7 text-xs gap-1 border-border/80 text-foreground hover:bg-muted cursor-pointer"
-                        title="Set or reset password"
-                      >
-                        <KeyRound className="w-3 h-3 text-amber-500" />
-                        <span className="hidden sm:inline">Password</span>
-                      </Button>
-
-                      {isCurrentUser ? (
-                        <span className="text-[10px] text-muted-foreground italic px-1">
-                          You
-                        </span>
-                      ) : isPrimaryAdmin ? (
-                        <span className="text-[10px] text-muted-foreground italic px-1">
-                          Protected
-                        </span>
-                      ) : isDeactivated ? (
-                        <Button
-                          size="sm"
-                          onClick={() => handleToggleStatus(user.id, "active")}
-                          disabled={isActionLoading}
-                          className="h-7 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-2xs cursor-pointer"
-                        >
-                          <UserCheck className="w-3 h-3" />
-                          <span>{isActionLoading ? "Reactivating..." : "Reactivate"}</span>
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setTargetUserToDeactivate(user)}
-                          disabled={isActionLoading}
-                          className="h-7 text-xs gap-1 border-destructive/30 text-destructive hover:bg-destructive/10 hover:border-destructive/60 cursor-pointer"
-                        >
-                          <UserX className="w-3 h-3" />
-                          <span>Deactivate</span>
-                        </Button>
-                      )}
-                    </>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           );
