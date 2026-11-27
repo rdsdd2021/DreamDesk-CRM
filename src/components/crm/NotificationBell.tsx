@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { User, UserNotification, TaskPriority, BroadcastActionVariant } from "@/types/crm";
 import {
   DropdownMenu,
@@ -40,6 +40,67 @@ export function NotificationBell({ currentUser, onNavigateToTasks }: Notificatio
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [respondingKey, setRespondingKey] = useState<string | null>(null);
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | "unsupported">("default");
+  const seenOsNotifIdsRef = useRef<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      setNotifPermission("unsupported");
+      return;
+    }
+    setNotifPermission(Notification.permission);
+
+    if ("serviceWorker" in navigator) {
+      const onSwMsg = (event: MessageEvent) => {
+        if (event.data?.type === "NOTIFICATION_ACTION_DONE") {
+          fetchNotifications();
+        }
+      };
+      navigator.serviceWorker.addEventListener("message", onSwMsg);
+      return () => navigator.serviceWorker.removeEventListener("message", onSwMsg);
+    }
+  }, []);
+
+  const enableOsNotifications = async () => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    const perm = await Notification.requestPermission();
+    setNotifPermission(perm);
+  };
+
+  const showOsNotification = async (item: UserNotification) => {
+    if (typeof window === "undefined" || !("Notification" in window) || Notification.permission !== "granted") {
+      return;
+    }
+    try {
+      const actions =
+        item.type === "broadcast" && Array.isArray(item.action_buttons)
+          ? item.action_buttons.slice(0, 2).map((b) => ({ action: b.id, title: b.label }))
+          : undefined;
+      const options: any = {
+        body: item.message,
+        icon: "/icons/icon-192.png",
+        badge: "/icons/icon-192.png",
+        tag: item.broadcast_id ? `broadcast-${item.broadcast_id}` : `notif-${item.id}`,
+        renotify: true,
+        requireInteraction: Boolean(item.require_ack),
+        data: {
+          notification_id: item.id,
+          broadcast_id: item.broadcast_id || null,
+          type: item.type,
+        },
+        ...(actions && actions.length > 0 ? { actions } : {}),
+      };
+
+      if ("serviceWorker" in navigator) {
+        const reg = await navigator.serviceWorker.ready;
+        await reg.showNotification(item.title, options);
+      } else {
+        new Notification(item.title, options);
+      }
+    } catch {
+      // Ignore if browser blocks background notification
+    }
+  };
 
   const fetchNotifications = async () => {
     if (!currentUser?.id) return;
@@ -47,8 +108,19 @@ export function NotificationBell({ currentUser, onNavigateToTasks }: Notificatio
       const res = await fetch(`/api/notifications?user_id=${encodeURIComponent(currentUser.id)}`);
       if (res.ok) {
         const data = await res.json();
-        setNotifications(data.notifications || []);
+        const list: UserNotification[] = data.notifications || [];
+        setNotifications(list);
         setUnreadCount(data.unreadCount || 0);
+
+        const isFirstLoad = seenOsNotifIdsRef.current.size === 0;
+        for (const item of list) {
+          if (seenOsNotifIdsRef.current.has(item.id)) continue;
+          seenOsNotifIdsRef.current.add(item.id);
+          const isUnrespondedBroadcast = item.type === "broadcast" && !item.responded_at;
+          if ((!isFirstLoad && !item.is_read) || (isFirstLoad && isUnrespondedBroadcast)) {
+            void showOsNotification(item);
+          }
+        }
       }
     } catch (err) {
       console.error("Failed to fetch notifications:", err);
@@ -196,15 +268,26 @@ export function NotificationBell({ currentUser, onNavigateToTasks }: Notificatio
             )}
           </div>
 
-          {unreadCount > 0 && (
-            <button
-              onClick={handleMarkAllRead}
-              className="text-[11px] text-primary hover:underline font-medium flex items-center gap-1"
-            >
-              <CheckCheck className="w-3 h-3" />
-              <span>Mark all read</span>
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {notifPermission === "default" && (
+              <button
+                type="button"
+                onClick={enableOsNotifications}
+                className="text-[10px] font-semibold bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 cursor-pointer"
+              >
+                Enable Alerts
+              </button>
+            )}
+            {unreadCount > 0 && (
+              <button
+                onClick={handleMarkAllRead}
+                className="text-[11px] text-primary hover:underline font-medium flex items-center gap-1"
+              >
+                <CheckCheck className="w-3 h-3" />
+                <span>Mark all read</span>
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="max-h-80 overflow-y-auto divide-y divide-border/40">
@@ -319,33 +402,50 @@ export function NotificationBell({ currentUser, onNavigateToTasks }: Notificatio
 
       {/* Mandatory Action-Required Broadcast Modal */}
       <Dialog open={Boolean(pendingAckBroadcast)} onOpenChange={() => {}}>
-        <DialogContent className="max-w-md [&>button]:hidden">
+        <DialogContent className="max-w-md w-[calc(100vw-32px)] p-0 overflow-hidden rounded-2xl border border-border/80 shadow-2xl [&>button]:hidden">
           {pendingAckBroadcast && (
-            <>
-              <DialogHeader>
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-600/10 text-indigo-600 flex items-center justify-center">
-                    <Megaphone className="w-4 h-4" />
+            <div className="flex flex-col">
+              {/* Header */}
+              <DialogHeader className="px-5 py-4 border-b border-border/60 bg-gradient-to-r from-indigo-500/10 via-card to-card text-left space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-600/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                      <Megaphone className="w-4 h-4" />
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] uppercase tracking-wide font-bold bg-background/80"
+                    >
+                      {pendingAckBroadcast.priority} · Action Required
+                    </Badge>
                   </div>
-                  <Badge variant="outline" className="text-[10px] uppercase font-bold">
-                    {pendingAckBroadcast.priority} · Action Required
-                  </Badge>
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    {formatTimeAgo(pendingAckBroadcast.created_at)}
+                  </span>
                 </div>
-                <DialogTitle className="text-base font-bold">
+                <DialogTitle className="text-base font-bold text-foreground leading-snug">
                   {pendingAckBroadcast.title}
                 </DialogTitle>
-                <DialogDescription className="text-xs text-foreground/85 pt-1 whitespace-pre-wrap">
-                  {pendingAckBroadcast.message}
-                </DialogDescription>
               </DialogHeader>
 
-              {pendingAckBroadcast.metadata?.sender_name && (
-                <div className="text-[11px] text-muted-foreground">
-                  From <span className="font-semibold text-foreground">{pendingAckBroadcast.metadata.sender_name}</span>
-                </div>
-              )}
+              {/* Body */}
+              <div className="px-5 py-4 space-y-3">
+                <DialogDescription className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">
+                  {pendingAckBroadcast.message}
+                </DialogDescription>
 
-              <div className="flex flex-wrap gap-2 pt-2">
+                {pendingAckBroadcast.metadata?.sender_name && (
+                  <div className="inline-flex items-center gap-1.5 rounded-lg bg-muted/50 border border-border/60 px-2.5 py-1 text-[11px] text-muted-foreground">
+                    <span>From</span>
+                    <span className="font-semibold text-foreground">
+                      {pendingAckBroadcast.metadata.sender_name}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer Action Bar */}
+              <div className="px-5 py-3.5 bg-muted/30 border-t border-border/60 flex flex-wrap items-center justify-end gap-2">
                 {pendingAckBroadcast.action_buttons?.map((btn) => {
                   const key = `${pendingAckBroadcast.broadcast_id}:${btn.id}`;
                   return (
@@ -357,7 +457,7 @@ export function NotificationBell({ currentUser, onNavigateToTasks }: Notificatio
                       onClick={() =>
                         handleBroadcastRespond(pendingAckBroadcast, btn.id, btn.label)
                       }
-                      className={`h-9 px-4 text-xs font-semibold border cursor-pointer ${
+                      className={`h-9 px-4 text-xs font-semibold rounded-xl border shadow-2xs cursor-pointer ${
                         BROADCAST_BTN_STYLE[btn.variant] || BROADCAST_BTN_STYLE.primary
                       }`}
                     >
@@ -366,7 +466,7 @@ export function NotificationBell({ currentUser, onNavigateToTasks }: Notificatio
                   );
                 })}
               </div>
-            </>
+            </div>
           )}
         </DialogContent>
       </Dialog>

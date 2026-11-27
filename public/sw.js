@@ -125,3 +125,39 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 });
+
+// Handle Android/Desktop System Notification clicks & action buttons
+self.addEventListener('notificationclick', (event) => {
+  const notification = event.notification;
+  const data = notification.data || {};
+  const actionId = event.action;
+
+  notification.close();
+
+  event.waitUntil((async () => {
+    if (actionId && data.broadcast_id) {
+      try {
+        await fetch(`/api/broadcasts/${data.broadcast_id}/respond`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action_id: actionId }),
+          credentials: 'include',
+        });
+      } catch {
+        // Ignore network error; user can still respond in-app
+      }
+    }
+
+    const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of clientList) {
+      if ('focus' in client) {
+        await client.focus();
+        client.postMessage({ type: 'NOTIFICATION_ACTION_DONE', broadcast_id: data.broadcast_id });
+        return;
+      }
+    }
+    if (self.clients.openWindow) {
+      await self.clients.openWindow('/');
+    }
+  })());
+});

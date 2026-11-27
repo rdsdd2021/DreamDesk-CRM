@@ -21,10 +21,12 @@ export async function configureAndroidNotificationChannel(): Promise<void> {
   if (Platform.OS !== "android") return;
   await Notifications.setNotificationChannelAsync("dreamdesk-alerts", {
     name: "DreamDesk CRM Alerts",
-    importance: Notifications.AndroidImportance.HIGH,
+    importance: Notifications.AndroidImportance.MAX,
     vibrationPattern: [0, 250, 250, 250],
     lightColor: "#4f46e5",
     sound: "default",
+    enableVibrate: true,
+    showBadge: true,
   });
 }
 
@@ -52,7 +54,6 @@ export async function registerForPushNotifications(): Promise<string | null> {
       Constants.easConfig?.projectId;
 
     if (!projectId) {
-      // No EAS projectId yet: local notification polling fallback will still work
       return null;
     }
 
@@ -92,6 +93,8 @@ export async function unregisterPushNotifications(): Promise<void> {
 
 export async function syncLocalNotificationsFallback(): Promise<void> {
   try {
+    await configureAndroidNotificationChannel();
+
     const { data } = await MobileApiClient.fetchJson<{
       notifications?: Array<{
         id: number;
@@ -99,31 +102,50 @@ export async function syncLocalNotificationsFallback(): Promise<void> {
         message: string;
         is_read: number;
         type?: string;
-        metadata?: string | null;
+        broadcast_id?: number | null;
+        responded_at?: string | null;
+        action_buttons?: Array<{ id: string; label: string }>;
+        metadata?: any;
       }>;
     }>("/api/notifications?limit=15");
 
     const list = data?.notifications || [];
     if (list.length === 0) return;
 
-    // First hydration: seed seen IDs without spamming historical notifications
-    if (seenNotificationIds.size === 0) {
-      for (const item of list) {
-        seenNotificationIds.add(item.id);
-      }
-      return;
-    }
+    const isFirstSync = seenNotificationIds.size === 0;
 
     for (const item of list) {
       if (seenNotificationIds.has(item.id)) continue;
       seenNotificationIds.add(item.id);
-      if (item.is_read) continue;
+
+      const isUnrespondedBroadcast = item.type === "broadcast" && !item.responded_at;
+      if (isFirstSync && !isUnrespondedBroadcast) continue;
+      if (!isFirstSync && item.is_read && !isUnrespondedBroadcast) continue;
 
       let parsedMeta: Record<string, any> = {};
       try {
-        if (item.metadata) parsedMeta = JSON.parse(item.metadata);
+        parsedMeta =
+          typeof item.metadata === "string"
+            ? JSON.parse(item.metadata)
+            : item.metadata || {};
       } catch {
         // ignore
+      }
+
+      const broadcastId = item.broadcast_id || parsedMeta.broadcast_id || null;
+      const buttons = item.action_buttons || parsedMeta.action_buttons || [];
+      let categoryIdentifier: string | undefined = undefined;
+
+      if (broadcastId && Array.isArray(buttons) && buttons.length > 0) {
+        categoryIdentifier = `broadcast_${broadcastId}`;
+        await Notifications.setNotificationCategoryAsync(
+          categoryIdentifier,
+          buttons.slice(0, 3).map((btn: any) => ({
+            identifier: String(btn.id),
+            buttonTitle: String(btn.label),
+            options: { opensAppToForeground: false },
+          }))
+        );
       }
 
       await Notifications.scheduleNotificationAsync({
@@ -131,13 +153,18 @@ export async function syncLocalNotificationsFallback(): Promise<void> {
           title: item.title,
           body: item.message,
           sound: "default",
+          categoryIdentifier,
           data: {
             type: item.type || "task",
             screen: parsedMeta.lead_id ? "LeadDetail" : "Tasks",
             lead_id: parsedMeta.lead_id,
+            broadcast_id: broadcastId,
           },
         },
-        trigger: null,
+        trigger:
+          Platform.OS === "android"
+            ? ({ channelId: "dreamdesk-alerts" } as any)
+            : null,
       });
     }
   } catch {

@@ -6,6 +6,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Colors } from "../theme/colors";
 import { useAuth } from "../context/AuthContext";
+import { MobileApiClient } from "../api/mobileApiClient";
 
 // Screens
 import { LoginScreen } from "../screens/LoginScreen";
@@ -86,8 +87,30 @@ export function RootNavigator() {
   const { isAuthenticated, isLoading } = useAuth();
 
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+    const sub = Notifications.addNotificationResponseReceivedListener(async (response) => {
       const data = response.notification.request.content.data as any;
+      const actionId = response.actionIdentifier;
+
+      // Handle direct Android notification-bar action button tap (e.g., Acknowledge)
+      if (
+        actionId &&
+        actionId !== Notifications.DEFAULT_ACTION_IDENTIFIER &&
+        data?.broadcast_id
+      ) {
+        try {
+          await MobileApiClient.fetchJson(`/api/broadcasts/${data.broadcast_id}/respond`, {
+            method: "POST",
+            body: JSON.stringify({ action_id: actionId }),
+          });
+          await Notifications.dismissNotificationAsync(
+            response.notification.request.identifier
+          );
+        } catch {
+          // ignore
+        }
+        return;
+      }
+
       if (!navigationRef.isReady() || !isAuthenticated) return;
       if (data?.lead_id) {
         navigationRef.navigate("LeadDetail", { leadId: Number(data.lead_id) });
