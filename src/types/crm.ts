@@ -344,6 +344,29 @@ export interface TeamFloorMember {
   bottlenecks: string[];
 }
 
+export interface DispositionSopRule {
+  id: number;
+  disposition_id: string | null;
+  disposition_name?: string | null;
+  sub_disposition_id: string | null;
+  sub_disposition_name?: string | null;
+  target_role: 'lead_owner' | 'team_lead' | 'senior_counselor' | 'counselor' | 'telecaller' | 'admin';
+  specific_user_id: string | null;
+  specific_user_name?: string | null;
+  task_mode: 'call_task' | 'daily_task' | 'both';
+  template_id: number | null;
+  template_title?: string | null;
+  title: string;
+  description: string | null;
+  priority: TaskPriority;
+  sla_hours: number;
+  requires_proof: boolean;
+  requires_approval: boolean;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+}
+
 export interface WorkTaskLog {
   id: number;
   task_id: number;

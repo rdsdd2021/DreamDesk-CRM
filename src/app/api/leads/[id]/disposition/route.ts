@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LeadsService } from "@/lib/services/leadsService";
 import { AuthService } from "@/lib/services/authService";
+import { DispositionSopService } from "@/lib/services/dispositionSopService";
 
 export async function POST(
   request: NextRequest,
@@ -45,7 +46,14 @@ export async function POST(
       call_outcome !== undefined ? call_outcome : null
     );
 
-    return NextResponse.json({ ...updatedLead, success: true, lead: updatedLead });
+    const sopTriggered = DispositionSopService.executeTriggersForDisposition({
+      leadId,
+      dispositionId: disposition_id || null,
+      subDispositionId: sub_disposition_id || null,
+      actor: session.user,
+    });
+
+    return NextResponse.json({ ...updatedLead, success: true, lead: updatedLead, sopTriggered });
   } catch (error: any) {
     console.error("Failed to update lead disposition:", error);
     return NextResponse.json(

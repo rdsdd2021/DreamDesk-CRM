@@ -536,6 +536,27 @@ function initializeSchema(db: Database.Database) {
       created_by TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS disposition_sop_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      disposition_id TEXT REFERENCES dispositions(id) ON DELETE CASCADE,
+      sub_disposition_id TEXT REFERENCES sub_dispositions(id) ON DELETE CASCADE,
+      target_role TEXT NOT NULL DEFAULT 'lead_owner', -- 'lead_owner' | 'team_lead' | 'senior_counselor' | 'counselor' | 'telecaller' | 'admin'
+      specific_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+      task_mode TEXT NOT NULL DEFAULT 'call_task',    -- 'call_task' | 'daily_task' | 'both'
+      template_id INTEGER REFERENCES work_task_templates(id) ON DELETE SET NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      priority TEXT NOT NULL DEFAULT 'high',
+      sla_hours INTEGER NOT NULL DEFAULT 4,
+      requires_proof INTEGER NOT NULL DEFAULT 0,
+      requires_approval INTEGER NOT NULL DEFAULT 0,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_by TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_disp_sop_disp ON disposition_sop_rules(disposition_id, is_active);
+    CREATE INDEX IF NOT EXISTS idx_disp_sop_sub ON disposition_sop_rules(sub_disposition_id, is_active);
   `);
 
   // Safe migrations for existing users & work_tasks tables

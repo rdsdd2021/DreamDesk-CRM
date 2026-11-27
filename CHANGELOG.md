@@ -4,6 +4,14 @@ All notable changes, architectural enhancements, schema migrations, and feature 
 
 ---
 
+## [v1.4.3] — 2026-11-27
+
+### ⚡ Disposition → SOP Automation Rules & Full Phone Number Search
+- **Disposition → SOP Trigger Engine (`disposition_sop_rules`, `DispositionSopService`, `/api/dispositions/sop-rules`)**: Link multiple automation rules to any Disposition or Sub-Disposition to automatically create **Call Tasks**, **Daily Work Tasks**, or **Both** for specific user roles (`Team Lead`, `Senior Counselor`, `Counselor`, `Telecaller`, `Lead Owner`, `Admin`, or a specific user override) with configurable SLA hours, priority, SOP template checklist, proof, and Team Lead sign-off.
+- **Full Database Phone Number Search (`leadsService.ts`)**: Global search now normalizes and searches across **both** primary `leads.phone` and `leads.alternate_contacts` (guardian/mother/father/alternate numbers) regardless of formatting (`+91`, spaces, dashes, parentheses).
+
+---
+
 ## [v1.4.2] — 2026-11-27
 
 ### ✨ Morning Check-In Enforcement, Clean Toolbar, Wrap-Up EOD & Tasks Redesign

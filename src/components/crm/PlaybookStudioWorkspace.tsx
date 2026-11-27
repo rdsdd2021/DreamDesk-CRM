@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Disposition, Campaign, LeadScoringPolicyConfig } from "@/types/crm";
+import { DispositionSopRulesPanel } from "@/components/crm/DispositionSopRulesPanel";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -711,6 +712,9 @@ export function PlaybookStudioWorkspace({ onFilterByDisposition }: PlaybookStudi
           </div>
         )}
       </div>
+
+      {/* DISPOSITION -> SOP AUTOMATION RULES */}
+      <DispositionSopRulesPanel dispositions={dispositions} />
 
       {/* RECIPE BUILDER MODAL */}
       <PlaybookOutcomeModal

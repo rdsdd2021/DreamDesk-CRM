@@ -201,7 +201,9 @@ export class LeadsService {
         conditions.push(`(
           leads.name LIKE @search 
           OR leads.phone LIKE @search 
-          OR REPLACE(REPLACE(REPLACE(REPLACE(leads.phone, ' ', ''), '-', ''), '+', ''), '(', '') LIKE @search_digits
+          OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(leads.phone, ' ', ''), '-', ''), '+', ''), '(', ''), ')', '') LIKE @search_digits
+          OR leads.alternate_contacts LIKE @search
+          OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(leads.alternate_contacts, ''), ' ', ''), '-', ''), '+', ''), '(', ''), ')', '') LIKE @search_digits
           OR leads.email LIKE @search 
           OR leads.lead_code LIKE @search 
           OR campaigns.name LIKE @search
@@ -215,6 +217,7 @@ export class LeadsService {
         conditions.push(`(
           leads.name LIKE @search 
           OR leads.phone LIKE @search 
+          OR leads.alternate_contacts LIKE @search
           OR leads.email LIKE @search 
           OR leads.lead_code LIKE @search 
           OR campaigns.name LIKE @search
