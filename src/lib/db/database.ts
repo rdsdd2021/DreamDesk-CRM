@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
+import { normalizeAndValidatePhone } from "@/lib/utils/phoneNormalizer";
 
 let dbInstance: Database.Database | null = null;
 
@@ -517,6 +518,7 @@ function initializeSchema(db: Database.Database) {
       last_message_preview TEXT,
       last_message_direction TEXT DEFAULT 'outbound',
       last_message_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_inbound_at DATETIME,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(phone_digits)
     );
@@ -737,6 +739,63 @@ function initializeSchema(db: Database.Database) {
     `);
   }
 
+  if (!perfLeadColNames.has("whatsapp_phone")) {
+    db.exec("ALTER TABLE leads ADD COLUMN whatsapp_phone TEXT;");
+  }
+
+  // Idempotent E.164 normalization for legacy non-E.164 phone numbers (e.g. "918695911105" or "+91 7002015274")
+  try {
+    const legacyPhoneRows = db
+      .prepare(
+        `SELECT id, phone, whatsapp_phone, alternate_contacts FROM leads
+         WHERE (phone IS NOT NULL AND phone != '' AND (phone NOT LIKE '+%' OR phone LIKE '% %' OR phone LIKE '%-%'))
+         LIMIT 5000`
+      )
+      .all() as { id: number; phone: string | null; whatsapp_phone: string | null; alternate_contacts: string | null }[];
+
+    if (legacyPhoneRows.length > 0) {
+      const updateNorm = db.prepare(
+        `UPDATE leads SET phone = ?, phone_digits = ?, whatsapp_phone = ?, alternate_contacts = ? WHERE id = ?`
+      );
+      const runNorm = db.transaction(() => {
+        for (const row of legacyPhoneRows) {
+          const pRes = normalizeAndValidatePhone(row.phone);
+          const nextPhone = pRes.valid ? pRes.e164 : row.phone;
+          const nextDigits = pRes.valid
+            ? pRes.digits
+            : String(row.phone || "").replace(/[^0-9]/g, "");
+
+          let nextWa = row.whatsapp_phone;
+          if (nextWa) {
+            const wRes = normalizeAndValidatePhone(nextWa);
+            if (wRes.valid) nextWa = wRes.e164;
+          }
+
+          let nextAlts = row.alternate_contacts;
+          if (nextAlts) {
+            try {
+              const parsed = JSON.parse(nextAlts);
+              if (Array.isArray(parsed)) {
+                const updatedAlts = parsed.map((c: any) => {
+                  const cRes = normalizeAndValidatePhone(c?.phone);
+                  return cRes.valid ? { ...c, phone: cRes.e164 } : c;
+                });
+                nextAlts = JSON.stringify(updatedAlts);
+              }
+            } catch {
+              // ignore malformed JSON
+            }
+          }
+
+          updateNorm.run(nextPhone, nextDigits, nextWa, nextAlts, row.id);
+        }
+      });
+      runNorm();
+    }
+  } catch (e) {
+    console.warn("E.164 phone normalization pass skipped:", e);
+  }
+
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_leads_phone_digits ON leads(phone_digits);
     CREATE INDEX IF NOT EXISTS idx_leads_lead_code ON leads(lead_code);
@@ -753,6 +812,13 @@ function initializeSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_leads_attr_12th_score ON leads(json_extract(raw_attributes, '$.12th_score'));
     CREATE INDEX IF NOT EXISTS idx_leads_attr_pref_branch ON leads(json_extract(raw_attributes, '$.preferred_branch'));
   `);
+
+  try {
+    const waConvCols = db.prepare("PRAGMA table_info(whatsapp_conversations)").all() as { name: string }[];
+    if (!waConvCols.some((c) => c.name === "last_inbound_at")) {
+      db.exec("ALTER TABLE whatsapp_conversations ADD COLUMN last_inbound_at DATETIME;");
+    }
+  } catch {}
 
   try {
     db.exec(`

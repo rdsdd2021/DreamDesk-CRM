@@ -46,6 +46,102 @@ interface LeadTimelineProps {
 type SignalFilter = "all" | "high_signal" | "stages" | "system";
 type DensityMode = "compact" | "detailed";
 
+type GroupedTimelineEntry =
+  | { kind: "single"; key: string; item: LeadActivity }
+  | { kind: "bundle"; key: string; primary: LeadActivity; items: LeadActivity[] }
+  | { kind: "stack"; key: string; activityType: string; title: string; items: LeadActivity[] };
+
+const BUNDLE_PRIORITY: Record<string, number> = {
+  disposition: 10,
+  call: 9,
+  assigned: 8,
+  stage_change: 7,
+  note: 6,
+  whatsapp: 5,
+  communication: 5,
+  callback_scheduled: 4,
+  field_update: 2,
+};
+
+function isStackableEvent(act: LeadActivity): boolean {
+  const title = (act.title || "").toLowerCase();
+  if (act.activity_type === "whatsapp" || act.activity_type === "communication") return true;
+  if (act.activity_type === "field_update") return true;
+  if (act.activity_type === "call" && title.includes("initiated")) return true;
+  return false;
+}
+
+function groupActivitiesForCompactView(items: LeadActivity[]): GroupedTimelineEntry[] {
+  const result: GroupedTimelineEntry[] = [];
+  let i = 0;
+
+  while (i < items.length) {
+    const first = items[i];
+    const firstTime = new Date(first.created_at).getTime();
+
+    // 1. Try bundling simultaneous events by the same actor within 10 seconds
+    if (first.performed_by_name && !isNaN(firstTime)) {
+      const bundle: LeadActivity[] = [first];
+      let j = i + 1;
+      while (j < items.length) {
+        const next = items[j];
+        const nextTime = new Date(next.created_at).getTime();
+        const sameActor = next.performed_by_name === first.performed_by_name;
+        const withinWindow = !isNaN(nextTime) && Math.abs(firstTime - nextTime) <= 10_000;
+        if (!sameActor || !withinWindow) break;
+        bundle.push(next);
+        j++;
+      }
+
+      const distinctTypes = new Set(bundle.map((b) => b.activity_type));
+      if (bundle.length > 1 && distinctTypes.size > 1) {
+        const sortedByPriority = [...bundle].sort(
+          (a, b) => (BUNDLE_PRIORITY[b.activity_type] || 0) - (BUNDLE_PRIORITY[a.activity_type] || 0)
+        );
+        result.push({
+          kind: "bundle",
+          key: `bundle_${first.id}`,
+          primary: sortedByPriority[0],
+          items: bundle,
+        });
+        i = j;
+        continue;
+      }
+    }
+
+    // 2. Try stacking consecutive identical outreach / system events
+    if (isStackableEvent(first)) {
+      const stack: LeadActivity[] = [first];
+      let j = i + 1;
+      while (j < items.length) {
+        const next = items[j];
+        if (next.activity_type === first.activity_type && isStackableEvent(next)) {
+          stack.push(next);
+          j++;
+        } else {
+          break;
+        }
+      }
+      if (stack.length > 1) {
+        result.push({
+          kind: "stack",
+          key: `stack_${first.id}`,
+          activityType: first.activity_type,
+          title: first.title,
+          items: stack,
+        });
+        i = j;
+        continue;
+      }
+    }
+
+    result.push({ kind: "single", key: `single_${first.id}`, item: first });
+    i++;
+  }
+
+  return result;
+}
+
 const NOTE_TEMPLATES = [
   "Parent requested follow-up call",
   "Fee structure shared with student",
@@ -67,6 +163,16 @@ export function LeadTimeline({
   const [signalFilter, setSignalFilter] = useState<SignalFilter>("all");
   const [densityMode, setDensityMode] = useState<DensityMode>("compact");
   const [expandedItemIds, setExpandedItemIds] = useState<Set<number>>(new Set());
+  const [expandedGroupKeys, setExpandedGroupKeys] = useState<Set<string>>(new Set());
+
+  const toggleExpandGroup = (key: string) => {
+    setExpandedGroupKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   // Note composer state
   const [noteInput, setNoteInput] = useState("");
@@ -670,7 +776,168 @@ export function LeadTimeline({
 
               {/* Bucket Events */}
               <div className="space-y-2">
-                {bucket.items.map((act) => {
+                {(densityMode === "compact"
+                  ? groupActivitiesForCompactView(bucket.items)
+                  : bucket.items.map((item) => ({ kind: "single" as const, key: `single_${item.id}`, item }))
+                ).map((entry) => {
+                  if (entry.kind === "bundle") {
+                    const meta = getActivityMeta(entry.primary.activity_type);
+                    const isGroupExpanded = expandedGroupKeys.has(entry.key);
+                    const subItems = entry.items.filter((x) => x.id !== entry.primary.id);
+
+                    return (
+                      <div
+                        key={entry.key}
+                        className="rounded-xl border border-border/70 bg-muted/15 hover:bg-muted/25 transition-all p-2.5 space-y-2"
+                      >
+                        <div
+                          className="flex items-start justify-between gap-2.5 cursor-pointer"
+                          onClick={() => toggleExpandGroup(entry.key)}
+                        >
+                          <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                            <div
+                              className={`w-6 h-6 rounded-full border ${meta.dotBg} shrink-0 flex items-center justify-center shadow-2xs mt-0.5`}
+                            >
+                              {meta.icon}
+                            </div>
+                            <div className="min-w-0 flex-1 space-y-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs font-semibold text-foreground">
+                                  {entry.primary.title}
+                                </span>
+                                {entry.primary.performed_by_name && (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    by <strong className="text-foreground/80">{entry.primary.performed_by_name}</strong>
+                                  </span>
+                                )}
+                                <Badge variant="secondary" className="text-[9px] h-4 px-1.5 font-mono">
+                                  {entry.items.length} bundled
+                                </Badge>
+                              </div>
+                              {entry.primary.description && (
+                                <p className="text-[11px] text-muted-foreground truncate max-w-lg">
+                                  {entry.primary.description}
+                                </p>
+                              )}
+                              <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                                {subItems.map((sub) => (
+                                  <span
+                                    key={sub.id}
+                                    className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-background border border-border/60 text-muted-foreground"
+                                  >
+                                    {sub.activity_type === "stage_change" && sub.old_value && sub.new_value
+                                      ? `${sub.old_value} → ${sub.new_value}`
+                                      : sub.title}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[10px] text-muted-foreground font-mono">
+                              {formatClockTime(entry.primary.created_at)}
+                            </span>
+                            {isGroupExpanded ? (
+                              <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />
+                            ) : (
+                              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                            )}
+                          </div>
+                        </div>
+
+                        {isGroupExpanded && (
+                          <div className="pl-8 pt-1.5 border-t border-border/50 space-y-1.5">
+                            {entry.items.map((sub) => (
+                              <div key={sub.id} className="text-[11px] flex items-start justify-between gap-2 bg-background/70 px-2.5 py-1.5 rounded-lg border border-border/40">
+                                <div className="min-w-0">
+                                  <div className="font-semibold text-foreground">{sub.title}</div>
+                                  {sub.description && (
+                                    <div className="text-muted-foreground text-[10px] whitespace-pre-wrap">{sub.description}</div>
+                                  )}
+                                </div>
+                                <span className="text-[10px] font-mono text-muted-foreground shrink-0">
+                                  {formatClockTime(sub.created_at)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  if (entry.kind === "stack") {
+                    const meta = getActivityMeta(entry.activityType);
+                    const isGroupExpanded = expandedGroupKeys.has(entry.key);
+                    const newest = entry.items[0];
+                    const oldest = entry.items[entry.items.length - 1];
+
+                    return (
+                      <div
+                        key={entry.key}
+                        className="rounded-xl border border-border/60 bg-muted/10 hover:bg-muted/20 transition-all px-3 py-2 space-y-2"
+                      >
+                        <div
+                          className="flex items-center justify-between gap-2.5 cursor-pointer"
+                          onClick={() => toggleExpandGroup(entry.key)}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <div
+                              className={`w-6 h-6 rounded-full border ${meta.dotBg} shrink-0 flex items-center justify-center shadow-2xs`}
+                            >
+                              {meta.icon}
+                            </div>
+                            <div className="min-w-0 flex-1 flex items-center gap-1.5 flex-wrap">
+                              <Badge variant="outline" className="text-[10px] h-4 px-1.5 font-mono">
+                                {entry.items.length}×
+                              </Badge>
+                              <span className="text-xs font-semibold text-foreground truncate">
+                                {entry.title}
+                              </span>
+                              {newest.performed_by_name && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  by <strong className="text-foreground/80">{newest.performed_by_name}</strong>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[10px] text-muted-foreground font-mono">
+                              {formatClockTime(oldest.created_at)} – {formatClockTime(newest.created_at)}
+                            </span>
+                            {isGroupExpanded ? (
+                              <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />
+                            ) : (
+                              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                            )}
+                          </div>
+                        </div>
+
+                        {isGroupExpanded && (
+                          <div className="pl-8 pt-1.5 border-t border-border/50 space-y-1.5">
+                            {entry.items.map((sub) => (
+                              <div key={sub.id} className="text-[11px] flex items-start justify-between gap-2 bg-background/70 px-2.5 py-1.5 rounded-lg border border-border/40">
+                                <div className="min-w-0">
+                                  <div className="font-medium text-foreground">
+                                    {sub.title} {sub.performed_by_name ? `· ${sub.performed_by_name}` : ""}
+                                  </div>
+                                  {sub.description && (
+                                    <div className="text-muted-foreground text-[10px] truncate max-w-md">{sub.description}</div>
+                                  )}
+                                </div>
+                                <span className="text-[10px] font-mono text-muted-foreground shrink-0">
+                                  {formatClockTime(sub.created_at)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  const act = entry.item;
                   const meta = getActivityMeta(act.activity_type);
                   const isExpanded = densityMode === "detailed" || expandedItemIds.has(act.id);
                   const hasDetails = Boolean(act.description || act.old_value || act.new_value || act.metadata);

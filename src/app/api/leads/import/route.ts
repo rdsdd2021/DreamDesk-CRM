@@ -45,6 +45,13 @@ export async function POST(request: NextRequest) {
       const campaignIdRaw = formData.get("campaignId");
       const campaignId = campaignIdRaw && String(campaignIdRaw) !== "none" ? String(campaignIdRaw) : undefined;
       const skipDuplicates = String(formData.get("skipDuplicates") || "true") === "true";
+      const duplicateModeRaw = String(formData.get("duplicateMode") || "").toLowerCase();
+      const duplicateMode =
+        duplicateModeRaw === "merge" || duplicateModeRaw === "allow" || duplicateModeRaw === "skip"
+          ? duplicateModeRaw
+          : skipDuplicates
+          ? "skip"
+          : "allow";
       const defaultStatus = String(formData.get("defaultStatus") || "New");
 
       const uploadDir = path.join(process.cwd(), "data", "uploads");
@@ -72,7 +79,11 @@ export async function POST(request: NextRequest) {
           let processedTotal = 0;
           let importedTotal = 0;
           let skippedTotal = 0;
+          let mergedTotal = 0;
+          let rejectedTotal = 0;
           let errorRows = 0;
+          const rejectedSample: any[] = [];
+          const duplicateSample: any[] = [];
           const headersSet = new Set<string>();
 
           appendLog("info", `Received ${sourceName} (${sizeMb} MB). Starting server-side streaming ingestion...`);
@@ -82,17 +93,22 @@ export async function POST(request: NextRequest) {
             const batch = buffer;
             buffer = [];
             try {
-              const { importedCount, skippedDuplicates, newHeadersFound } = LeadsService.importLeads(
+              const res = LeadsService.importLeads(
                 batch,
                 sourceName,
                 campaignId,
                 skipDuplicates,
                 undefined,
-                defaultStatus
+                defaultStatus,
+                duplicateMode
               );
-              importedTotal += importedCount;
-              skippedTotal += skippedDuplicates;
-              for (const h of newHeadersFound) headersSet.add(h);
+              importedTotal += res.importedCount;
+              skippedTotal += res.skippedDuplicates;
+              mergedTotal += res.mergedCount;
+              rejectedTotal += res.rejectedCount;
+              if (rejectedSample.length < 100) rejectedSample.push(...res.rejectedRows.slice(0, 100 - rejectedSample.length));
+              if (duplicateSample.length < 100) duplicateSample.push(...res.duplicateRows.slice(0, 100 - duplicateSample.length));
+              for (const h of res.newHeadersFound) headersSet.add(h);
             } catch (chunkErr: any) {
               errorRows += batch.length;
               appendLog("error", `Chunk failed (${batch.length} rows): ${chunkErr?.message || "DB error"}`);
@@ -159,6 +175,10 @@ export async function POST(request: NextRequest) {
           return {
             importedCount: importedTotal,
             skippedDuplicates: skippedTotal,
+            mergedCount: mergedTotal,
+            rejectedCount: rejectedTotal,
+            rejectedRows: rejectedSample,
+            duplicateRows: duplicateSample,
             errorRows,
             newHeadersFound: Array.from(headersSet),
           };
@@ -178,7 +198,7 @@ export async function POST(request: NextRequest) {
 
     // 2. Fallback JSON array import (small batches / API callers)
     const body = await request.json();
-    const { records, sourceName, campaignId, skipDuplicates, fieldMapping, defaultStatus } = body;
+    const { records, sourceName, campaignId, skipDuplicates, duplicateMode, fieldMapping, defaultStatus } = body;
 
     if (!Array.isArray(records) || records.length === 0) {
       return NextResponse.json({ error: "Invalid data: 'records' must be a non-empty array." }, { status: 400 });
@@ -196,32 +216,48 @@ export async function POST(request: NextRequest) {
         const CHUNK_SIZE = 250;
         let importedTotal = 0;
         let skippedTotal = 0;
+        let mergedTotal = 0;
+        let rejectedTotal = 0;
+        const rejectedSample: any[] = [];
+        const duplicateSample: any[] = [];
         const headersSet = new Set<string>();
 
         appendLog("info", `Starting ingestion of ${totalRecords.toLocaleString()} leads...`);
 
         for (let i = 0; i < totalRecords; i += CHUNK_SIZE) {
           const chunk = records.slice(i, i + CHUNK_SIZE);
-          const { importedCount, skippedDuplicates, newHeadersFound } = LeadsService.importLeads(
+          const res = LeadsService.importLeads(
             chunk,
             cleanSource,
             campaignId || undefined,
             Boolean(skipDuplicates),
             fieldMapping,
-            defaultStatus || "New"
+            defaultStatus || "New",
+            duplicateMode
           );
-          importedTotal += importedCount;
-          skippedTotal += skippedDuplicates;
-          for (const h of newHeadersFound) headersSet.add(h);
+          importedTotal += res.importedCount;
+          skippedTotal += res.skippedDuplicates;
+          mergedTotal += res.mergedCount;
+          rejectedTotal += res.rejectedCount;
+          if (rejectedSample.length < 100) rejectedSample.push(...res.rejectedRows.slice(0, 100 - rejectedSample.length));
+          if (duplicateSample.length < 100) duplicateSample.push(...res.duplicateRows.slice(0, 100 - duplicateSample.length));
+          for (const h of res.newHeadersFound) headersSet.add(h);
 
           updateProgress(Math.min(i + chunk.length, totalRecords), importedTotal, skippedTotal);
           await yieldLoop();
         }
 
-        appendLog("info", `Finished: ${importedTotal.toLocaleString()} imported, ${skippedTotal.toLocaleString()} skipped.`);
+        appendLog(
+          "info",
+          `Finished: ${importedTotal.toLocaleString()} imported, ${mergedTotal.toLocaleString()} merged, ${skippedTotal.toLocaleString()} skipped, ${rejectedTotal.toLocaleString()} rejected.`
+        );
         return {
           importedCount: importedTotal,
           skippedDuplicates: skippedTotal,
+          mergedCount: mergedTotal,
+          rejectedCount: rejectedTotal,
+          rejectedRows: rejectedSample,
+          duplicateRows: duplicateSample,
           newHeadersFound: Array.from(headersSet),
         };
       },

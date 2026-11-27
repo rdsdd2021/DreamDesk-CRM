@@ -50,7 +50,7 @@ export function ImportModal({
   const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("none");
-  const [skipDuplicates, setSkipDuplicates] = useState(true);
+  const [duplicateMode, setDuplicateMode] = useState<"skip" | "merge" | "allow">("skip");
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
@@ -150,7 +150,8 @@ export function ImportModal({
         {
           sourceName: file.name || "CSV Upload",
           campaignId: selectedCampaignId === "none" ? undefined : selectedCampaignId,
-          skipDuplicates,
+          skipDuplicates: duplicateMode !== "allow",
+          duplicateMode,
         },
         (pct) => setUploadProgress(pct)
       );
@@ -281,17 +282,18 @@ export function ImportModal({
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Duplicate Prevention</span>
+                <span>Duplicate Handling</span>
               </label>
-              <label className="flex items-center gap-2 h-8 px-2.5 rounded-lg border bg-background hover:bg-accent/40 cursor-pointer text-xs transition-colors">
-                <Checkbox
-                  checked={skipDuplicates}
-                  onCheckedChange={(checked) => setSkipDuplicates(Boolean(checked))}
-                />
-                <span className="font-medium text-foreground text-[11px] truncate">
-                  Skip existing phone numbers
-                </span>
-              </label>
+              <Select value={duplicateMode} onValueChange={(v: any) => setDuplicateMode(v)}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="skip">Skip Duplicates (Default)</SelectItem>
+                  <SelectItem value="merge">Merge Missing Fields</SelectItem>
+                  <SelectItem value="allow">Import Anyway (Flag Radar)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

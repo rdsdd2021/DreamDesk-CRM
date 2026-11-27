@@ -48,6 +48,15 @@ export async function PATCH(
   }
 
   const body = await request.json().catch(() => ({}));
+  if (body?.action === "create_lead") {
+    try {
+      const created = KapsoWhatsappService.createLeadFromConversation(convId, session.user);
+      return NextResponse.json({ success: true, ...created });
+    } catch (err: any) {
+      return NextResponse.json({ error: err?.message || "Failed to create lead" }, { status: 400 });
+    }
+  }
+
   KapsoWhatsappService.updateConversation(convId, {
     status: body?.status,
     assigned_to: body?.assigned_to,

@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { Lead, User, WhatsAppMessage, WhatsAppTemplate } from "@/types/crm";
+import React, { useEffect, useMemo, useState } from "react";
+import { Lead, User, WhatsAppConversation, WhatsAppMessage, WhatsAppTemplate } from "@/types/crm";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, MessageSquare, Send, Sparkles } from "lucide-react";
+import { WhatsAppTemplateBubblePreview } from "@/components/crm/WhatsAppTemplateBubblePreview";
+import { Clock, Loader2, Lock, MessageSquare, Send, Sparkles } from "lucide-react";
 
 interface WhatsAppModalProps {
   isOpen: boolean;
@@ -37,15 +38,40 @@ export function WhatsAppModal({
   const [freeText, setFreeText] = useState("");
   const [mode, setMode] = useState<"text" | "template">("text");
   const [history, setHistory] = useState<WhatsAppMessage[]>([]);
+  const [conversation, setConversation] = useState<WhatsAppConversation | null>(null);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [selectedPhone, setSelectedPhone] = useState<string>("");
+  const [mediaOverrideUrl, setMediaOverrideUrl] = useState<string>("");
+  const [focusedVarName, setFocusedVarName] = useState<string | null>(null);
+
+  const windowStatus = useMemo(() => {
+    const latestInboundFromMsgs = history
+      .filter((m) => m.direction === "inbound")
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]?.created_at;
+    const lastInbound = conversation?.last_inbound_at || latestInboundFromMsgs || null;
+    if (!lastInbound) {
+      return { isOpen: false, label: "No inbound reply yet · Template required" };
+    }
+    const elapsedMs = Date.now() - new Date(lastInbound).getTime();
+    const limitMs = 24 * 60 * 60 * 1000;
+    if (isNaN(elapsedMs) || elapsedMs >= limitMs) {
+      return { isOpen: false, label: "24h window expired · Template required" };
+    }
+    const remMs = limitMs - elapsedMs;
+    const hrs = Math.floor(remMs / (60 * 60 * 1000));
+    const mins = Math.floor((remMs % (60 * 60 * 1000)) / (60 * 1000));
+    return { isOpen: true, label: `24h Window Open · ${hrs}h ${mins}m left` };
+  }, [conversation?.last_inbound_at, history]);
 
   useEffect(() => {
     if (!isOpen || !lead?.id) return;
+    setSelectedPhone(lead.whatsapp_phone || lead.phone || "");
     setLoading(true);
-    setMode("text");
     setFreeText("");
     setSelectedTemplateId("");
+    setMediaOverrideUrl("");
+    setFocusedVarName(null);
     Promise.all([
       fetch("/api/whatsapp/templates?approved=1", { cache: "no-store" }).then((r) => r.json()),
       fetch(`/api/whatsapp/conversations?lead_id=${lead.id}`, { cache: "no-store" }).then((r) =>
@@ -53,8 +79,27 @@ export function WhatsAppModal({
       ),
     ])
       .then(([tData, cData]) => {
-        setTemplates(tData?.templates || []);
-        setHistory(cData?.messages || []);
+        const tpls: WhatsAppTemplate[] = tData?.templates || [];
+        const msgs: WhatsAppMessage[] = cData?.messages || [];
+        const conv: WhatsAppConversation | null = cData?.conversation || null;
+        setTemplates(tpls);
+        setHistory(msgs);
+        setConversation(conv);
+
+        const lastIn =
+          conv?.last_inbound_at ||
+          msgs.filter((m) => m.direction === "inbound").slice(-1)[0]?.created_at;
+        const open24h = Boolean(
+          lastIn && Date.now() - new Date(lastIn).getTime() < 24 * 60 * 60 * 1000
+        );
+        if (!open24h) {
+          setMode("template");
+          if (tpls.length > 0) {
+            handleSelectTemplate(tpls[0]);
+          }
+        } else {
+          setMode("text");
+        }
       })
       .finally(() => setLoading(false));
   }, [isOpen, lead?.id]);
@@ -99,6 +144,7 @@ export function WhatsAppModal({
         mode === "template" && selectedTemplate
           ? {
               lead_id: lead.id,
+              to_phone: selectedPhone || undefined,
               message_type: "template",
               template_name: selectedTemplate.name,
               language_code: selectedTemplate.language || "en_US",
@@ -107,10 +153,22 @@ export function WhatsAppModal({
                 name: v.name,
                 value: varValues[v.name] || "",
               })),
+              header_media_type:
+                selectedTemplate.header_type &&
+                ["IMAGE", "VIDEO", "DOCUMENT"].includes(selectedTemplate.header_type)
+                  ? selectedTemplate.header_type
+                  : undefined,
+              media_url:
+                selectedTemplate.header_type &&
+                ["IMAGE", "VIDEO", "DOCUMENT"].includes(selectedTemplate.header_type) &&
+                (mediaOverrideUrl.trim() || selectedTemplate.header_content)
+                  ? mediaOverrideUrl.trim() || selectedTemplate.header_content
+                  : undefined,
               body: renderedTemplatePreview(),
             }
           : {
               lead_id: lead.id,
+              to_phone: selectedPhone || undefined,
               message_type: "text",
               body: freeText.trim(),
             };
@@ -136,24 +194,64 @@ export function WhatsAppModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg w-[calc(100vw-24px)] p-0 overflow-hidden rounded-2xl">
-        <DialogHeader className="px-5 py-4 border-b border-border/60 bg-gradient-to-r from-emerald-500/10 via-card to-card">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-600/15 text-emerald-600 flex items-center justify-center">
-              <MessageSquare className="w-4 h-4" />
+      <DialogContent className="sm:max-w-[700px] w-[calc(100vw-24px)] p-0 overflow-hidden rounded-2xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="px-5 py-4 border-b border-border/60 bg-gradient-to-r from-emerald-500/10 via-card to-card shrink-0">
+          <div className="flex items-center justify-between gap-3 pr-6 flex-wrap">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-emerald-600/15 text-emerald-600 flex items-center justify-center shrink-0">
+                <MessageSquare className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <DialogTitle className="text-sm font-bold truncate">
+                  Kapso WhatsApp · {lead?.name || lead?.phone || "Lead"}
+                </DialogTitle>
+                <DialogDescription className="text-[11px] truncate">
+                  {lead?.lead_code} · Integrated Business Chat (No external links)
+                </DialogDescription>
+              </div>
             </div>
-            <div>
-              <DialogTitle className="text-sm font-bold">
-                Kapso WhatsApp · {lead?.name || "Lead"}
-              </DialogTitle>
-              <DialogDescription className="text-[11px]">
-                {lead?.lead_code} · Integrated Business Chat (No external links)
-              </DialogDescription>
-            </div>
+            <Badge
+              variant="outline"
+              className={`text-[10px] font-semibold gap-1 shrink-0 ${
+                windowStatus.isOpen
+                  ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
+                  : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30"
+              }`}
+            >
+              {windowStatus.isOpen ? <Clock className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+              <span>{windowStatus.label}</span>
+            </Badge>
           </div>
         </DialogHeader>
 
-        <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto text-xs">
+        <div className="p-5 space-y-4 overflow-y-auto text-xs flex-1">
+          {/* Recipient Number Picker (when multiple contacts exist) */}
+          {lead?.alternate_contacts && lead.alternate_contacts.length > 0 && (
+            <div className="space-y-1">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Send To Contact Number
+              </div>
+              <select
+                value={selectedPhone}
+                onChange={(e) => setSelectedPhone(e.target.value)}
+                className="w-full h-8 px-2.5 rounded-lg border border-border bg-background text-xs font-medium text-foreground"
+              >
+                {lead.phone && (
+                  <option value={lead.phone}>
+                    {lead.phone_label || "Primary"}: {lead.phone}
+                    {!lead.whatsapp_phone || lead.whatsapp_phone === lead.phone ? " (WhatsApp Default)" : ""}
+                  </option>
+                )}
+                {lead.alternate_contacts.map((c) => (
+                  <option key={c.id} value={c.phone}>
+                    {c.label}: {c.phone}
+                    {c.is_whatsapp || lead.whatsapp_phone === c.phone ? " (WhatsApp Default)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Recent Chat History */}
           <div className="space-y-1.5">
             <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -187,15 +285,26 @@ export function WhatsAppModal({
           </div>
 
           {/* Mode Toggle */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
-              onClick={() => setMode("text")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
-                mode === "text" ? "bg-emerald-600 text-white" : "bg-muted text-muted-foreground"
+              disabled={!windowStatus.isOpen}
+              onClick={() => windowStatus.isOpen && setMode("text")}
+              title={
+                windowStatus.isOpen
+                  ? "Send a free-text reply"
+                  : "Free-text replies are only allowed within 24 hours of the customer's last inbound message"
+              }
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                !windowStatus.isOpen
+                  ? "bg-muted/50 text-muted-foreground/60 cursor-not-allowed border border-border/50"
+                  : mode === "text"
+                  ? "bg-emerald-600 text-white cursor-pointer"
+                  : "bg-muted text-muted-foreground cursor-pointer"
               }`}
             >
-              Free-text Reply
+              {!windowStatus.isOpen && <Lock className="w-3 h-3" />}
+              <span>Free-text Reply</span>
             </button>
             <button
               type="button"
@@ -208,6 +317,15 @@ export function WhatsAppModal({
               <span>Approved Meta Template ({templates.length})</span>
             </button>
           </div>
+
+          {!windowStatus.isOpen && (
+            <div className="px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/25 text-[11px] text-amber-800 dark:text-amber-300 flex items-center gap-2">
+              <Lock className="w-3.5 h-3.5 shrink-0" />
+              <span>
+                Meta requires an <strong>Approved Template</strong> when no inbound reply was received in the last 24 hours.
+              </span>
+            </div>
+          )}
 
           {mode === "text" ? (
             <Textarea
@@ -229,11 +347,14 @@ export function WhatsAppModal({
                     <button
                       key={t.id}
                       type="button"
-                      onClick={() => handleSelectTemplate(t)}
+                      onClick={() => {
+                        setMediaOverrideUrl("");
+                        handleSelectTemplate(t);
+                      }}
                       className={`px-2.5 py-1 rounded-lg border text-xs cursor-pointer ${
                         selectedTemplateId === t.id
                           ? "bg-emerald-600 text-white border-emerald-600 font-semibold"
-                          : "bg-muted/40 border-border text-foreground"
+                          : "bg-muted/40 border-border text-foreground hover:bg-muted"
                       }`}
                     >
                       {t.name}
@@ -243,29 +364,92 @@ export function WhatsAppModal({
               </div>
 
               {selectedTemplate && (
-                <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <Badge variant="outline" className="text-[10px]">
-                      {selectedTemplate.category} · {selectedTemplate.language}
-                    </Badge>
-                  </div>
-                  {(selectedTemplate.variables || []).map((v) => (
-                    <div key={v.name} className="space-y-1">
-                      <label className="text-[10px] font-mono text-muted-foreground">
-                        {`{{${v.name}}}`}
-                      </label>
-                      <Input
-                        value={varValues[v.name] || ""}
-                        onChange={(e) =>
-                          setVarValues((prev) => ({ ...prev, [v.name]: e.target.value }))
-                        }
-                        className="h-8 text-xs"
-                      />
+                <div className="p-3.5 rounded-xl border border-emerald-500/25 bg-emerald-500/5 space-y-3">
+                  {/* Quick-fill CRM chips */}
+                  {(selectedTemplate.variables || []).length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="text-[11px] font-semibold text-foreground">
+                          Template Variables
+                        </span>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <span className="text-[10px] text-muted-foreground">Quick-fill:</span>
+                          {[
+                            { label: "Name", val: lead?.name || "" },
+                            { label: "Code", val: lead?.lead_code || "" },
+                            { label: "Stream", val: String(lead?.raw_attributes?.stream || "") },
+                            { label: "City", val: String(lead?.raw_attributes?.city || "") },
+                            { label: "Counselor", val: currentUser?.name || "" },
+                          ]
+                            .filter((q) => q.val)
+                            .map((q) => (
+                              <button
+                                key={q.label}
+                                type="button"
+                                onClick={() => {
+                                  const targetKey =
+                                    focusedVarName ||
+                                    (selectedTemplate.variables || []).find((v) => !varValues[v.name]?.trim())?.name ||
+                                    selectedTemplate.variables?.[0]?.name;
+                                  if (targetKey) {
+                                    setVarValues((prev) => ({ ...prev, [targetKey]: q.val }));
+                                  }
+                                }}
+                                className="px-1.5 py-0.5 rounded bg-background border border-border/70 text-[10px] font-medium hover:border-emerald-500 hover:text-emerald-600 cursor-pointer"
+                              >
+                                + {q.label}
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {(selectedTemplate.variables || []).map((v) => (
+                          <div key={v.name} className="space-y-1">
+                            <label className="text-[10px] font-mono font-semibold text-muted-foreground">
+                              {`{{${v.name}}}`}
+                            </label>
+                            <Input
+                              value={varValues[v.name] || ""}
+                              onFocus={() => setFocusedVarName(v.name)}
+                              onChange={(e) =>
+                                setVarValues((prev) => ({ ...prev, [v.name]: e.target.value }))
+                              }
+                              placeholder={`Enter value for {{${v.name}}}...`}
+                              className="h-8 text-xs bg-background"
+                            />
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
-                  <div className="p-2.5 rounded-lg bg-card border border-border/70 text-xs whitespace-pre-wrap">
-                    {renderedTemplatePreview()}
-                  </div>
+                  )}
+
+                  {selectedTemplate.header_type &&
+                    ["IMAGE", "VIDEO", "DOCUMENT"].includes(selectedTemplate.header_type) && (
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-semibold text-muted-foreground">
+                          {selectedTemplate.header_type} Header URL / Media ID (optional override)
+                        </label>
+                        <Input
+                          value={mediaOverrideUrl}
+                          onChange={(e) => setMediaOverrideUrl(e.target.value)}
+                          placeholder={selectedTemplate.header_content || "https://... or Kapso media ID"}
+                          className="h-8 text-xs font-mono bg-background"
+                        />
+                      </div>
+                    )}
+
+                  <WhatsAppTemplateBubblePreview
+                    headerType={selectedTemplate.header_type}
+                    headerContent={mediaOverrideUrl.trim() || selectedTemplate.header_content}
+                    bodyText={selectedTemplate.template_body}
+                    footerText={selectedTemplate.footer_text}
+                    buttons={selectedTemplate.buttons}
+                    variableValues={varValues}
+                    templateName={selectedTemplate.name}
+                    category={selectedTemplate.category}
+                    language={selectedTemplate.language}
+                  />
                 </div>
               )}
             </div>

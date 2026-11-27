@@ -96,12 +96,15 @@ export async function PATCH(
     }
 
     const body = await req.json();
-    const { contactId } = body;
+    const { contactId, action } = body;
     if (!contactId) {
       return NextResponse.json({ error: "contactId is required" }, { status: 400 });
     }
 
-    const updatedLead = LeadsService.promoteAlternateContact(leadId, String(contactId), currentUser);
+    const updatedLead =
+      action === "set_whatsapp"
+        ? LeadsService.setWhatsAppContact(leadId, String(contactId), currentUser)
+        : LeadsService.promoteAlternateContact(leadId, String(contactId), currentUser);
 
     return NextResponse.json({
       success: true,

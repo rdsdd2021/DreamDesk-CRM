@@ -104,6 +104,7 @@ export interface LeadAlternateContact {
   id: string;
   phone: string;
   label: string;
+  is_whatsapp?: boolean;
   added_by_name?: string;
   added_at: string;
 }
@@ -114,6 +115,7 @@ export interface Lead {
   name: string | null;
   phone: string | null;
   phone_label?: string | null;
+  whatsapp_phone?: string | null;
   alternate_contacts?: LeadAlternateContact[];
   email: string | null;
   status: string;
@@ -848,6 +850,7 @@ export interface WhatsAppConversation {
   assigned_to?: string | null;
   assigned_user_name?: string | null;
   status: 'open' | 'resolved';
+  last_inbound_at?: string | null;
   unread_count: number;
   last_message_preview?: string | null;
   last_message_direction?: 'inbound' | 'outbound';

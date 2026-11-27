@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { WhatsAppTemplateBubblePreview } from "@/components/crm/WhatsAppTemplateBubblePreview";
 import {
   CheckCircle2,
   Clock,
@@ -65,6 +66,22 @@ export function MetaKapsoTemplateStudio({
     course_name: "B.Tech CSE",
     counselor_name: "Priya",
   });
+  const [variableFieldMap, setVariableFieldMap] = useState<Record<string, string>>({
+    student_name: "name",
+    course_name: "stream",
+    counselor_name: "assigned_user_name",
+  });
+  const [crmHeaders, setCrmHeaders] = useState<Array<{ key: string; label: string; sample: string }>>([
+    { key: "name", label: "Student Name", sample: "Aarav Sharma" },
+    { key: "lead_code", label: "Lead Code", sample: "LD-265369" },
+    { key: "phone", label: "Primary Phone", sample: "+91 98765 43210" },
+    { key: "email", label: "Email Address", sample: "aarav@example.com" },
+    { key: "status", label: "Pipeline Stage", sample: "Interested" },
+    { key: "assigned_user_name", label: "Assigned Counselor", sample: "Priya" },
+    { key: "stream", label: "Course / Stream", sample: "B.Tech CSE" },
+    { key: "city", label: "City", sample: "Kolkata" },
+    { key: "school", label: "School / College", sample: "DPS" },
+  ]);
   const [buttons, setButtons] = useState<WhatsAppTemplateButton[]>([]);
 
   const loadTemplates = useCallback(async () => {
@@ -82,6 +99,29 @@ export function MetaKapsoTemplateStudio({
 
   useEffect(() => {
     loadTemplates();
+    fetch("/api/schema", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const cols: any[] = data?.schema || data?.columns || [];
+        if (Array.isArray(cols) && cols.length > 0) {
+          setCrmHeaders((prev) => {
+            const seen = new Set(prev.map((p) => p.key));
+            const merged = [...prev];
+            for (const c of cols) {
+              const k = String(c?.key_name || "").trim();
+              if (!k || seen.has(k)) continue;
+              seen.add(k);
+              merged.push({
+                key: k,
+                label: String(c?.display_label || k),
+                sample: `Sample ${c?.display_label || k}`,
+              });
+            }
+            return merged;
+          });
+        }
+      })
+      .catch(() => {});
   }, [loadTemplates]);
 
   const detectedVariables = useMemo(() => {
@@ -122,12 +162,17 @@ export function MetaKapsoTemplateStudio({
     }
   };
 
-  const handleInsertVariable = () => {
-    const nextToken =
+  const handleInsertVariable = (crmHeader?: { key: string; label: string; sample: string }) => {
+    const varKey =
       parameterFormat === "POSITIONAL"
-        ? `{{${detectedVariables.length + 1}}}`
-        : `{{variable_${detectedVariables.length + 1}}}`;
-    setBodyText((prev) => `${prev}${prev.endsWith(" ") ? "" : " "}${nextToken}`);
+        ? String(detectedVariables.length + 1)
+        : crmHeader?.key || `variable_${detectedVariables.length + 1}`;
+    const nextToken = `{{${varKey}}}`;
+    setBodyText((prev) => `${prev}${prev.endsWith(" ") || !prev ? "" : " "}${nextToken}`);
+    if (crmHeader) {
+      setVariableFieldMap((prev) => ({ ...prev, [varKey]: crmHeader.key }));
+      setExampleValues((prev) => ({ ...prev, [varKey]: prev[varKey] || crmHeader.sample }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -332,13 +377,13 @@ export function MetaKapsoTemplateStudio({
             </div>
           )}
 
-          {/* Body + Insert Variable */}
-          <div className="space-y-1.5 text-xs">
+          {/* Body + Insert Variable + CRM Header Suggestions */}
+          <div className="space-y-2 text-xs">
             <div className="flex items-center justify-between">
               <label className="font-semibold text-foreground">Template Body *</label>
               <button
                 type="button"
-                onClick={handleInsertVariable}
+                onClick={() => handleInsertVariable()}
                 className="text-[11px] font-semibold text-emerald-600 hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <Plus className="w-3 h-3" />
@@ -349,29 +394,116 @@ export function MetaKapsoTemplateStudio({
               rows={4}
               value={bodyText}
               onChange={(e) => setBodyText(e.target.value)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const raw = e.dataTransfer.getData("application/x-dreamdesk-crm-field");
+                if (!raw) return;
+                try {
+                  const crmHeader = JSON.parse(raw) as { key: string; label: string; sample: string };
+                  const el = e.currentTarget;
+                  const start = el.selectionStart ?? bodyText.length;
+                  const end = el.selectionEnd ?? bodyText.length;
+                  const varKey =
+                    parameterFormat === "POSITIONAL"
+                      ? String(detectedVariables.length + 1)
+                      : crmHeader.key;
+                  const token = `{{${varKey}}}`;
+                  setBodyText((prev) => prev.slice(0, start) + token + prev.slice(end));
+                  setVariableFieldMap((prev) => ({ ...prev, [varKey]: crmHeader.key }));
+                  setExampleValues((prev) => ({ ...prev, [varKey]: prev[varKey] || crmHeader.sample }));
+                } catch {}
+              }}
               className="w-full rounded-xl border border-border bg-background p-3 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
               required
             />
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] font-semibold text-muted-foreground">
+                Drag or Click CRM Field:
+              </span>
+              {crmHeaders.slice(0, 8).map((h) => (
+                <button
+                  key={h.key}
+                  type="button"
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("application/x-dreamdesk-crm-field", JSON.stringify(h));
+                    e.dataTransfer.setData("text/plain", `{{${h.key}}}`);
+                  }}
+                  onClick={() => handleInsertVariable(h)}
+                  className="px-2 py-0.5 rounded-md border border-border bg-muted/40 hover:bg-emerald-500/10 hover:border-emerald-500/40 hover:text-emerald-700 dark:hover:text-emerald-300 text-[10px] font-medium cursor-grab active:cursor-grabbing transition-colors"
+                  title="Drag into Template Body or Variable row, or click to insert"
+                >
+                  ⋮⋮ + {h.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Example Values for Meta Review */}
+          {/* Form-like Variable Mapping & Meta Sample Values (Outside Body) */}
           {detectedVariables.length > 0 && (
-            <div className="p-3 rounded-xl bg-muted/25 border border-border/60 space-y-2 text-xs">
-              <div className="font-semibold text-foreground">
-                Variable Example Values (Required for Meta Review)
+            <div className="p-3.5 rounded-xl bg-muted/25 border border-border/60 space-y-2.5 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-foreground">
+                  Variable Fields &amp; CRM Header Mapping ({detectedVariables.length})
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  Auto-fills from CRM lead data when sending
+                </span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="space-y-2">
                 {detectedVariables.map((v) => (
-                  <div key={v} className="space-y-1">
-                    <span className="text-[10px] font-mono text-muted-foreground">{`{{${v}}}`}</span>
-                    <Input
-                      value={exampleValues[v] || ""}
-                      onChange={(e) =>
-                        setExampleValues((prev) => ({ ...prev, [v]: e.target.value }))
-                      }
-                      placeholder={`Sample for ${v}`}
-                      className="h-8 text-xs"
-                    />
+                  <div
+                    key={v}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const raw = e.dataTransfer.getData("application/x-dreamdesk-crm-field");
+                      if (!raw) return;
+                      try {
+                        const crmHeader = JSON.parse(raw) as { key: string; label: string; sample: string };
+                        setVariableFieldMap((prev) => ({ ...prev, [v]: crmHeader.key }));
+                        setExampleValues((prev) => ({ ...prev, [v]: crmHeader.sample }));
+                      } catch {}
+                    }}
+                    className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-background/80 p-2 rounded-lg border border-border/50 hover:border-emerald-500/40 transition-colors"
+                  >
+                    <div className="sm:col-span-3">
+                      <span className="inline-flex items-center px-2 py-1 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-mono text-[11px] font-semibold">
+                        {`{{${v}}}`}
+                      </span>
+                    </div>
+                    <div className="sm:col-span-5">
+                      <select
+                        value={variableFieldMap[v] || ""}
+                        onChange={(e) => {
+                          const key = e.target.value;
+                          setVariableFieldMap((prev) => ({ ...prev, [v]: key }));
+                          const match = crmHeaders.find((h) => h.key === key);
+                          if (match && !exampleValues[v]) {
+                            setExampleValues((prev) => ({ ...prev, [v]: match.sample }));
+                          }
+                        }}
+                        className="w-full h-8 rounded-md border border-border bg-background px-2 text-xs"
+                      >
+                        <option value="">-- Suggest CRM Header --</option>
+                        {crmHeaders.map((h) => (
+                          <option key={h.key} value={h.key}>
+                            {h.label} ({h.key})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="sm:col-span-4">
+                      <Input
+                        value={exampleValues[v] || ""}
+                        onChange={(e) =>
+                          setExampleValues((prev) => ({ ...prev, [v]: e.target.value }))
+                        }
+                        placeholder={`Sample for {{${v}}}`}
+                        className="h-8 text-xs"
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -492,39 +624,17 @@ export function MetaKapsoTemplateStudio({
           <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
             Live WhatsApp Preview
           </div>
-          <div className="rounded-2xl bg-[#efeae2] dark:bg-slate-900 p-4 border border-border/60 space-y-2">
-            <div className="bg-white dark:bg-slate-800 rounded-xl p-3 shadow-xs space-y-2 text-xs">
-              {headerType === "TEXT" && headerText && (
-                <div className="font-bold text-slate-900 dark:text-white">{headerText}</div>
-              )}
-              {["IMAGE", "VIDEO", "DOCUMENT"].includes(headerType) && (
-                <div className="h-24 rounded-lg bg-slate-100 dark:bg-slate-700/60 flex items-center justify-center text-muted-foreground gap-1.5 text-[11px]">
-                  {headerType === "IMAGE" && <ImageIcon className="w-4 h-4" />}
-                  {headerType === "VIDEO" && <Video className="w-4 h-4" />}
-                  {headerType === "DOCUMENT" && <FileText className="w-4 h-4" />}
-                  <span>{headerType} Header</span>
-                </div>
-              )}
-              <p className="text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">
-                {previewBody}
-              </p>
-              {footerText && (
-                <p className="text-[10px] text-slate-400 pt-1">{footerText}</p>
-              )}
-            </div>
-            {buttons.length > 0 && (
-              <div className="space-y-1">
-                {buttons.map((b, i) => (
-                  <div
-                    key={i}
-                    className="bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 font-semibold text-xs py-2 rounded-lg text-center shadow-2xs"
-                  >
-                    {b.text}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <WhatsAppTemplateBubblePreview
+            headerType={headerType}
+            headerContent={headerType === "TEXT" ? headerText : headerHandle}
+            bodyText={bodyText}
+            footerText={footerText}
+            buttons={buttons}
+            variableValues={exampleValues}
+            templateName={name}
+            category={category}
+            language={language}
+          />
         </div>
       </div>
 

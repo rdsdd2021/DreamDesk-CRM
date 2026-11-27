@@ -12,18 +12,22 @@ import { MetaKapsoTemplateStudio } from "@/components/crm/MetaKapsoTemplateStudi
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { WhatsAppTemplateBubblePreview } from "@/components/crm/WhatsAppTemplateBubblePreview";
 import {
   Check,
   CheckCheck,
   CheckCircle2,
+  Clock,
   Copy,
   FileText,
   Image as ImageIcon,
   Inbox,
   KeyRound,
   Loader2,
+  Lock,
   MessageSquare,
   Paperclip,
+  Phone,
   RefreshCw,
   Search,
   Send,
@@ -572,7 +576,7 @@ export function WhatsAppInboxWorkspace({
                         {activeConv.phone_number}
                       </span>
                     </div>
-                    {activeConv.lead_id && onOpenLeadById && (
+                    {activeConv.lead_id && onOpenLeadById ? (
                       <button
                         type="button"
                         onClick={() => onOpenLeadById(activeConv.lead_id!)}
@@ -580,6 +584,33 @@ export function WhatsAppInboxWorkspace({
                       >
                         Open Lead Profile ({activeConv.lead_code || `#${activeConv.lead_id}`}) →
                       </button>
+                    ) : (
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30">
+                          Not in CRM
+                        </Badge>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const res = await fetch(`/api/whatsapp/conversations/${activeConv.id}`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ action: "create_lead" }),
+                            });
+                            const data = await res.json();
+                            if (res.ok) {
+                              onShowToast?.(`Saved as Lead ${data.leadCode}`, "success");
+                              await loadConversations();
+                              await loadThread(activeConv.id);
+                            } else {
+                              onShowToast?.(data.error || "Failed to save lead", "error");
+                            }
+                          }}
+                          className="text-[11px] font-semibold text-emerald-600 hover:underline cursor-pointer"
+                        >
+                          + Save as Lead
+                        </button>
+                      </div>
                     )}
                   </div>
 
@@ -729,6 +760,17 @@ export function WhatsAppInboxWorkspace({
                           ))}
                         </div>
                       )}
+                      <WhatsAppTemplateBubblePreview
+                        headerType={selectedTemplate.header_type}
+                        headerContent={selectedTemplate.header_content}
+                        bodyText={selectedTemplate.template_body}
+                        footerText={selectedTemplate.footer_text}
+                        buttons={selectedTemplate.buttons}
+                        variableValues={templateVarValues}
+                        templateName={selectedTemplate.name}
+                        category={selectedTemplate.category}
+                        language={selectedTemplate.language}
+                      />
                     </div>
                   )}
 
@@ -770,18 +812,34 @@ export function WhatsAppInboxWorkspace({
                         }}
                       />
                     </label>
-                    {!selectedTemplate && (
-                      <Input
-                        value={replyText}
-                        onChange={(e) => setReplyText(e.target.value)}
-                        placeholder={
-                          attachedMedia
-                            ? "Optional caption for attached media..."
-                            : "Type a WhatsApp reply via Kapso..."
-                        }
-                        className="h-9 text-xs flex-1"
-                      />
-                    )}
+                    {!selectedTemplate && (() => {
+                      const activeConv = conversations.find((c) => c.id === selectedConvId);
+                      const lastIn =
+                        activeConv?.last_inbound_at ||
+                        messages.filter((m) => m.direction === "inbound").slice(-1)[0]?.created_at;
+                      const is24hOpen = Boolean(
+                        lastIn && Date.now() - new Date(lastIn).getTime() < 24 * 60 * 60 * 1000
+                      );
+                      return is24hOpen ? (
+                        <Input
+                          value={replyText}
+                          onChange={(e) => setReplyText(e.target.value)}
+                          placeholder={
+                            attachedMedia
+                              ? "Optional caption for attached media..."
+                              : "Type a WhatsApp reply via Kapso..."
+                          }
+                          className="h-9 text-xs flex-1"
+                        />
+                      ) : (
+                        <div className="h-9 px-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300 text-[11px] flex items-center gap-2 flex-1 truncate">
+                          <Lock className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">
+                            24h window closed — select an Approved Template above to message this lead.
+                          </span>
+                        </div>
+                      );
+                    })()}
                     <Button
                       type="submit"
                       disabled={sending || (!selectedTemplate && !attachedMedia && !replyText.trim())}

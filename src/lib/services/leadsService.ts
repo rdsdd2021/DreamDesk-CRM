@@ -34,6 +34,7 @@ import { AuthService } from "@/lib/services/authService";
 import { SyncService } from "@/lib/services/syncService";
 import { ScoringService } from "@/lib/services/scoringService";
 import { maskPhoneNumber, isMaskedPhone, cleanPhoneDigits } from "@/lib/utils/phoneMasker";
+import { normalizeAndValidatePhone } from "@/lib/utils/phoneNormalizer";
 
 /**
  * Normalizes phone numbers to standard 10-digit format (or clean digits)
@@ -1392,10 +1393,32 @@ export class LeadsService {
     campaignId?: string,
     skipDuplicates = false,
     fieldMapping?: Record<string, string>,
-    defaultStatus = "New"
-  ): { importedCount: number; skippedDuplicates: number; newHeadersFound: string[] } {
+    defaultStatus = "New",
+    duplicateMode?: "skip" | "merge" | "allow"
+  ): {
+    importedCount: number;
+    skippedDuplicates: number;
+    mergedCount: number;
+    rejectedCount: number;
+    rejectedRows: Array<{ rowNumber: number; name: string; rawPhone: string; reason: string }>;
+    duplicateRows: Array<{ rowNumber: number; name: string; phone: string; existingLeadCode: string; matchedVia: string }>;
+    newHeadersFound: string[];
+  } {
     const db = getDatabase();
-    if (!records || records.length === 0) return { importedCount: 0, skippedDuplicates: 0, newHeadersFound: [] };
+    if (!records || records.length === 0) {
+      return {
+        importedCount: 0,
+        skippedDuplicates: 0,
+        mergedCount: 0,
+        rejectedCount: 0,
+        rejectedRows: [],
+        duplicateRows: [],
+        newHeadersFound: [],
+      };
+    }
+
+    const effectiveDupMode: "skip" | "merge" | "allow" =
+      duplicateMode || (skipDuplicates ? "skip" : "allow");
 
     const existingMeta = db.prepare("SELECT key_name FROM lead_schema_meta").all() as { key_name: string }[];
     const existingSet = new Set(existingMeta.map((m) => m.key_name.toLowerCase()));
@@ -1456,36 +1479,114 @@ export class LeadsService {
     });
     metaTx();
 
-    // 2. Batch insert leads with optional phone deduplication and campaign attribution
+    // 2. Batch insert leads with E.164 phone validation, multi-contact deduplication, and campaign attribution
     const insertLead = db.prepare(`
-      INSERT INTO leads (lead_code, name, phone, email, status, campaign_id, raw_attributes)
-      VALUES (@lead_code, @name, @phone, @email, @status, @campaign_id, @raw_attributes)
+      INSERT INTO leads (lead_code, name, phone, phone_digits, email, status, campaign_id, raw_attributes)
+      VALUES (@lead_code, @name, @phone, @phone_digits, @email, @status, @campaign_id, @raw_attributes)
+    `);
+
+    const updateLeadMerge = db.prepare(`
+      UPDATE leads
+      SET name = COALESCE(NULLIF(TRIM(name), ''), @name),
+          email = COALESCE(NULLIF(TRIM(email), ''), @email),
+          raw_attributes = @raw_attributes,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = @id
     `);
 
     const insertCreatedActivity = db.prepare(`
       INSERT INTO lead_activities (lead_id, activity_type, title, description, old_value, new_value, metadata, performed_by_name)
-      VALUES (@lead_id, 'created', @title, @description, NULL, @new_value, @metadata, 'System')
+      VALUES (@lead_id, @activity_type, @title, @description, NULL, @new_value, @metadata, 'System')
     `);
 
     let importedCount = 0;
     let skippedDuplicates = 0;
+    let mergedCount = 0;
+    let rejectedCount = 0;
+    const rejectedRows: Array<{ rowNumber: number; name: string; rawPhone: string; reason: string }> = [];
+    const duplicateRows: Array<{ rowNumber: number; name: string; phone: string; existingLeadCode: string; matchedVia: string }> = [];
     const currentMaxId = (db.prepare("SELECT MAX(id) as maxId FROM leads").get() as any)?.maxId || 0;
 
-    // Cache existing phone numbers if deduplication is requested
-    const existingPhones = new Set<string>();
-    if (skipDuplicates) {
-      const rows = db.prepare("SELECT phone FROM leads WHERE phone IS NOT NULL").all() as { phone: string }[];
-      rows.forEach((r) => {
-        const digits = normalizePhoneNumber(r.phone);
-        if (digits.length >= 7) existingPhones.add(digits);
-      });
+    // Index existing leads by normalized digits across BOTH primary phone AND secondary/guardian contacts
+    type ExistingLeadHit = {
+      id: number;
+      lead_code: string;
+      matchedVia: "primary" | "secondary_contact";
+      contactLabel?: string;
+    };
+    const existingPhoneIndex = new Map<string, ExistingLeadHit>();
+
+    if (effectiveDupMode !== "allow") {
+      const rows = db
+        .prepare("SELECT id, lead_code, phone, alternate_contacts, raw_attributes FROM leads")
+        .all() as {
+          id: number;
+          lead_code: string;
+          phone: string | null;
+          alternate_contacts: string | null;
+          raw_attributes: string | null;
+        }[];
+
+      for (const r of rows) {
+        if (r.phone) {
+          const pNorm = normalizeAndValidatePhone(r.phone);
+          const key = pNorm.valid ? pNorm.local10 : normalizePhoneNumber(r.phone);
+          if (key.length >= 7 && !existingPhoneIndex.has(key)) {
+            existingPhoneIndex.set(key, { id: r.id, lead_code: r.lead_code, matchedVia: "primary" });
+          }
+        }
+        if (r.alternate_contacts) {
+          try {
+            const alts = JSON.parse(r.alternate_contacts);
+            if (Array.isArray(alts)) {
+              for (const c of alts) {
+                if (!c?.phone) continue;
+                const cNorm = normalizeAndValidatePhone(c.phone);
+                const key = cNorm.valid ? cNorm.local10 : normalizePhoneNumber(c.phone);
+                if (key.length >= 7 && !existingPhoneIndex.has(key)) {
+                  existingPhoneIndex.set(key, {
+                    id: r.id,
+                    lead_code: r.lead_code,
+                    matchedVia: "secondary_contact",
+                    contactLabel: c.label || "Guardian/Alternate",
+                  });
+                }
+              }
+            }
+          } catch {
+            // ignore
+          }
+        }
+        if (r.raw_attributes) {
+          try {
+            const attrs = JSON.parse(r.raw_attributes);
+            for (const [k, v] of Object.entries(attrs || {})) {
+              if (!v || !PHONE_KEY_REGEX.test(k)) continue;
+              const vNorm = normalizeAndValidatePhone(String(v));
+              const key = vNorm.valid ? vNorm.local10 : normalizePhoneNumber(String(v));
+              if (key.length >= 7 && !existingPhoneIndex.has(key)) {
+                existingPhoneIndex.set(key, {
+                  id: r.id,
+                  lead_code: r.lead_code,
+                  matchedVia: "secondary_contact",
+                  contactLabel: k,
+                });
+              }
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
     }
 
     const hasMapping = Boolean(fieldMapping && Object.keys(fieldMapping).length > 0);
 
     const batchInsert = db.transaction((rows: Record<string, any>[]) => {
       let codeIndex = currentMaxId + 1;
+      let rowNum = 0;
       for (const row of rows) {
+        rowNum++;
         let name: string | null = null;
         let phone: string | null = null;
         let email: string | null = null;
@@ -1532,16 +1633,82 @@ export class LeadsService {
           }
         }
 
-        // Check for duplicate phone with normalized 10-digit matching
-        if (skipDuplicates && phone) {
-          const digits = normalizePhoneNumber(phone);
-          if (digits.length >= 7) {
-            if (existingPhones.has(digits)) {
+        // Strict E.164 normalization & validation
+        const phoneCheck = normalizeAndValidatePhone(phone);
+        if (!phoneCheck.valid) {
+          rejectedCount++;
+          if (rejectedRows.length < 100) {
+            rejectedRows.push({
+              rowNumber: rowNum,
+              name: name || "Unnamed",
+              rawPhone: String(phone || ""),
+              reason: phoneCheck.error || "Invalid phone number",
+            });
+          }
+          continue;
+        }
+        const canonicalPhone = phoneCheck.e164;
+        const canonicalDigits = phoneCheck.digits;
+
+        // Check for duplicate phone across primary & secondary contacts
+        if (effectiveDupMode !== "allow") {
+          const hit = existingPhoneIndex.get(phoneCheck.local10);
+          if (hit) {
+            if (effectiveDupMode === "merge") {
+              const targetRow = db
+                .prepare("SELECT raw_attributes FROM leads WHERE id = ?")
+                .get(hit.id) as { raw_attributes: string | null } | undefined;
+              let mergedAttrs: Record<string, any> = {};
+              try {
+                mergedAttrs = targetRow?.raw_attributes ? JSON.parse(targetRow.raw_attributes) : {};
+              } catch {
+                mergedAttrs = {};
+              }
+              let addedFields = 0;
+              for (const [k, v] of Object.entries(rawAttributes)) {
+                if (mergedAttrs[k] === undefined || mergedAttrs[k] === null || String(mergedAttrs[k]).trim() === "") {
+                  mergedAttrs[k] = v;
+                  addedFields++;
+                }
+              }
+              updateLeadMerge.run({
+                id: hit.id,
+                name,
+                email,
+                raw_attributes: JSON.stringify(mergedAttrs),
+              });
+              insertCreatedActivity.run({
+                lead_id: hit.id,
+                activity_type: "field_update",
+                title: "Lead Merged via Import",
+                description: `Matched via ${hit.matchedVia === "secondary_contact" ? `Secondary Contact (${hit.contactLabel || "Guardian"})` : "Primary Phone"} from ${sourceName}; merged ${addedFields} missing attributes.`,
+                new_value: sourceName,
+                metadata: JSON.stringify({ matchedVia: hit.matchedVia, sourceName, addedFields }),
+              });
+              mergedCount++;
+              continue;
+            } else {
               skippedDuplicates++;
+              if (duplicateRows.length < 100) {
+                duplicateRows.push({
+                  rowNumber: rowNum,
+                  name: name || "Unnamed",
+                  phone: canonicalPhone,
+                  existingLeadCode: hit.lead_code,
+                  matchedVia:
+                    hit.matchedVia === "secondary_contact"
+                      ? `Secondary (${hit.contactLabel || "Guardian"})`
+                      : "Primary",
+                });
+              }
               continue;
             }
-            existingPhones.add(digits);
           }
+          existingPhoneIndex.set(phoneCheck.local10, {
+            id: -1,
+            lead_code: `LD-${String(codeIndex).padStart(6, "0")}`,
+            matchedVia: "primary",
+          });
         }
 
         const leadCode = `LD-${String(codeIndex++).padStart(6, "0")}`;
@@ -1549,7 +1716,8 @@ export class LeadsService {
         const leadRes = insertLead.run({
           lead_code: leadCode,
           name,
-          phone,
+          phone: canonicalPhone,
+          phone_digits: canonicalDigits,
           email,
           status,
           campaign_id: rowCampaignId,
@@ -1558,6 +1726,7 @@ export class LeadsService {
         const newLeadId = Number(leadRes.lastInsertRowid);
         insertCreatedActivity.run({
           lead_id: newLeadId,
+          activity_type: "created",
           title: "Lead Ingested / Created",
           description: `Acquired via ${sourceName}${rowCampaignId ? ` (${rowCampaignId})` : ""}`,
           new_value: status,
@@ -1568,16 +1737,24 @@ export class LeadsService {
 
       this.logActivity(
         "IMPORT",
-        `Imported ${importedCount} student leads from ${sourceName}${campaignId ? ` (${campaignId})` : ""}${skippedDuplicates > 0 ? ` [${skippedDuplicates} duplicates skipped]` : ""}`,
+        `Imported ${importedCount} leads from ${sourceName}${campaignId ? ` (${campaignId})` : ""}${mergedCount > 0 ? ` [${mergedCount} merged]` : ""}${skippedDuplicates > 0 ? ` [${skippedDuplicates} duplicates skipped]` : ""}${rejectedCount > 0 ? ` [${rejectedCount} invalid rejected]` : ""}`,
         importedCount,
-        JSON.stringify({ newHeaders: newHeadersFound, skippedDuplicates }),
+        JSON.stringify({ newHeaders: newHeadersFound, skippedDuplicates, mergedCount, rejectedCount }),
         "Admin"
       );
     });
 
     batchInsert(records);
     this.invalidateCache();
-    return { importedCount, skippedDuplicates, newHeadersFound };
+    return {
+      importedCount,
+      skippedDuplicates,
+      mergedCount,
+      rejectedCount,
+      rejectedRows,
+      duplicateRows,
+      newHeadersFound,
+    };
   }
 
   /**
@@ -3141,26 +3318,27 @@ export class LeadsService {
     if (!existing) throw new Error(`Lead ${leadId} not found`);
 
     const rawPhone = String(payload.phone || "").trim();
-    const digits = cleanPhoneDigits(rawPhone);
-    if (digits.length < 10) {
-      throw new Error("Please enter a valid 10-digit phone number.");
+    const phoneCheck = normalizeAndValidatePhone(rawPhone);
+    if (!phoneCheck.valid) {
+      throw new Error(phoneCheck.error || "Please enter a valid 10-digit or E.164 phone number.");
     }
-
-    const normNew = digits.slice(-10);
+    const canonicalPhone = phoneCheck.e164;
+    const normNew = phoneCheck.local10;
     const cleanLabel = String(payload.label || "Guardian").trim() || "Guardian";
     const makePrimary = Boolean(payload.makePrimary);
     const performerName = currentUser?.name || "Counselor";
 
     const currentContacts = this.parseAlternateContacts(existing.alternate_contacts, false);
-    const existingPrimaryNorm = existing.phone ? cleanPhoneDigits(existing.phone).slice(-10) : "";
+    const existingPrimaryNorm = existing.phone ? normalizePhoneNumber(existing.phone) : "";
 
-    const alreadyInAlternates = currentContacts.some((c) => cleanPhoneDigits(c.phone).slice(-10) === normNew);
+    const alreadyInAlternates = currentContacts.some((c) => normalizePhoneNumber(c.phone) === normNew);
     if (normNew && (normNew === existingPrimaryNorm || alreadyInAlternates)) {
       throw new Error("This phone number is already saved on this student profile.");
     }
 
     const nowIso = new Date().toISOString();
     let nextPrimaryPhone = existing.phone;
+    let nextPrimaryDigits = existing.phone_digits;
     let nextPrimaryLabel = existing.phone_label || "Primary";
     let nextContacts = [...currentContacts];
 
@@ -3178,12 +3356,13 @@ export class LeadsService {
           added_at: nowIso,
         });
       }
-      nextPrimaryPhone = rawPhone;
+      nextPrimaryPhone = canonicalPhone;
+      nextPrimaryDigits = phoneCheck.digits;
       nextPrimaryLabel = cleanLabel;
     } else {
       nextContacts.push({
         id: `cnt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        phone: rawPhone,
+        phone: canonicalPhone,
         label: cleanLabel,
         added_by_name: performerName,
         added_at: nowIso,
@@ -3191,10 +3370,10 @@ export class LeadsService {
     }
 
     db.prepare(
-      "UPDATE leads SET phone = ?, phone_label = ?, alternate_contacts = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-    ).run(nextPrimaryPhone, nextPrimaryLabel, JSON.stringify(nextContacts), leadId);
+      "UPDATE leads SET phone = ?, phone_digits = ?, phone_label = ?, alternate_contacts = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+    ).run(nextPrimaryPhone, nextPrimaryDigits, nextPrimaryLabel, JSON.stringify(nextContacts), leadId);
 
-    const maskedNew = maskPhoneNumber(rawPhone);
+    const maskedNew = maskPhoneNumber(canonicalPhone);
     const activityTitle = makePrimary
       ? `Primary Contact Set to ${cleanLabel}`
       : `Added ${cleanLabel} Contact`;
@@ -3211,7 +3390,7 @@ export class LeadsService {
       performed_by_name: performerName,
     });
 
-    const last10 = digits.slice(-10);
+    const last10 = phoneCheck.local10;
     const duplicateMatches = db
       .prepare(
         `SELECT id, lead_code, name FROM leads
@@ -3236,6 +3415,60 @@ export class LeadsService {
     if (!updatedLead) throw new Error("Failed to reload updated lead");
 
     return { lead: updatedLead, duplicateMatches };
+  }
+
+  /**
+   * Sets which contact number (primary or an alternate contactId) is designated for WhatsApp outreach.
+   */
+  static setWhatsAppContact(
+    leadId: number,
+    contactIdOrPrimary: string,
+    currentUser?: User | null
+  ): Lead {
+    const db = getDatabase();
+    const existing = db.prepare("SELECT * FROM leads WHERE id = ?").get(leadId) as any;
+    if (!existing) throw new Error(`Lead ${leadId} not found`);
+
+    const currentContacts = this.parseAlternateContacts(existing.alternate_contacts, false);
+    let targetPhone: string | null = null;
+    let targetLabel = existing.phone_label || "Primary";
+
+    if (contactIdOrPrimary === "primary") {
+      targetPhone = existing.phone || null;
+      const updatedAlts = currentContacts.map((c) => ({ ...c, is_whatsapp: false }));
+      db.prepare(
+        "UPDATE leads SET whatsapp_phone = ?, alternate_contacts = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+      ).run(targetPhone, JSON.stringify(updatedAlts), leadId);
+    } else {
+      const target = currentContacts.find((c) => c.id === contactIdOrPrimary);
+      if (!target) throw new Error("Selected contact not found on lead");
+      targetPhone = target.phone;
+      targetLabel = target.label || "Alternate";
+      const updatedAlts = currentContacts.map((c) => ({
+        ...c,
+        is_whatsapp: c.id === contactIdOrPrimary,
+      }));
+      db.prepare(
+        "UPDATE leads SET whatsapp_phone = ?, alternate_contacts = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+      ).run(targetPhone, JSON.stringify(updatedAlts), leadId);
+    }
+
+    this.logLeadActivity({
+      lead_id: leadId,
+      activity_type: "field_update",
+      title: `WhatsApp Number Set to ${targetLabel}`,
+      description: `Designated ${targetLabel} (${maskPhoneNumber(targetPhone || "")}) for WhatsApp outreach.`,
+      new_value: targetLabel,
+      performed_by_name: currentUser?.name || "Counselor",
+    });
+
+    this.invalidateCache();
+    const userScope: UserScope | null = currentUser
+      ? { userId: currentUser.id, role: currentUser.role, canViewAllLeads: currentUser.role === "admin" || currentUser.role === "team_lead", name: currentUser.name }
+      : null;
+    const updatedLead = this.getLeadById(leadId, userScope);
+    if (!updatedLead) throw new Error("Failed to reload updated lead");
+    return updatedLead;
   }
 
   /**

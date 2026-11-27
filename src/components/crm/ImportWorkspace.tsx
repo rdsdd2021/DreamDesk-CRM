@@ -117,7 +117,7 @@ export function ImportWorkspace({
   // Options State
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("none");
   const [defaultStatus, setDefaultStatus] = useState<string>("New");
-  const [skipDuplicates, setSkipDuplicates] = useState(true);
+  const [duplicateMode, setDuplicateMode] = useState<"skip" | "merge" | "allow">("skip");
   const [sourceName, setSourceName] = useState("CSV Ingestion");
 
   // Ingestion State
@@ -274,7 +274,8 @@ export function ImportWorkspace({
         {
           sourceName: sourceName.trim() || file.name || "Batch CSV Import",
           campaignId: selectedCampaignId === "none" ? undefined : selectedCampaignId,
-          skipDuplicates,
+          skipDuplicates: duplicateMode !== "allow",
+          duplicateMode,
           fieldMapping,
           defaultStatus,
         },
@@ -727,19 +728,22 @@ export function ImportWorkspace({
                 <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
                 <div>
                   <div className="text-xs font-bold text-foreground">
-                    Intelligent Duplicate Phone Radar
+                    Intelligent Duplicate &amp; Phone Validation
                   </div>
                   <div className="text-[11px] text-muted-foreground">
-                    Automatically skip records whose phone number already exists in your 112,500 lead database.
+                    Normalizes valid numbers to E.164 (+91), rejects invalid numbers, and checks both primary &amp; guardian/secondary contacts.
                   </div>
                 </div>
               </div>
-              <input
-                type="checkbox"
-                checked={skipDuplicates}
-                onChange={(e) => setSkipDuplicates(e.target.checked)}
-                className="w-4 h-4 rounded text-primary focus:ring-primary cursor-pointer"
-              />
+              <select
+                value={duplicateMode}
+                onChange={(e) => setDuplicateMode(e.target.value as "skip" | "merge" | "allow")}
+                className="h-8 px-2.5 rounded-md border bg-background text-xs font-medium text-foreground cursor-pointer"
+              >
+                <option value="skip">Skip Duplicates (Default)</option>
+                <option value="merge">Merge Missing Fields</option>
+                <option value="allow">Import Anyway (Flag Radar)</option>
+              </select>
             </div>
 
             {/* Execution Buttons */}

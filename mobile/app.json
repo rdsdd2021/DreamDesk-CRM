@@ -2,7 +2,7 @@
   "expo": {
     "name": "DreamDesk CRM",
     "slug": "dreamdesk-crm",
-    "version": "1.4.2",
+    "version": "1.5.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -36,7 +36,13 @@
           "icon": "./assets/icon.png",
           "color": "#4f46e5"
         }
-      ]
-    ]
+      ],
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "39985afe-050e-4571-a4f3-7d70b97169c8"
+      }
+    }
   }
 }

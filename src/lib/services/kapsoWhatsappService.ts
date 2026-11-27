@@ -2,6 +2,7 @@ import { getDatabase } from "@/lib/db/database";
 import { PushNotificationService } from "@/lib/services/pushNotificationService";
 import { SyncService } from "@/lib/services/syncService";
 import { maskPhoneNumber } from "@/lib/utils/phoneMasker";
+import { normalizeAndValidatePhone } from "@/lib/utils/phoneNormalizer";
 import {
   User,
   WhatsAppConversation,
@@ -15,6 +16,8 @@ import {
 const KAPSO_API_BASE = "https://api.kapso.ai";
 
 function normalizePhoneDigits(raw: string): string {
+  const res = normalizeAndValidatePhone(raw);
+  if (res.valid) return res.digits;
   const digits = String(raw || "").replace(/[^0-9]/g, "");
   if (digits.length === 10) return `91${digits}`;
   return digits;
@@ -160,10 +163,39 @@ export class KapsoWhatsappService {
       throw new Error("Kapso API Key and Phone Number ID are required to upload media.");
     }
 
+    const ext = String(fileName || "").split(".").pop()?.toLowerCase() || "";
+    const extMimeMap: Record<string, string> = {
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      webp: "image/webp",
+      mp4: "video/mp4",
+      "3gp": "video/3gpp",
+      pdf: "application/pdf",
+      doc: "application/msword",
+      docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      xls: "application/vnd.ms-excel",
+      xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      ppt: "application/vnd.ms-powerpoint",
+      pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      mp3: "audio/mpeg",
+      ogg: "audio/ogg",
+      aac: "audio/aac",
+    };
+    const resolvedMime =
+      mimeType && mimeType !== "application/octet-stream"
+        ? mimeType.split(";")[0].trim()
+        : extMimeMap[ext] || "application/octet-stream";
+
+    const safeName = (fileName || "upload").replace(/[^\w.\-]/g, "_");
     const formData = new FormData();
     formData.append("messaging_product", "whatsapp");
-    const blob = new Blob([new Uint8Array(fileBuffer)], { type: mimeType || "application/octet-stream" });
-    formData.append("file", blob, fileName);
+    formData.append("type", resolvedMime);
+    const fileObj =
+      typeof File !== "undefined"
+        ? new File([new Uint8Array(fileBuffer)], safeName, { type: resolvedMime })
+        : new Blob([new Uint8Array(fileBuffer)], { type: resolvedMime });
+    formData.append("file", fileObj, safeName);
 
     const res = await fetch(
       `${KAPSO_API_BASE}/meta/whatsapp/v24.0/${cfg.phone_number_id}/media`,
@@ -424,16 +456,25 @@ export class KapsoWhatsappService {
       const bodyText = bodyComp?.text || `[Kapso Template: ${name}]`;
       const category = String(tpl?.category || "UTILITY");
       const language = String(tpl?.language || "en_US");
-      const paramFormat = tpl?.parameter_format === "POSITIONAL" ? "POSITIONAL" : "NAMED";
       const status = String(tpl?.status || "APPROVED").toUpperCase();
       const headerType = (headerComp?.format || "NONE") as WhatsAppTemplateHeaderType;
       const headerContent = headerComp?.text || headerComp?.example?.header_handle?.[0] || null;
       const footerText = footerComp?.text || null;
       const buttons = Array.isArray(btnsComp?.buttons) ? btnsComp.buttons : [];
 
-      // Extract {{var}} placeholders from bodyText
-      const varMatches = Array.from(bodyText.matchAll(/\{\{([a-zA-Z0-9_]+)\}\}/g)).map((m: any) => String(m[1]));
-      const uniqueVars = Array.from(new Set(varMatches)).map((v) => ({ name: v, example: "" }));
+      // Extract {{var}} placeholders from header (if TEXT) and bodyText
+      const headerMatches =
+        headerType === "TEXT" && headerComp?.text
+          ? Array.from(String(headerComp.text).matchAll(/\{\{([a-zA-Z0-9_]+)\}\}/g)).map((m: any) => String(m[1]))
+          : [];
+      const bodyMatches = Array.from(bodyText.matchAll(/\{\{([a-zA-Z0-9_]+)\}\}/g)).map((m: any) => String(m[1]));
+      const allMatches = [...headerMatches, ...bodyMatches];
+      const uniqueVars = Array.from(new Set(allMatches)).map((v) => ({ name: v, example: "" }));
+      const isNumericVars = allMatches.length > 0 && allMatches.every((v) => /^\d+$/.test(v));
+      const paramFormat =
+        tpl?.parameter_format === "POSITIONAL" || (!tpl?.parameter_format && isNumericVars)
+          ? "POSITIONAL"
+          : "NAMED";
 
       const id = `kapso_${name.toLowerCase().replace(/[^a-z0-9_]/g, "_")}_${language}`;
 
@@ -597,19 +638,22 @@ export class KapsoWhatsappService {
     return { conversationsSynced, messagesSynced };
   }
 
-  static getOrCreateConversationForLead(leadId: number): WhatsAppConversation {
+  static getOrCreateConversationForLead(leadId: number, preferredPhone?: string): WhatsAppConversation {
     const db = getDatabase();
-    const lead = db.prepare(`SELECT id, name, phone, assigned_to FROM leads WHERE id = ?`).get(leadId) as any;
+    const lead = db
+      .prepare(`SELECT id, name, phone, whatsapp_phone, assigned_to FROM leads WHERE id = ?`)
+      .get(leadId) as any;
     if (!lead) throw new Error("Lead not found");
 
-    const phoneDigits = normalizePhoneDigits(lead.phone);
+    const rawTarget = preferredPhone || lead.whatsapp_phone || lead.phone;
+    const phoneDigits = normalizePhoneDigits(rawTarget);
     if (!phoneDigits || phoneDigits.length < 7) {
       throw new Error("Lead does not have a valid phone number");
     }
 
     let conv = db
-      .prepare(`SELECT * FROM whatsapp_conversations WHERE lead_id = ? OR phone_digits = ? LIMIT 1`)
-      .get(lead.id, phoneDigits) as any;
+      .prepare(`SELECT * FROM whatsapp_conversations WHERE phone_digits = ? OR (lead_id = ? AND ? IS NULL) LIMIT 1`)
+      .get(phoneDigits, lead.id, preferredPhone || null) as any;
 
     if (!conv) {
       const now = new Date().toISOString();
@@ -622,7 +666,7 @@ export class KapsoWhatsappService {
           ) VALUES (?, ?, ?, ?, ?, 'open', 0, ?, ?)
         `
         )
-        .run(lead.id, lead.phone, phoneDigits, lead.name, lead.assigned_to || null, now, now);
+        .run(lead.id, rawTarget, phoneDigits, lead.name, lead.assigned_to || null, now, now);
       conv = db
         .prepare(`SELECT * FROM whatsapp_conversations WHERE id = ?`)
         .get(Number(res.lastInsertRowid));
@@ -743,6 +787,48 @@ export class KapsoWhatsappService {
     };
   }
 
+  static createLeadFromConversation(convId: number, currentUser: User): { leadId: number; leadCode: string } {
+    const db = getDatabase();
+    const conv = db.prepare(`SELECT * FROM whatsapp_conversations WHERE id = ?`).get(convId) as any;
+    if (!conv) throw new Error("Conversation not found");
+    if (conv.lead_id) {
+      const existing = db.prepare(`SELECT id, lead_code FROM leads WHERE id = ?`).get(conv.lead_id) as any;
+      if (existing) return { leadId: existing.id, leadCode: existing.lead_code };
+    }
+
+    const norm = normalizeAndValidatePhone(conv.phone_number || conv.phone_digits);
+    const e164 = norm.valid ? norm.e164 : conv.phone_number;
+    const digits = norm.valid ? norm.digits : conv.phone_digits;
+    const maxId = (db.prepare(`SELECT MAX(id) as maxId FROM leads`).get() as any)?.maxId || 0;
+    const leadCode = `LD-${String(maxId + 1).padStart(6, "0")}`;
+    const name = conv.contact_name || `WhatsApp Inquiry (${digits.slice(-4)})`;
+
+    const res = db
+      .prepare(
+        `INSERT INTO leads (lead_code, name, phone, phone_digits, status, assigned_to, raw_attributes)
+         VALUES (?, ?, ?, ?, 'New', ?, ?)`
+      )
+      .run(leadCode, name, e164, digits, conv.assigned_to || currentUser.id, JSON.stringify({ source: "WhatsApp Inbound" }));
+    const leadId = Number(res.lastInsertRowid);
+
+    db.prepare(`UPDATE whatsapp_conversations SET lead_id = ?, assigned_to = COALESCE(assigned_to, ?) WHERE id = ?`).run(
+      leadId,
+      conv.assigned_to || currentUser.id,
+      convId
+    );
+    db.prepare(`UPDATE whatsapp_messages SET lead_id = ? WHERE conversation_id = ? AND lead_id IS NULL`).run(
+      leadId,
+      convId
+    );
+    db.prepare(
+      `INSERT INTO lead_activities (lead_id, activity_type, title, description, new_value, performed_by_id, performed_by_name)
+       VALUES (?, 'created', 'Lead Created from WhatsApp Inquiry', ?, 'New', ?, ?)`
+    ).run(leadId, `Saved inbound WhatsApp contact (${e164}) as CRM Lead.`, currentUser.id, currentUser.name);
+
+    SyncService.publish("system", `wa_conv:${convId}`);
+    return { leadId, leadCode };
+  }
+
   static updateConversation(
     conversationId: number,
     updates: { status?: "open" | "resolved"; assigned_to?: string | null; unread_count?: number }
@@ -798,7 +884,7 @@ export class KapsoWhatsappService {
         .prepare(`SELECT * FROM whatsapp_conversations WHERE id = ?`)
         .get(params.conversationId);
     } else if (params.leadId) {
-      conv = this.getOrCreateConversationForLead(params.leadId);
+      conv = this.getOrCreateConversationForLead(params.leadId, params.toPhone);
     } else if (params.toPhone) {
       const digits = normalizePhoneDigits(params.toPhone);
       if (digits.length < 7) throw new Error("Invalid recipient phone number");
@@ -847,10 +933,13 @@ export class KapsoWhatsappService {
         }
       }
       if (Array.isArray(params.templateVariables) && params.templateVariables.length > 0) {
+        const isPositional =
+          params.parameterFormat === "POSITIONAL" ||
+          params.templateVariables.every((v) => /^\d+$/.test(String(v.name || "")));
         components.push({
           type: "body",
           parameters: params.templateVariables.map((v) =>
-            params.parameterFormat === "POSITIONAL"
+            isPositional
               ? { type: "text", text: v.value || " " }
               : { type: "text", parameter_name: v.name, text: v.value || " " }
           ),
@@ -980,10 +1069,38 @@ export class KapsoWhatsappService {
   }
 
   static processWebhook(payload: any, eventHeader?: string | null): { processed: number } {
-    const events: any[] =
-      payload?.batch && Array.isArray(payload?.data)
-        ? payload.data
-        : [payload];
+    const events: any[] = [];
+    if (payload?.batch && Array.isArray(payload?.data)) {
+      events.push(...payload.data);
+    } else if (Array.isArray(payload?.entry)) {
+      // Meta Cloud API webhook envelope
+      for (const entry of payload.entry) {
+        for (const change of entry?.changes || []) {
+          const val = change?.value || {};
+          const contacts = Array.isArray(val?.contacts) ? val.contacts : [];
+          for (const st of val?.statuses || []) {
+            events.push({ event: "whatsapp.message.status", message: { id: st.id, kapso: { status: st.status } } });
+          }
+          for (const m of val?.messages || []) {
+            const cMatch = contacts.find((c: any) => c.wa_id === m.from) || contacts[0];
+            events.push({
+              event: "whatsapp.message.received",
+              conversation: {
+                phone_number: m.from || cMatch?.wa_id,
+                contact_name: cMatch?.profile?.name || null,
+                wa_id: cMatch?.wa_id || m.from,
+              },
+              message: {
+                ...m,
+                kapso: { direction: "inbound", status: "received", content: m?.text?.body || "" },
+              },
+            });
+          }
+        }
+      }
+    } else {
+      events.push(payload);
+    }
 
     const db = getDatabase();
     let processed = 0;
@@ -1015,17 +1132,25 @@ export class KapsoWhatsappService {
         convData?.phone_number ||
         msg?.from ||
         convData?.wa_id ||
+        convData?.business_scoped_user_id ||
         convData?.id ||
         "";
-      const phoneDigits = normalizePhoneDigits(rawPhone);
+      const phoneDigits = normalizePhoneDigits(rawPhone) || String(rawPhone || "").replace(/[^a-zA-Z0-9_-]/g, "");
       if (!phoneDigits) continue;
 
+      const transcriptText =
+        typeof kapsoMsg?.transcript === "string"
+          ? kapsoMsg.transcript
+          : kapsoMsg?.transcript?.text || "";
       const bodyText =
         kapsoMsg?.content ||
         msg?.text?.body ||
-        kapsoMsg?.transcript ||
-        (kapsoMsg?.has_media ? "[Media attachment]" : "[WhatsApp Message]");
-      const contactName = convData?.contact_name || null;
+        msg?.button?.text ||
+        msg?.interactive?.button_reply?.title ||
+        msg?.interactive?.list_reply?.title ||
+        transcriptText ||
+        (kapsoMsg?.has_media ? `[${String(msg?.type || "media").toUpperCase()} attachment]` : "[WhatsApp Message]");
+      const contactName = convData?.contact_name || convData?.username || null;
       const kapsoConvId = convData?.id || null;
       const kapsoMsgId = msg?.id || null;
       const now = new Date().toISOString();
@@ -1037,15 +1162,21 @@ export class KapsoWhatsappService {
         if (dup) continue;
       }
 
-      const matchedLead = db
-        .prepare(
-          `SELECT id, name, assigned_to FROM leads WHERE phone_digits = ? OR phone_digits LIKE ? LIMIT 1`
-        )
-        .get(phoneDigits, `%${phoneDigits.slice(-10)}`) as any;
+      const last10 = phoneDigits.slice(-10);
+      const matchedLead =
+        last10.length >= 7
+          ? (db
+              .prepare(
+                `SELECT id, name, assigned_to FROM leads
+                 WHERE phone_digits = ? OR phone_digits LIKE ? OR alternate_contacts LIKE ?
+                 LIMIT 1`
+              )
+              .get(phoneDigits, `%${last10}`, `%${last10}%`) as any)
+          : null;
 
       let conv = db
-        .prepare(`SELECT * FROM whatsapp_conversations WHERE phone_digits = ?`)
-        .get(phoneDigits) as any;
+        .prepare(`SELECT * FROM whatsapp_conversations WHERE phone_digits = ? OR (? IS NOT NULL AND kapso_conversation_id = ?) LIMIT 1`)
+        .get(phoneDigits, kapsoConvId, kapsoConvId) as any;
 
       if (!conv) {
         const res = db
@@ -1054,8 +1185,8 @@ export class KapsoWhatsappService {
             INSERT INTO whatsapp_conversations (
               kapso_conversation_id, lead_id, phone_number, phone_digits, contact_name,
               assigned_to, status, unread_count, last_message_preview, last_message_direction,
-              last_message_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?)
+              last_message_at, last_inbound_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?)
           `
           )
           .run(
@@ -1069,6 +1200,7 @@ export class KapsoWhatsappService {
             String(bodyText).slice(0, 120),
             direction,
             now,
+            direction === "inbound" ? now : null,
             now
           );
         conv = db
@@ -1086,6 +1218,7 @@ export class KapsoWhatsappService {
             last_message_preview = ?,
             last_message_direction = ?,
             last_message_at = ?,
+            last_inbound_at = COALESCE(?, last_inbound_at),
             updated_at = ?,
             status = 'open'
           WHERE id = ?
@@ -1098,6 +1231,7 @@ export class KapsoWhatsappService {
           String(bodyText).slice(0, 120),
           direction,
           now,
+          direction === "inbound" ? now : null,
           now,
           conv.id
         );

@@ -2,6 +2,7 @@ export interface ChunkedImportOptions {
   sourceName: string;
   campaignId?: string;
   skipDuplicates: boolean;
+  duplicateMode?: "skip" | "merge" | "allow";
   defaultStatus?: string;
   fieldMapping?: Record<string, string>;
 }
@@ -34,6 +35,9 @@ export async function uploadCsvInChunks(
       headers["x-source-name"] = encodeURIComponent(options.sourceName || file.name);
       headers["x-campaign-id"] = options.campaignId || "none";
       headers["x-skip-duplicates"] = String(options.skipDuplicates);
+      if (options.duplicateMode) {
+        headers["x-duplicate-mode"] = options.duplicateMode;
+      }
       headers["x-default-status"] = encodeURIComponent(options.defaultStatus || "New");
       if (options.fieldMapping) {
         headers["x-field-mapping"] = encodeURIComponent(JSON.stringify(options.fieldMapping));

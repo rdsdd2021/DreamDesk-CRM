@@ -407,6 +407,34 @@ export function EnhancedLeadDrawer({
     }
   };
 
+  const handleSetWhatsAppContact = async (contactIdOrPrimary: string) => {
+    if (!lead?.id) return;
+    setSwitchingContactId(contactIdOrPrimary);
+    try {
+      const { data, error } = await ApiClient.fetchJson<{ success: boolean; lead: Lead }>(
+        `/api/leads/${lead.id}/contacts`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ contactId: contactIdOrPrimary, action: "set_whatsapp" }),
+        }
+      );
+      if (error || !data?.lead) {
+        throw new Error(error?.message || "Failed to set WhatsApp contact");
+      }
+      if (onLeadUpdated) {
+        onLeadUpdated(data.lead, false);
+      }
+      setToastMessage("Updated default WhatsApp contact number.");
+      setSuccessToast(true);
+      setTimeout(() => setSuccessToast(false), 3000);
+      fetchActivities(lead.id);
+    } catch (err: any) {
+      alert(err.message || "Failed to set WhatsApp contact");
+    } finally {
+      setSwitchingContactId(null);
+    }
+  };
+
   const handleEndCall = () => {
     const mins = Math.floor(callDuration / 60);
     const secs = callDuration % 60;
@@ -1832,6 +1860,11 @@ export function EnhancedLeadDrawer({
                               <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/25">
                                 {cnt.label}
                               </span>
+                              {(cnt.is_whatsapp || (lead.whatsapp_phone && lead.whatsapp_phone === cnt.phone)) && (
+                                <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25">
+                                  WA Default
+                                </span>
+                              )}
                               {cnt.added_by_name && (
                                 <span className="text-[10px] text-muted-foreground truncate">
                                   Added by {cnt.added_by_name}
@@ -1877,6 +1910,18 @@ export function EnhancedLeadDrawer({
                                 <span>Set Primary</span>
                               )}
                             </Button>
+                            {!(cnt.is_whatsapp || (lead.whatsapp_phone && lead.whatsapp_phone === cnt.phone)) && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                disabled={switchingContactId === cnt.id}
+                                onClick={() => handleSetWhatsAppContact(cnt.id)}
+                                className="min-h-[38px] sm:min-h-0 sm:h-8 px-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-lg cursor-pointer"
+                              >
+                                <span>Set WA</span>
+                              </Button>
+                            )}
                           </div>
                         </div>
                       ))}
