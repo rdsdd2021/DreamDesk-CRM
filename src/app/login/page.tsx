@@ -107,11 +107,9 @@ export default function LoginPage() {
         throw new Error(data.error || "Authentication failed.");
       }
 
-      router.replace("/");
-      router.refresh();
+      window.location.replace("/");
     } catch (err: any) {
       setError(err.message || "Invalid credentials. Please verify your details.");
-    } finally {
       setLoading(false);
     }
   };

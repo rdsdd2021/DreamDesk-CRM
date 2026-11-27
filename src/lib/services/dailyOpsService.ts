@@ -63,7 +63,7 @@ export class DailyOpsService {
         SELECT COUNT(*) AS cnt
         FROM leads
         WHERE assigned_to = ?
-          AND date(last_called_at, 'localtime') = ?
+          AND date(last_attempt_at, 'localtime') = ?
           AND call_outcome = 'connected'
       `
       )
@@ -75,7 +75,7 @@ export class DailyOpsService {
         SELECT COUNT(*) AS cnt
         FROM leads
         WHERE assigned_to = ?
-          AND stage = 'Converted'
+          AND status = 'Converted'
           AND date(updated_at, 'localtime') = ?
       `
       )
@@ -391,7 +391,7 @@ export class DailyOpsService {
 
     const freshRows = db
       .prepare(
-        `SELECT assigned_to, COUNT(*) AS cnt FROM leads WHERE stage = 'New' AND assigned_to IS NOT NULL GROUP BY assigned_to`
+        `SELECT assigned_to, COUNT(*) AS cnt FROM leads WHERE status = 'New' AND assigned_to IS NOT NULL GROUP BY assigned_to`
       )
       .all() as { assigned_to: string; cnt: number }[];
     const freshMap = new Map(freshRows.map((r) => [r.assigned_to, r.cnt]));

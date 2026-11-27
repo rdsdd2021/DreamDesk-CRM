@@ -108,23 +108,29 @@ export default function CRMPage() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [permissions, setPermissions] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [needsMorningCheckin, setNeedsMorningCheckin] = useState(false);
+  const [needsMorningCheckin, setNeedsMorningCheckin] = useState(true);
   const [dailyTarget, setDailyTarget] = useState<any>(null);
 
   // Authenticate session on load
   const checkAuth = useCallback(async () => {
+    let authenticated = false;
     try {
       setAuthLoading(true);
-      const res = await fetch("/api/auth/me");
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      if (res.status === 401) {
+        router.replace("/login");
+        return;
+      }
       if (!res.ok) {
-        router.push("/login");
+        console.error("Auth check returned non-OK status:", res.status);
         return;
       }
       const data = await res.json();
       if (!data.authenticated || !data.user) {
-        router.push("/login");
+        router.replace("/login");
         return;
       }
+      authenticated = true;
       setCurrentUser(data.user);
       setPermissions(data.permissions);
       setNeedsMorningCheckin(!data.dailyOps?.checkin?.checked_in_at);
@@ -142,9 +148,11 @@ export default function CRMPage() {
       }
     } catch (err) {
       console.error("Auth check failed:", err);
-      router.push("/login");
+      router.replace("/login");
     } finally {
-      setAuthLoading(false);
+      if (authenticated) {
+        setAuthLoading(false);
+      }
     }
   }, [router]);
 
@@ -1417,7 +1425,7 @@ export default function CRMPage() {
     };
   };
 
-  if (authLoading) {
+  if (authLoading || !currentUser) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background text-foreground">
         <div className="flex flex-col items-center gap-3">
@@ -1427,7 +1435,7 @@ export default function CRMPage() {
             className="w-10 h-10 rounded-xl object-contain bg-white p-1 animate-pulse shadow-sm ring-1 ring-border/50"
           />
           <p className="text-xs font-semibold text-muted-foreground animate-pulse">
-            Verifying staff permissions...
+            Loading DreamDesk CRM...
           </p>
         </div>
       </div>
