@@ -732,7 +732,7 @@ export function WhatsAppInboxWorkspace({
 
                   {/* Selected Template Variable Auto-fill Card */}
                   {selectedTemplate && (
-                    <div className="p-2.5 rounded-xl bg-emerald-500/5 border border-emerald-500/20 space-y-2 text-xs">
+                    <div className="p-2.5 rounded-xl bg-emerald-500/5 border border-emerald-500/20 space-y-2 text-xs max-h-[240px] overflow-y-auto">
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-emerald-700 dark:text-emerald-300">
                           Sending Template: <code className="font-mono">{selectedTemplate.name}</code>
@@ -745,32 +745,66 @@ export function WhatsAppInboxWorkspace({
                           <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
-                      {(selectedTemplate.variables || []).length > 0 && (
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                          {(selectedTemplate.variables || []).map((v) => (
-                            <Input
-                              key={v.name}
-                              value={templateVarValues[v.name] || ""}
-                              onChange={(e) =>
-                                setTemplateVarValues((prev) => ({ ...prev, [v.name]: e.target.value }))
-                              }
-                              placeholder={`{{${v.name}}}`}
-                              className="h-7 text-xs"
-                            />
-                          ))}
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 items-start">
+                        {(selectedTemplate.variables || []).length > 0 && (
+                          <div className="lg:col-span-6 space-y-1.5">
+                            {(selectedTemplate.variables || []).map((v) => {
+                              const inboxSuggestions = [
+                                { label: "Name", val: activeConv?.lead_name || activeConv?.contact_name || "" },
+                                { label: "Code", val: activeConv?.lead_code || "" },
+                                { label: "Phone", val: activeConv?.phone_number || "" },
+                                { label: "Counselor", val: currentUser?.name || "" },
+                              ].filter((s) => s.val);
+                              return (
+                                <div key={v.name} className="flex items-center gap-1.5">
+                                  <span className="w-11 shrink-0 text-[10px] font-mono font-semibold text-emerald-700 dark:text-emerald-300 truncate">
+                                    {`{{${v.name}}}`}
+                                  </span>
+                                  <Input
+                                    value={templateVarValues[v.name] || ""}
+                                    onChange={(e) =>
+                                      setTemplateVarValues((prev) => ({ ...prev, [v.name]: e.target.value }))
+                                    }
+                                    placeholder={`{{${v.name}}}`}
+                                    className="h-7 text-xs bg-background flex-1 min-w-0"
+                                  />
+                                  {inboxSuggestions.length > 0 && (
+                                    <select
+                                      value=""
+                                      onChange={(e) => {
+                                        if (e.target.value) {
+                                          setTemplateVarValues((prev) => ({ ...prev, [v.name]: e.target.value }));
+                                        }
+                                      }}
+                                      className="h-7 max-w-[88px] rounded-md border border-border bg-background px-1 text-[10px] text-muted-foreground cursor-pointer"
+                                    >
+                                      <option value="">Lead…</option>
+                                      {inboxSuggestions.map((s) => (
+                                        <option key={s.label} value={s.val}>
+                                          {s.label}: {s.val.slice(0, 18)}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        <div className={(selectedTemplate.variables || []).length > 0 ? "lg:col-span-6" : "lg:col-span-12"}>
+                          <WhatsAppTemplateBubblePreview
+                            headerType={selectedTemplate.header_type}
+                            headerContent={selectedTemplate.header_content}
+                            bodyText={selectedTemplate.template_body}
+                            footerText={selectedTemplate.footer_text}
+                            buttons={selectedTemplate.buttons}
+                            variableValues={templateVarValues}
+                            templateName={selectedTemplate.name}
+                            category={selectedTemplate.category}
+                            language={selectedTemplate.language}
+                          />
                         </div>
-                      )}
-                      <WhatsAppTemplateBubblePreview
-                        headerType={selectedTemplate.header_type}
-                        headerContent={selectedTemplate.header_content}
-                        bodyText={selectedTemplate.template_body}
-                        footerText={selectedTemplate.footer_text}
-                        buttons={selectedTemplate.buttons}
-                        variableValues={templateVarValues}
-                        templateName={selectedTemplate.name}
-                        category={selectedTemplate.category}
-                        language={selectedTemplate.language}
-                      />
+                      </div>
                     </div>
                   )}
 

@@ -364,92 +364,107 @@ export function WhatsAppModal({
               </div>
 
               {selectedTemplate && (
-                <div className="p-3.5 rounded-xl border border-emerald-500/25 bg-emerald-500/5 space-y-3">
-                  {/* Quick-fill CRM chips */}
-                  {(selectedTemplate.variables || []).length > 0 && (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <span className="text-[11px] font-semibold text-foreground">
-                          Template Variables
-                        </span>
-                        <div className="flex items-center gap-1 flex-wrap">
-                          <span className="text-[10px] text-muted-foreground">Quick-fill:</span>
-                          {[
-                            { label: "Name", val: lead?.name || "" },
-                            { label: "Code", val: lead?.lead_code || "" },
-                            { label: "Stream", val: String(lead?.raw_attributes?.stream || "") },
-                            { label: "City", val: String(lead?.raw_attributes?.city || "") },
-                            { label: "Counselor", val: currentUser?.name || "" },
-                          ]
-                            .filter((q) => q.val)
-                            .map((q) => (
-                              <button
-                                key={q.label}
-                                type="button"
-                                onClick={() => {
-                                  const targetKey =
-                                    focusedVarName ||
-                                    (selectedTemplate.variables || []).find((v) => !varValues[v.name]?.trim())?.name ||
-                                    selectedTemplate.variables?.[0]?.name;
-                                  if (targetKey) {
-                                    setVarValues((prev) => ({ ...prev, [targetKey]: q.val }));
-                                  }
-                                }}
-                                className="px-1.5 py-0.5 rounded bg-background border border-border/70 text-[10px] font-medium hover:border-emerald-500 hover:text-emerald-600 cursor-pointer"
-                              >
-                                + {q.label}
-                              </button>
-                            ))}
+                <div className="p-3 rounded-xl border border-emerald-500/25 bg-emerald-500/5 grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
+                  {/* Left: Compact Variables + Lead Detail Suggestions */}
+                  <div className="md:col-span-6 space-y-2">
+                    {(selectedTemplate.variables || []).length > 0 ? (
+                      <>
+                        <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                          <span className="text-[11px] font-semibold text-foreground">
+                            Fill Variables ({selectedTemplate.variables?.length || 0})
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            Click or pick from Lead Details
+                          </span>
                         </div>
-                      </div>
+                        <div className="space-y-1.5 max-h-[210px] overflow-y-auto pr-1">
+                          {(selectedTemplate.variables || []).map((v) => {
+                            const leadSuggestions = [
+                              { label: "Name", val: lead?.name || "" },
+                              { label: "Code", val: lead?.lead_code || "" },
+                              { label: "Phone", val: lead?.phone || "" },
+                              { label: "Counselor", val: currentUser?.name || "" },
+                              ...Object.entries(lead?.raw_attributes || {})
+                                .filter(([k, val]) => val && typeof val !== "object" && !/contact|phone/i.test(k))
+                                .slice(0, 6)
+                                .map(([k, val]) => ({
+                                  label: k.replace(/_/g, " "),
+                                  val: String(val),
+                                })),
+                            ].filter((s) => s.val);
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        {(selectedTemplate.variables || []).map((v) => (
-                          <div key={v.name} className="space-y-1">
-                            <label className="text-[10px] font-mono font-semibold text-muted-foreground">
-                              {`{{${v.name}}}`}
-                            </label>
-                            <Input
-                              value={varValues[v.name] || ""}
-                              onFocus={() => setFocusedVarName(v.name)}
-                              onChange={(e) =>
-                                setVarValues((prev) => ({ ...prev, [v.name]: e.target.value }))
-                              }
-                              placeholder={`Enter value for {{${v.name}}}...`}
-                              className="h-8 text-xs bg-background"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedTemplate.header_type &&
-                    ["IMAGE", "VIDEO", "DOCUMENT"].includes(selectedTemplate.header_type) && (
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-semibold text-muted-foreground">
-                          {selectedTemplate.header_type} Header URL / Media ID (optional override)
-                        </label>
-                        <Input
-                          value={mediaOverrideUrl}
-                          onChange={(e) => setMediaOverrideUrl(e.target.value)}
-                          placeholder={selectedTemplate.header_content || "https://... or Kapso media ID"}
-                          className="h-8 text-xs font-mono bg-background"
-                        />
+                            return (
+                              <div key={v.name} className="flex items-center gap-1.5">
+                                <span className="w-12 shrink-0 text-[10px] font-mono font-semibold text-emerald-700 dark:text-emerald-300 truncate">
+                                  {`{{${v.name}}}`}
+                                </span>
+                                <Input
+                                  value={varValues[v.name] || ""}
+                                  onFocus={() => setFocusedVarName(v.name)}
+                                  onChange={(e) =>
+                                    setVarValues((prev) => ({ ...prev, [v.name]: e.target.value }))
+                                  }
+                                  placeholder={`Value for {{${v.name}}}`}
+                                  className="h-7 text-xs bg-background flex-1 min-w-0"
+                                />
+                                <select
+                                  value=""
+                                  onChange={(e) => {
+                                    if (e.target.value) {
+                                      setVarValues((prev) => ({ ...prev, [v.name]: e.target.value }));
+                                    }
+                                  }}
+                                  title="Suggest from Lead Details"
+                                  className="h-7 max-w-[92px] rounded-md border border-border bg-background px-1 text-[10px] text-muted-foreground cursor-pointer"
+                                >
+                                  <option value="">Lead data…</option>
+                                  {leadSuggestions.map((s, idx) => (
+                                    <option key={`${s.label}_${idx}`} value={s.val}>
+                                      {s.label}: {s.val.slice(0, 22)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-[11px] text-muted-foreground italic py-1">
+                        No variables required for this template.
                       </div>
                     )}
 
-                  <WhatsAppTemplateBubblePreview
-                    headerType={selectedTemplate.header_type}
-                    headerContent={mediaOverrideUrl.trim() || selectedTemplate.header_content}
-                    bodyText={selectedTemplate.template_body}
-                    footerText={selectedTemplate.footer_text}
-                    buttons={selectedTemplate.buttons}
-                    variableValues={varValues}
-                    templateName={selectedTemplate.name}
-                    category={selectedTemplate.category}
-                    language={selectedTemplate.language}
-                  />
+                    {selectedTemplate.header_type &&
+                      ["IMAGE", "VIDEO", "DOCUMENT"].includes(selectedTemplate.header_type) && (
+                        <div className="space-y-1 pt-1">
+                          <label className="text-[10px] font-semibold text-muted-foreground">
+                            {selectedTemplate.header_type} Header URL / Media ID
+                          </label>
+                          <Input
+                            value={mediaOverrideUrl}
+                            onChange={(e) => setMediaOverrideUrl(e.target.value)}
+                            placeholder={selectedTemplate.header_content || "https://... or Media ID"}
+                            className="h-7 text-xs font-mono bg-background"
+                          />
+                        </div>
+                      )}
+                  </div>
+
+                  {/* Right: Compact Live Preview */}
+                  <div className="md:col-span-6">
+                    <WhatsAppTemplateBubblePreview
+                      headerType={selectedTemplate.header_type}
+                      headerContent={mediaOverrideUrl.trim() || selectedTemplate.header_content}
+                      bodyText={selectedTemplate.template_body}
+                      footerText={selectedTemplate.footer_text}
+                      buttons={selectedTemplate.buttons}
+                      variableValues={varValues}
+                      templateName={selectedTemplate.name}
+                      category={selectedTemplate.category}
+                      language={selectedTemplate.language}
+                    />
+                  </div>
                 </div>
               )}
             </div>

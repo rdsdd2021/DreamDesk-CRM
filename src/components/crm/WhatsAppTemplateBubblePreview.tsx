@@ -88,22 +88,22 @@ export function WhatsAppTemplateBubblePreview({
     Boolean(val && /^https?:\/\//i.test(val.trim()));
 
   return (
-    <div className="rounded-xl border border-emerald-500/25 bg-[#efeae2] dark:bg-zinc-900/90 p-3 space-y-2">
+    <div className="rounded-xl border border-emerald-500/25 bg-[#efeae2]/80 dark:bg-zinc-900/90 p-2.5 space-y-1.5">
       {(templateName || category || language) && (
         <div className="flex items-center justify-between gap-2 text-[10px] text-zinc-600 dark:text-zinc-400 px-0.5">
           <span className="font-mono font-semibold truncate">
             {templateName || "Template Preview"}
           </span>
           {(category || language) && (
-            <span className="px-1.5 py-0.5 rounded bg-white/70 dark:bg-zinc-800 border border-black/5 dark:border-white/10 font-medium shrink-0">
+            <span className="px-1.5 py-0.5 rounded bg-white/80 dark:bg-zinc-800 border border-black/5 dark:border-white/10 font-medium shrink-0">
               {[category, language].filter(Boolean).join(" · ")}
             </span>
           )}
         </div>
       )}
 
-      {/* WhatsApp Outbound Bubble */}
-      <div className="max-w-[340px] ml-auto rounded-xl rounded-tr-xs bg-[#d9fdd3] dark:bg-emerald-950/90 border border-emerald-600/15 shadow-xs overflow-hidden">
+      {/* Compact Full-Width WhatsApp Bubble */}
+      <div className="w-full rounded-xl bg-[#d9fdd3] dark:bg-emerald-950/90 border border-emerald-600/15 shadow-xs overflow-hidden">
         {/* Header */}
         {normalizedHeaderType === "TEXT" && headerContent && (
           <div className="px-3 pt-2.5 pb-1 text-[13px] font-bold text-zinc-900 dark:text-zinc-50 leading-snug">
