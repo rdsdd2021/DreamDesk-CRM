@@ -50,7 +50,12 @@ export class DailyOpsService {
     let callsMade = 0;
     let whatsappSent = 0;
     for (const r of actRows) {
-      if (r.activity_type === "call" || r.activity_type === "call_outcome") {
+      if (
+        r.activity_type === "call" ||
+        r.activity_type === "call_outcome" ||
+        r.activity_type === "call_attempt" ||
+        r.activity_type === "disposition"
+      ) {
         callsMade += r.cnt;
       } else if (r.activity_type === "whatsapp") {
         whatsappSent += r.cnt;
@@ -63,7 +68,7 @@ export class DailyOpsService {
         SELECT COUNT(*) AS cnt
         FROM leads
         WHERE assigned_to = ?
-          AND date(last_attempt_at, 'localtime') = ?
+          AND date(COALESCE(last_attempt_at, updated_at), 'localtime') = ?
           AND call_outcome = 'connected'
       `
       )
@@ -75,7 +80,7 @@ export class DailyOpsService {
         SELECT COUNT(*) AS cnt
         FROM leads
         WHERE assigned_to = ?
-          AND status = 'Converted'
+          AND status IN ('Admitted', 'Converted')
           AND date(updated_at, 'localtime') = ?
       `
       )

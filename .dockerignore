@@ -4,6 +4,7 @@ node_modules
 .gitignore
 *.log
 scratch
+mobile
 data/crm.db-shm
 data/crm.db-wal
 Dockerfile
