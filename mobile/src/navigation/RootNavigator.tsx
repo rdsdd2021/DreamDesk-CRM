@@ -91,7 +91,7 @@ export function RootNavigator() {
       if (!navigationRef.isReady() || !isAuthenticated) return;
       if (data?.lead_id) {
         navigationRef.navigate("LeadDetail", { leadId: Number(data.lead_id) });
-      } else if (data?.screen === "Tasks") {
+      } else if (data?.screen === "Tasks" || data?.type === "broadcast") {
         navigationRef.navigate("Main", { screen: "Tasks" });
       }
     });

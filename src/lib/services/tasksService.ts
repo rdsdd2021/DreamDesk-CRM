@@ -406,17 +406,34 @@ export class TasksService {
       `).get(userId) as any
     )?.count || 0;
 
-    const notifications: UserNotification[] = rows.map((r) => ({
-      id: r.id,
-      user_id: r.user_id,
-      title: r.title,
-      message: r.message,
-      type: r.type,
-      priority: r.priority,
-      metadata: r.metadata ? JSON.parse(r.metadata) : null,
-      is_read: Boolean(r.is_read),
-      created_at: r.created_at,
-    }));
+    const notifications: UserNotification[] = rows.map((r) => {
+      const meta = r.metadata ? JSON.parse(r.metadata) : null;
+      let br: any = null;
+      if (meta?.broadcast_id) {
+        br = db
+          .prepare(
+            `SELECT response_action_id, response_action_label, responded_at FROM broadcast_recipients WHERE broadcast_id = ? AND user_id = ?`
+          )
+          .get(meta.broadcast_id, userId);
+      }
+      return {
+        id: r.id,
+        user_id: r.user_id,
+        title: r.title,
+        message: r.message,
+        type: r.type,
+        priority: r.priority,
+        metadata: meta,
+        is_read: Boolean(r.is_read),
+        created_at: r.created_at,
+        broadcast_id: meta?.broadcast_id ?? null,
+        action_buttons: Array.isArray(meta?.action_buttons) ? meta.action_buttons : undefined,
+        require_ack: Boolean(meta?.require_ack),
+        response_action_id: br?.response_action_id ?? null,
+        response_action_label: br?.response_action_label ?? null,
+        responded_at: br?.responded_at ?? null,
+      };
+    });
 
     return { notifications, unreadCount };
   }
@@ -426,9 +443,13 @@ export class TasksService {
    */
   static markNotificationRead(notificationId: number, userId: string): void {
     const db = getDatabase();
+    const now = new Date().toISOString();
     db.prepare(`
       UPDATE user_notifications SET is_read = 1 WHERE id = ? AND user_id = ?
     `).run(notificationId, userId);
+    db.prepare(`
+      UPDATE broadcast_recipients SET read_at = COALESCE(read_at, ?) WHERE notification_id = ? AND user_id = ?
+    `).run(now, notificationId, userId);
   }
 
   /**
@@ -436,8 +457,12 @@ export class TasksService {
    */
   static markAllNotificationsRead(userId: string): void {
     const db = getDatabase();
+    const now = new Date().toISOString();
     db.prepare(`
       UPDATE user_notifications SET is_read = 1 WHERE user_id = ?
     `).run(userId);
+    db.prepare(`
+      UPDATE broadcast_recipients SET read_at = COALESCE(read_at, ?) WHERE user_id = ? AND read_at IS NULL
+    `).run(now, userId);
   }
 }

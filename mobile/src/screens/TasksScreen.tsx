@@ -78,6 +78,10 @@ export function TasksScreen({ navigation }: any) {
   const [workTasks, setWorkTasks] = useState<MobileWorkTask[]>([]);
   const [workLoading, setWorkLoading] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  // Broadcast alerts state
+  const [broadcastAlerts, setBroadcastAlerts] = useState<any[]>([]);
+  const [respondingBroadcastKey, setRespondingBroadcastKey] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
   const [newType, setNewType] = useState<"one_time" | "recurring" | "timed">("one_time");
   const [newTimeLimit, setNewTimeLimit] = useState("30");
@@ -151,6 +155,41 @@ export function TasksScreen({ navigation }: any) {
     }
   }, []);
 
+  const loadBroadcastAlerts = useCallback(async () => {
+    try {
+      const { data } = await MobileApiClient.fetchJson<{ notifications?: any[] }>(
+        "/api/notifications?limit=15"
+      );
+      const alerts = (data?.notifications || []).filter(
+        (n) => n.type === "broadcast" && n.broadcast_id && !n.responded_at && Array.isArray(n.action_buttons) && n.action_buttons.length > 0
+      );
+      setBroadcastAlerts(alerts);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleRespondBroadcast = async (alertItem: any, actionId: string) => {
+    const key = `${alertItem.broadcast_id}:${actionId}`;
+    setRespondingBroadcastKey(key);
+    try {
+      const { error } = await MobileApiClient.fetchJson(
+        `/api/broadcasts/${alertItem.broadcast_id}/respond`,
+        {
+          method: "POST",
+          body: JSON.stringify({ action_id: actionId }),
+        }
+      );
+      if (!error) {
+        setBroadcastAlerts((prev) =>
+          prev.filter((a) => a.broadcast_id !== alertItem.broadcast_id)
+        );
+      }
+    } finally {
+      setRespondingBroadcastKey(null);
+    }
+  };
+
   useEffect(() => {
     MobileCache.get<MobileTask[]>("tasks_list").then((cached) => {
       if (cached && cached.length > 0) {
@@ -165,7 +204,8 @@ export function TasksScreen({ navigation }: any) {
     });
     loadTasks();
     loadWorkTasks();
-  }, [loadTasks, loadWorkTasks]);
+    loadBroadcastAlerts();
+  }, [loadTasks, loadWorkTasks, loadBroadcastAlerts]);
 
   const handleToggleComplete = async (task: MobileTask) => {
     const nextVal = task.is_completed ? 0 : 1;
@@ -361,6 +401,41 @@ export function TasksScreen({ navigation }: any) {
               </Text>
             </TouchableOpacity>
           </View>
+
+          {broadcastAlerts.length > 0 && (
+            <View style={styles.broadcastBannerWrap}>
+              {broadcastAlerts.slice(0, 3).map((b) => (
+                <View key={b.id} style={styles.broadcastCard}>
+                  <View style={styles.broadcastHeader}>
+                    <BellRing size={14} color={Colors.primaryLight} />
+                    <Text style={styles.broadcastTitle} numberOfLines={1}>
+                      {b.title}
+                    </Text>
+                  </View>
+                  <Text style={styles.broadcastBody} numberOfLines={3}>
+                    {b.message}
+                  </Text>
+                  <View style={styles.broadcastActions}>
+                    {(b.action_buttons || []).map((btn: any) => {
+                      const key = `${b.broadcast_id}:${btn.id}`;
+                      return (
+                        <TouchableOpacity
+                          key={btn.id}
+                          disabled={respondingBroadcastKey !== null}
+                          onPress={() => handleRespondBroadcast(b, btn.id)}
+                          style={styles.broadcastActionBtn}
+                        >
+                          <Text style={styles.broadcastActionText}>
+                            {respondingBroadcastKey === key ? "Saving..." : btn.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
 
           {loading && tasks.length === 0 ? (
             <View style={styles.center}>
@@ -1011,6 +1086,52 @@ const styles = StyleSheet.create({
   createBtnText: {
     color: "#fff",
     fontSize: 14,
+    fontWeight: "700",
+  },
+  broadcastBannerWrap: {
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    gap: 8,
+  },
+  broadcastCard: {
+    backgroundColor: Colors.primaryMuted,
+    borderWidth: 1,
+    borderColor: Colors.primaryLight,
+    borderRadius: 12,
+    padding: 12,
+    gap: 6,
+  },
+  broadcastHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  broadcastTitle: {
+    flex: 1,
+    color: Colors.textPrimary,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  broadcastBody: {
+    color: Colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  broadcastActions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 4,
+  },
+  broadcastActionBtn: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  broadcastActionText: {
+    color: "#fff",
+    fontSize: 12,
     fontWeight: "700",
   },
 });

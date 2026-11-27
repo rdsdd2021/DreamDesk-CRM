@@ -42,6 +42,7 @@ import { TasksModal } from "@/components/crm/TasksModal";
 import { DuplicatesModal } from "@/components/crm/DuplicatesModal";
 import { WhatsAppModal } from "@/components/crm/WhatsAppModal";
 import { WhatsAppTemplatesWorkspace } from "@/components/crm/WhatsAppTemplatesWorkspace";
+import { BroadcastsWorkspace } from "@/components/crm/BroadcastsWorkspace";
 import { ImportModal } from "@/components/crm/ImportModal";
 import { TeamModal } from "@/components/crm/TeamModal";
 import { ActivityLogsModal } from "@/components/crm/ActivityLogsModal";
@@ -1570,6 +1571,7 @@ export default function CRMPage() {
                 {currentView === "tasks" && "Tasks & Daily Ops"}
                 {currentView === "team" && "Counselors & Team Directory"}
                 {currentView === "assignments" && "Assignment Batches & Caller Reports"}
+                {currentView === "broadcasts" && "Broadcasts & Action Alerts"}
                 {currentView === "import" && "Batch CSV Ingestion & Field Mapping Studio"}
                 {currentView === "activity" && "Compliance & Activity Audit Trail"}
                 {currentView === "policies" && "Governance & CRM Policies"}
@@ -1926,6 +1928,16 @@ export default function CRMPage() {
               <div className="max-w-7xl mx-auto">
                 <AssignmentReportsWorkspace />
               </div>
+            </WorkspaceErrorBoundary>
+          )}
+
+          {/* VIEW 6C: BROADCASTS & ACTION ALERTS */}
+          {currentView === "broadcasts" && canAccessView("broadcasts") && (
+            <WorkspaceErrorBoundary workspaceName="Broadcasts & Action Alerts">
+              <BroadcastsWorkspace
+                currentUser={currentUser}
+                onShowToast={showToast}
+              />
             </WorkspaceErrorBoundary>
           )}
 

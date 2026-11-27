@@ -197,16 +197,67 @@ export interface CrmTask {
   updated_at: string;
 }
 
+export type BroadcastActionVariant = 'primary' | 'secondary' | 'success' | 'warning' | 'danger';
+
+export interface BroadcastActionButton {
+  id: string;
+  label: string;
+  variant: BroadcastActionVariant;
+}
+
+export type BroadcastTargetType = 'all' | 'roles' | 'users';
+
+export interface BroadcastRecord {
+  id: number;
+  title: string;
+  message: string;
+  priority: TaskPriority;
+  target_type: BroadcastTargetType;
+  target_values: string[];
+  action_buttons: BroadcastActionButton[];
+  require_ack: boolean;
+  created_by: string;
+  created_by_name: string;
+  created_by_role: string;
+  total_recipients: number;
+  created_at: string;
+  read_count?: number;
+  responded_count?: number;
+  action_breakdown?: Record<string, number>;
+}
+
+export interface BroadcastRecipientRecord {
+  id: number;
+  broadcast_id: number;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  user_role: string;
+  notification_id: number | null;
+  delivered_at: string;
+  read_at: string | null;
+  response_action_id: string | null;
+  response_action_label: string | null;
+  response_note: string | null;
+  responded_at: string | null;
+}
+
 export interface UserNotification {
   id: number;
   user_id: string;
   title: string;
   message: string;
-  type: 'task' | 'policy' | 'lead_assignment' | 'system';
+  type: 'task' | 'policy' | 'lead_assignment' | 'system' | 'broadcast';
   priority: TaskPriority;
   metadata?: any;
   is_read: boolean;
   created_at: string;
+  broadcast_id?: number | null;
+  action_buttons?: BroadcastActionButton[];
+  require_ack?: boolean;
+  response_action_id?: string | null;
+  response_action_label?: string | null;
+  responded_at?: string | null;
 }
 
 export interface BulkTaskConfig {

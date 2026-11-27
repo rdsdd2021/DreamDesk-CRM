@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { User, UserNotification, TaskPriority } from "@/types/crm";
+import { User, UserNotification, TaskPriority, BroadcastActionVariant } from "@/types/crm";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,9 +10,24 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Check, CheckCheck, Clock, Flame, Zap, Shield, Sparkles } from "lucide-react";
+import { Bell, Check, CheckCheck, Clock, Flame, Megaphone, Zap, Shield, Sparkles } from "lucide-react";
+
+const BROADCAST_BTN_STYLE: Record<BroadcastActionVariant, string> = {
+  primary: "bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600",
+  secondary: "bg-muted hover:bg-muted/80 text-foreground border-border",
+  success: "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600",
+  warning: "bg-amber-500 hover:bg-amber-600 text-white border-amber-500",
+  danger: "bg-rose-600 hover:bg-rose-700 text-white border-rose-600",
+};
 
 interface NotificationBellProps {
   currentUser?: User | null;
@@ -24,6 +39,7 @@ export function NotificationBell({ currentUser, onNavigateToTasks }: Notificatio
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [respondingKey, setRespondingKey] = useState<string | null>(null);
 
   const fetchNotifications = async () => {
     if (!currentUser?.id) return;
@@ -74,6 +90,55 @@ export function NotificationBell({ currentUser, onNavigateToTasks }: Notificatio
       console.error("Failed to mark all read:", err);
     }
   };
+
+  const handleBroadcastRespond = async (
+    notif: UserNotification,
+    actionId: string,
+    actionLabel: string
+  ) => {
+    if (!notif.broadcast_id) return;
+    const key = `${notif.broadcast_id}:${actionId}`;
+    setRespondingKey(key);
+    try {
+      const res = await fetch(`/api/broadcasts/${notif.broadcast_id}/respond`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action_id: actionId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications((prev) =>
+          prev.map((n) =>
+            n.id === notif.id
+              ? {
+                  ...n,
+                  is_read: true,
+                  response_action_id: data.action_id || actionId,
+                  response_action_label: data.action_label || actionLabel,
+                  responded_at: data.responded_at || new Date().toISOString(),
+                }
+              : n
+          )
+        );
+        if (!notif.is_read) {
+          setUnreadCount((prev) => Math.max(0, prev - 1));
+        }
+      }
+    } catch (err) {
+      console.error("Failed to respond to broadcast:", err);
+    } finally {
+      setRespondingKey(null);
+    }
+  };
+
+  const pendingAckBroadcast = notifications.find(
+    (n) =>
+      n.type === "broadcast" &&
+      n.require_ack &&
+      !n.responded_at &&
+      n.action_buttons &&
+      n.action_buttons.length > 0
+  );
 
   const formatTimeAgo = (dateStr: string) => {
     try {
@@ -182,7 +247,7 @@ export function NotificationBell({ currentUser, onNavigateToTasks }: Notificatio
                     {item.message}
                   </p>
 
-                  <div className="flex items-center gap-2 mt-1.5">
+                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                     <Badge
                       variant="outline"
                       className="text-[9px] font-mono capitalize px-1 py-0 h-3.5"
@@ -194,7 +259,39 @@ export function NotificationBell({ currentUser, onNavigateToTasks }: Notificatio
                         View in Tasks →
                       </span>
                     )}
+                    {item.type === "broadcast" && item.response_action_label && (
+                      <Badge className="text-[9px] h-4 px-1.5 bg-emerald-600 text-white">
+                        ✓ {item.response_action_label}
+                      </Badge>
+                    )}
                   </div>
+
+                  {item.type === "broadcast" &&
+                    !item.responded_at &&
+                    item.action_buttons &&
+                    item.action_buttons.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {item.action_buttons.map((btn) => {
+                          const key = `${item.broadcast_id}:${btn.id}`;
+                          return (
+                            <button
+                              key={btn.id}
+                              type="button"
+                              disabled={respondingKey !== null}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleBroadcastRespond(item, btn.id, btn.label);
+                              }}
+                              className={`px-2 py-1 rounded-md text-[10px] font-semibold border cursor-pointer transition-opacity disabled:opacity-60 ${
+                                BROADCAST_BTN_STYLE[btn.variant] || BROADCAST_BTN_STYLE.primary
+                              }`}
+                            >
+                              {respondingKey === key ? "Saving..." : btn.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                 </div>
 
                 {!item.is_read && (
@@ -219,6 +316,60 @@ export function NotificationBell({ currentUser, onNavigateToTasks }: Notificatio
           </div>
         )}
       </DropdownMenuContent>
+
+      {/* Mandatory Action-Required Broadcast Modal */}
+      <Dialog open={Boolean(pendingAckBroadcast)} onOpenChange={() => {}}>
+        <DialogContent className="max-w-md [&>button]:hidden">
+          {pendingAckBroadcast && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-600/10 text-indigo-600 flex items-center justify-center">
+                    <Megaphone className="w-4 h-4" />
+                  </div>
+                  <Badge variant="outline" className="text-[10px] uppercase font-bold">
+                    {pendingAckBroadcast.priority} · Action Required
+                  </Badge>
+                </div>
+                <DialogTitle className="text-base font-bold">
+                  {pendingAckBroadcast.title}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-foreground/85 pt-1 whitespace-pre-wrap">
+                  {pendingAckBroadcast.message}
+                </DialogDescription>
+              </DialogHeader>
+
+              {pendingAckBroadcast.metadata?.sender_name && (
+                <div className="text-[11px] text-muted-foreground">
+                  From <span className="font-semibold text-foreground">{pendingAckBroadcast.metadata.sender_name}</span>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2 pt-2">
+                {pendingAckBroadcast.action_buttons?.map((btn) => {
+                  const key = `${pendingAckBroadcast.broadcast_id}:${btn.id}`;
+                  return (
+                    <Button
+                      key={btn.id}
+                      type="button"
+                      size="sm"
+                      disabled={respondingKey !== null}
+                      onClick={() =>
+                        handleBroadcastRespond(pendingAckBroadcast, btn.id, btn.label)
+                      }
+                      className={`h-9 px-4 text-xs font-semibold border cursor-pointer ${
+                        BROADCAST_BTN_STYLE[btn.variant] || BROADCAST_BTN_STYLE.primary
+                      }`}
+                    >
+                      {respondingKey === key ? "Recording..." : btn.label}
+                    </Button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </DropdownMenu>
   );
 }

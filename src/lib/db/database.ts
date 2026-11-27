@@ -455,6 +455,42 @@ function initializeSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens(user_id);
   `);
 
+  // 11c. Broadcast Notifications & Recipient Audit Log
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS broadcasts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      priority TEXT NOT NULL DEFAULT 'normal',
+      target_type TEXT NOT NULL DEFAULT 'all', -- 'all' | 'roles' | 'users'
+      target_values TEXT NOT NULL DEFAULT '[]',
+      action_buttons TEXT NOT NULL DEFAULT '[]',
+      require_ack INTEGER NOT NULL DEFAULT 0,
+      created_by TEXT NOT NULL,
+      created_by_name TEXT NOT NULL,
+      created_by_role TEXT NOT NULL,
+      total_recipients INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_broadcasts_creator ON broadcasts(created_by, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS broadcast_recipients (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      broadcast_id INTEGER NOT NULL REFERENCES broadcasts(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      notification_id INTEGER,
+      delivered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      read_at DATETIME,
+      response_action_id TEXT,
+      response_action_label TEXT,
+      response_note TEXT,
+      responded_at DATETIME,
+      UNIQUE(broadcast_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_broadcast_recipients_bid ON broadcast_recipients(broadcast_id);
+    CREATE INDEX IF NOT EXISTS idx_broadcast_recipients_uid ON broadcast_recipients(user_id);
+  `);
+
   // 12. Operational & Team Work Tasks (One-time, Recurring, Timed, Linked)
   db.exec(`
     CREATE TABLE IF NOT EXISTS work_tasks (

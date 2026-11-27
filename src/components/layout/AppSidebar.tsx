@@ -24,6 +24,7 @@ import {
   MessageSquare,
   Smartphone,
   Download,
+  Megaphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { User } from "@/types/crm";
@@ -114,6 +115,11 @@ export function AppSidebar({
       id: "assignments",
       label: "Assignment Reports",
       icon: Layers,
+    },
+    {
+      id: "broadcasts",
+      label: "Broadcasts",
+      icon: Megaphone,
     },
     {
       id: "import",
