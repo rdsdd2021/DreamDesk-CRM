@@ -100,11 +100,14 @@ export interface Campaign {
   created_at: string;
 }
 
+export type WhatsAppNumberStatus = 'unknown' | 'valid' | 'invalid';
+
 export interface LeadAlternateContact {
   id: string;
   phone: string;
   label: string;
   is_whatsapp?: boolean;
+  whatsapp_status?: WhatsAppNumberStatus;
   added_by_name?: string;
   added_at: string;
 }
@@ -116,6 +119,7 @@ export interface Lead {
   phone: string | null;
   phone_label?: string | null;
   whatsapp_phone?: string | null;
+  whatsapp_status?: WhatsAppNumberStatus;
   alternate_contacts?: LeadAlternateContact[];
   email: string | null;
   status: string;

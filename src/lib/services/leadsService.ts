@@ -35,6 +35,7 @@ import { SyncService } from "@/lib/services/syncService";
 import { ScoringService } from "@/lib/services/scoringService";
 import { maskPhoneNumber, isMaskedPhone, cleanPhoneDigits } from "@/lib/utils/phoneMasker";
 import { normalizeAndValidatePhone } from "@/lib/utils/phoneNormalizer";
+import { WhatsappCheckerService } from "@/lib/services/whatsappCheckerService";
 
 /**
  * Normalizes phone numbers to standard 10-digit format (or clean digits)
@@ -161,13 +162,42 @@ export class LeadsService {
 
     const shouldMaskPhone = !userScope || (userScope.role !== "admin" && userScope.role !== "team_lead");
 
-    const leads: Lead[] = rawRows.map((row) => ({
-      id: row.id,
-      lead_code: row.lead_code,
-      name: row.name,
-      phone: shouldMaskPhone ? maskPhoneNumber(row.phone) : row.phone,
-      phone_label: row.phone_label || "Primary",
-      alternate_contacts: this.parseAlternateContacts(row.alternate_contacts, shouldMaskPhone),
+    // Batch-resolve per-number WhatsApp availability
+    const allPhonesForCheck: Array<string | null | undefined> = [];
+    for (const r of rawRows) {
+      allPhonesForCheck.push(r.whatsapp_phone || r.phone);
+      const alts = this.parseAlternateContacts(r.alternate_contacts, false);
+      for (const a of alts) allPhonesForCheck.push(a.phone);
+    }
+    const waStatusMap = WhatsappCheckerService.getStatusesBulk(allPhonesForCheck);
+    const lookupWaStatus = (raw?: string | null) => {
+      if (!raw) return "unknown" as const;
+      const n = normalizeAndValidatePhone(raw);
+      const key = n.valid ? n.digits : String(raw).replace(/[^0-9]/g, "");
+      const altKey = key.length === 10 ? `91${key}` : key;
+      return waStatusMap.get(altKey) || "unknown";
+    };
+
+    const leads: Lead[] = rawRows.map((row) => {
+      const rawAlts = this.parseAlternateContacts(row.alternate_contacts, false);
+      const maskedAlts = this.parseAlternateContacts(row.alternate_contacts, shouldMaskPhone).map((c, idx) => ({
+        ...c,
+        whatsapp_status: lookupWaStatus(rawAlts[idx]?.phone),
+      }));
+      const primaryWaStatus = lookupWaStatus(row.whatsapp_phone || row.phone);
+      const hasValidAlt = maskedAlts.some((c) => c.whatsapp_status !== "invalid");
+      const effectiveLeadWaStatus =
+        primaryWaStatus === "invalid" && !hasValidAlt ? "invalid" : primaryWaStatus === "valid" ? "valid" : "unknown";
+
+      return {
+        id: row.id,
+        lead_code: row.lead_code,
+        name: row.name,
+        phone: shouldMaskPhone ? maskPhoneNumber(row.phone) : row.phone,
+        phone_label: row.phone_label || "Primary",
+        whatsapp_phone: shouldMaskPhone && row.whatsapp_phone ? maskPhoneNumber(row.whatsapp_phone) : row.whatsapp_phone,
+        whatsapp_status: effectiveLeadWaStatus,
+        alternate_contacts: maskedAlts,
       email: row.email,
       status: row.status,
       assigned_to: row.assigned_to,
@@ -192,7 +222,8 @@ export class LeadsService {
       notes: row.notes,
       created_at: row.created_at,
       updated_at: row.updated_at,
-    }));
+      };
+    });
 
     // 3. Compute dynamic facets & summary only when requested (skip on quick CommandCenter lookups)
     const facets = includeFacets ? this.computeDynamicFacets(params, userScope) : [];

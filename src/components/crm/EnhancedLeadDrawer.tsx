@@ -1886,16 +1886,22 @@ export function EnhancedLeadDrawer({
                               <PhoneCall className="w-3.5 h-3.5" />
                               <span>Call</span>
                             </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleWhatsAppContact(cnt.id)}
-                              className="min-h-[38px] sm:min-h-0 sm:h-8 px-3 text-xs font-semibold gap-1.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 rounded-lg cursor-pointer"
-                            >
-                              <MessageSquare className="w-3.5 h-3.5" />
-                              <span>WhatsApp</span>
-                            </Button>
+                            {cnt.whatsapp_status !== "invalid" ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleWhatsAppContact(cnt.id)}
+                                className="min-h-[38px] sm:min-h-0 sm:h-8 px-3 text-xs font-semibold gap-1.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 rounded-lg cursor-pointer"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                <span>WhatsApp</span>
+                              </Button>
+                            ) : (
+                              <span className="text-[10px] font-semibold px-2 py-1 rounded-md bg-muted text-muted-foreground border border-border/60">
+                                No WhatsApp
+                              </span>
+                            )}
                             <Button
                               type="button"
                               size="sm"

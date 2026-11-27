@@ -3,6 +3,7 @@ import { PushNotificationService } from "@/lib/services/pushNotificationService"
 import { SyncService } from "@/lib/services/syncService";
 import { maskPhoneNumber } from "@/lib/utils/phoneMasker";
 import { normalizeAndValidatePhone } from "@/lib/utils/phoneNormalizer";
+import { WhatsappCheckerService } from "@/lib/services/whatsappCheckerService";
 import {
   User,
   WhatsAppConversation,
@@ -1121,9 +1122,14 @@ export class KapsoWhatsappService {
     const now = new Date().toISOString();
     const kapsoMsgId = apiJson?.messages?.[0]?.id || apiJson?.id || null;
     const status = apiRes.ok ? "sent" : "failed";
+    const errorCode = apiJson?.error?.code ? String(apiJson.error.code) : "";
     const errorMsg = apiRes.ok
       ? null
       : apiJson?.error?.message || apiJson?.message || `Kapso HTTP ${apiRes.status}`;
+
+    if (!apiRes.ok && (errorCode === "131026" || /131026|not on whatsapp|undeliverable/i.test(String(errorMsg)))) {
+      WhatsappCheckerService.markStatus(toDigits, "invalid", "131026", "webhook");
+    }
 
     const displayBody = textBody || `[Template: ${params.templateName}]`;
     const insertRes = db
@@ -1271,6 +1277,21 @@ export class KapsoWhatsappService {
           if (updated.changes > 0) {
             SyncService.publish("system", `wa_status:${msg.id}`);
           }
+          // Auto-learn WhatsApp availability from delivery/read/failure webhooks
+          const msgRow = db
+            .prepare(`SELECT wc.phone_digits FROM whatsapp_messages wm JOIN whatsapp_conversations wc ON wm.conversation_id = wc.id WHERE wm.kapso_message_id = ? LIMIT 1`)
+            .get(msg.id) as { phone_digits?: string } | undefined;
+          const targetDigits = msgRow?.phone_digits || convData?.phone_number || msg?.to || "";
+          if (targetDigits) {
+            if (mappedStatus === "delivered" || mappedStatus === "read") {
+              WhatsappCheckerService.markStatus(targetDigits, "valid", null, "webhook");
+            } else if (mappedStatus === "failed") {
+              const errStr = JSON.stringify(kapsoMsg?.statuses || msg?.errors || ev?.error || "");
+              if (/131026|not on whatsapp|undeliverable/i.test(errStr)) {
+                WhatsappCheckerService.markStatus(targetDigits, "invalid", "131026", "webhook");
+              }
+            }
+          }
           processed++;
         }
         continue;
@@ -1288,6 +1309,10 @@ export class KapsoWhatsappService {
         "";
       const phoneDigits = normalizePhoneDigits(rawPhone) || String(rawPhone || "").replace(/[^a-zA-Z0-9_-]/g, "");
       if (!phoneDigits) continue;
+
+      if (direction === "inbound" && /^\d{7,}$/.test(phoneDigits)) {
+        WhatsappCheckerService.markStatus(phoneDigits, "valid", null, "webhook");
+      }
 
       const transcriptText =
         typeof kapsoMsg?.transcript === "string"

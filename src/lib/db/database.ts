@@ -814,9 +814,25 @@ function initializeSchema(db: Database.Database) {
   `);
 
   try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS phone_whatsapp_status (
+        phone_digits TEXT PRIMARY KEY,
+        status TEXT NOT NULL DEFAULT 'unknown',
+        error_code TEXT,
+        source TEXT DEFAULT 'webhook',
+        checked_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
     const waConvCols = db.prepare("PRAGMA table_info(whatsapp_conversations)").all() as { name: string }[];
     if (!waConvCols.some((c) => c.name === "last_inbound_at")) {
       db.exec("ALTER TABLE whatsapp_conversations ADD COLUMN last_inbound_at DATETIME;");
+    }
+    const waSettingsCols = db.prepare("PRAGMA table_info(whatsapp_settings)").all() as { name: string }[];
+    if (!waSettingsCols.some((c) => c.name === "wa_checker_url")) {
+      db.exec("ALTER TABLE whatsapp_settings ADD COLUMN wa_checker_url TEXT;");
+    }
+    if (!waSettingsCols.some((c) => c.name === "wa_checker_token")) {
+      db.exec("ALTER TABLE whatsapp_settings ADD COLUMN wa_checker_token TEXT;");
     }
   } catch {}
 

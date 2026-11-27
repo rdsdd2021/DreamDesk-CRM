@@ -584,7 +584,7 @@ export function LeadsTable({
                   </button>
                 )}
 
-                {lead.phone ? (
+                {lead.phone && lead.whatsapp_status !== "invalid" ? (
                   <button
                     onClick={(e) => handleTriggerWhatsApp(lead.id, e)}
                     className="col-span-1 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition-all cursor-pointer hover:bg-emerald-500/20"
@@ -947,13 +947,15 @@ export function LeadsTable({
                                 )}
                                 <span>{lead.phone}</span>
                               </button>
-                              <button
-                                onClick={(e) => handleTriggerWhatsApp(lead.id, e)}
-                                className="p-1 hover:bg-emerald-500/15 text-emerald-600 rounded-md transition-colors inline-flex items-center cursor-pointer"
-                                title="Open WhatsApp via secure intent"
-                              >
-                                <MessageSquare className="w-3.5 h-3.5" />
-                              </button>
+                              {lead.whatsapp_status !== "invalid" && (
+                                <button
+                                  onClick={(e) => handleTriggerWhatsApp(lead.id, e)}
+                                  className="p-1 hover:bg-emerald-500/15 text-emerald-600 rounded-md transition-colors inline-flex items-center cursor-pointer"
+                                  title="Open WhatsApp via Kapso"
+                                >
+                                  <MessageSquare className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           )}
                           {lead.email && (
