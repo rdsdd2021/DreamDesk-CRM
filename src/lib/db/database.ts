@@ -702,6 +702,29 @@ function initializeSchema(db: Database.Database) {
     }
   }
 
+  // Safe migrations for Meta/Kapso WhatsApp Templates
+  const waTplCols = db.prepare("PRAGMA table_info(whatsapp_templates)").all() as { name: string }[];
+  const waTplColNames = new Set(waTplCols.map((c) => c.name));
+  const waTplMigrations: [string, string][] = [
+    ["kapso_template_id", "TEXT"],
+    ["language", "TEXT NOT NULL DEFAULT 'en_US'"],
+    ["parameter_format", "TEXT NOT NULL DEFAULT 'NAMED'"],
+    ["status", "TEXT NOT NULL DEFAULT 'APPROVED'"],
+    ["header_type", "TEXT NOT NULL DEFAULT 'NONE'"],
+    ["header_content", "TEXT"],
+    ["footer_text", "TEXT"],
+    ["buttons_json", "TEXT NOT NULL DEFAULT '[]'"],
+    ["components_json", "TEXT NOT NULL DEFAULT '[]'"],
+    ["variables_json", "TEXT NOT NULL DEFAULT '[]'"],
+    ["rejected_reason", "TEXT"],
+    ["synced_at", "DATETIME"],
+  ];
+  for (const [col, def] of waTplMigrations) {
+    if (!waTplColNames.has(col)) {
+      db.exec(`ALTER TABLE whatsapp_templates ADD COLUMN ${col} ${def};`);
+    }
+  }
+
   // Performance migrations: phone_digits, composite indexes, expression indexes, and FTS5
   const perfLeadCols = db.prepare("PRAGMA table_info(leads)").all() as { name: string }[];
   const perfLeadColNames = new Set(perfLeadCols.map((c) => c.name));

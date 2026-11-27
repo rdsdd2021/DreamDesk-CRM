@@ -97,7 +97,7 @@ export function AppSidebar({
     },
     {
       id: "whatsapp",
-      label: "WhatsApp Templates",
+      label: "WhatsApp Inbox",
       icon: MessageSquare,
     },
     {

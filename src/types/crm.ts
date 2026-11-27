@@ -605,12 +605,33 @@ export interface LeadActivity {
   created_at: string;
 }
 
+export type WhatsAppTemplateStatus = 'APPROVED' | 'PENDING' | 'REJECTED' | 'PAUSED' | 'DISABLED';
+export type WhatsAppTemplateHeaderType = 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
+
+export interface WhatsAppTemplateButton {
+  type: 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER';
+  text: string;
+  url?: string;
+  phone_number?: string;
+}
+
 export interface WhatsAppTemplate {
   id: string;
+  kapso_template_id?: string | null;
   name: string;
   category: string;
+  language?: string;
+  parameter_format?: 'NAMED' | 'POSITIONAL';
+  status?: WhatsAppTemplateStatus;
+  header_type?: WhatsAppTemplateHeaderType;
+  header_content?: string | null;
   template_body: string;
+  footer_text?: string | null;
+  buttons?: WhatsAppTemplateButton[];
+  variables?: { name: string; example?: string }[];
+  rejected_reason?: string | null;
   is_default?: number;
+  synced_at?: string | null;
   created_at?: string;
 }
 

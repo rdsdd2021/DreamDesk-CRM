@@ -8,7 +8,7 @@ import {
   WhatsAppSettings,
   WhatsAppTemplate,
 } from "@/types/crm";
-import { WhatsAppTemplatesWorkspace } from "@/components/crm/WhatsAppTemplatesWorkspace";
+import { MetaKapsoTemplateStudio } from "@/components/crm/MetaKapsoTemplateStudio";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -16,18 +16,21 @@ import {
   Check,
   CheckCheck,
   CheckCircle2,
-  Clock,
   Copy,
+  FileText,
+  Image as ImageIcon,
   Inbox,
   KeyRound,
   Loader2,
   MessageSquare,
+  Paperclip,
   RefreshCw,
   Search,
   Send,
   Settings2,
   Sparkles,
   UserCheck,
+  X,
   XCircle,
 } from "lucide-react";
 
@@ -45,6 +48,7 @@ export function WhatsAppInboxWorkspace({
   onOpenLeadById,
 }: WhatsAppInboxWorkspaceProps) {
   const isAdmin = currentUser?.role === "admin";
+  const canManageTemplates = ["admin", "team_lead"].includes(currentUser?.role || "");
   const [activeTab, setActiveTab] = useState<"inbox" | "templates" | "setup">("inbox");
 
   // Inbox state
@@ -52,16 +56,25 @@ export function WhatsAppInboxWorkspace({
   const [convFilter, setConvFilter] = useState<"all" | "unread" | "open" | "resolved">("all");
   const [search, setSearch] = useState("");
   const [loadingConvs, setLoadingConvs] = useState(true);
+  const [syncingHistory, setSyncingHistory] = useState(false);
   const [selectedConvId, setSelectedConvId] = useState<number | null>(null);
   const [activeConv, setActiveConv] = useState<WhatsAppConversation | null>(null);
   const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
 
-  // Composer state
+  // Composer & Rich Template state
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
-  const [syncingTemplates, setSyncingTemplates] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<WhatsAppTemplate | null>(null);
+  const [templateVarValues, setTemplateVarValues] = useState<Record<string, string>>({});
+  const [attachedMedia, setAttachedMedia] = useState<{
+    type: "image" | "document" | "video";
+    id?: string;
+    url?: string;
+    name: string;
+  } | null>(null);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
 
   // Kapso Settings state
   const [settings, setSettings] = useState<WhatsAppSettings>({
@@ -111,14 +124,14 @@ export function WhatsAppInboxWorkspace({
   const loadSettingsAndTemplates = useCallback(async () => {
     try {
       const [tplRes, setRes] = await Promise.all([
-        fetch("/api/whatsapp-templates", { cache: "no-store" }),
-        ["admin", "team_lead"].includes(currentUser?.role || "")
+        fetch("/api/whatsapp/templates?approved=1", { cache: "no-store" }),
+        canManageTemplates
           ? fetch("/api/whatsapp/settings", { cache: "no-store" })
           : Promise.resolve(null),
       ]);
       if (tplRes.ok) {
         const tData = await tplRes.json();
-        if (Array.isArray(tData)) setTemplates(tData);
+        setTemplates(tData.templates || []);
       }
       if (setRes && setRes.ok) {
         const sData = await setRes.json();
@@ -127,7 +140,7 @@ export function WhatsAppInboxWorkspace({
     } catch {
       // ignore
     }
-  }, [currentUser?.role]);
+  }, [canManageTemplates]);
 
   useEffect(() => {
     loadConversations();
@@ -142,27 +155,128 @@ export function WhatsAppInboxWorkspace({
   useEffect(() => {
     if (selectedConvId) {
       loadThread(selectedConvId);
+      setSelectedTemplate(null);
+      setAttachedMedia(null);
     }
   }, [selectedConvId, loadThread]);
 
+  const handleSyncHistory = async () => {
+    setSyncingHistory(true);
+    try {
+      const res = await fetch("/api/whatsapp/history/sync", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "History sync failed");
+      onShowToast?.(
+        `Synced ${data.conversationsSynced || 0} conversation(s) & ${data.messagesSynced || 0} message(s)`,
+        "success"
+      );
+      await loadConversations();
+      if (selectedConvId) await loadThread(selectedConvId);
+    } catch (err: any) {
+      onShowToast?.(err?.message || "Failed to sync Kapso chat history", "error");
+    } finally {
+      setSyncingHistory(false);
+    }
+  };
+
+  const handleUploadMedia = async (file: File) => {
+    setUploadingMedia(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/whatsapp/media", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      const type: "image" | "video" | "document" = file.type.startsWith("image/")
+        ? "image"
+        : file.type.startsWith("video/")
+        ? "video"
+        : "document";
+      setAttachedMedia({ type, id: data.id, url: data.url, name: file.name });
+      onShowToast?.(`Attached ${file.name}`, "success");
+    } catch (err: any) {
+      onShowToast?.(err?.message || "Media upload failed", "error");
+    } finally {
+      setUploadingMedia(false);
+    }
+  };
+
+  const handleSelectTemplate = (tpl: WhatsAppTemplate) => {
+    setSelectedTemplate(tpl);
+    const defaults: Record<string, string> = {};
+    const vars = tpl.variables || [];
+    for (const v of vars) {
+      const k = v.name.toLowerCase();
+      if (k.includes("name") && !k.includes("counselor")) {
+        defaults[v.name] = activeConv?.contact_name || activeConv?.lead_name || "Student";
+      } else if (k.includes("counselor")) {
+        defaults[v.name] = currentUser?.name || "Counselor";
+      } else if (k.includes("code") || k.includes("id")) {
+        defaults[v.name] = activeConv?.lead_code || "";
+      } else {
+        defaults[v.name] = v.example || "";
+      }
+    }
+    setTemplateVarValues(defaults);
+  };
+
   const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeConv || !replyText.trim()) return;
+    if (!activeConv) return;
+
     setSending(true);
     try {
-      const res = await fetch("/api/whatsapp/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      let payload: any;
+      if (selectedTemplate) {
+        let renderedBody = selectedTemplate.template_body;
+        const vars = (selectedTemplate.variables || []).map((v) => {
+          const val = templateVarValues[v.name] || "";
+          renderedBody = renderedBody.split(`{{${v.name}}}`).join(val);
+          return { name: v.name, value: val };
+        });
+        payload = {
+          conversation_id: activeConv.id,
+          lead_id: activeConv.lead_id || undefined,
+          message_type: "template",
+          template_name: selectedTemplate.name,
+          language_code: selectedTemplate.language || "en_US",
+          parameter_format: selectedTemplate.parameter_format || "NAMED",
+          template_variables: vars,
+          header_media_type: selectedTemplate.header_type,
+          media_id: attachedMedia?.id,
+          media_url: attachedMedia?.url,
+          body: renderedBody,
+        };
+      } else if (attachedMedia) {
+        payload = {
+          conversation_id: activeConv.id,
+          lead_id: activeConv.lead_id || undefined,
+          message_type: attachedMedia.type,
+          media_id: attachedMedia.id,
+          media_url: attachedMedia.url,
+          body: replyText.trim() || `[${attachedMedia.type}: ${attachedMedia.name}]`,
+        };
+      } else {
+        if (!replyText.trim()) return;
+        payload = {
           conversation_id: activeConv.id,
           lead_id: activeConv.lead_id || undefined,
           message_type: "text",
           body: replyText.trim(),
-        }),
+        };
+      }
+
+      const res = await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to send message");
+
       setReplyText("");
+      setSelectedTemplate(null);
+      setAttachedMedia(null);
       if (data.message) setMessages((prev) => [...prev, data.message]);
       await loadConversations();
     } catch (err: any) {
@@ -236,21 +350,6 @@ export function WhatsAppInboxWorkspace({
     }
   };
 
-  const handleSyncKapsoTemplates = async () => {
-    setSyncingTemplates(true);
-    try {
-      const res = await fetch("/api/whatsapp/templates/sync", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Sync failed");
-      onShowToast?.(`Synced ${data.synced || 0} template(s) from Kapso WABA`, "success");
-      loadSettingsAndTemplates();
-    } catch (err: any) {
-      onShowToast?.(err?.message || "Failed to sync Kapso templates", "error");
-    } finally {
-      setSyncingTemplates(false);
-    }
-  };
-
   const webhookUrl =
     typeof window !== "undefined" ? `${window.location.origin}/api/whatsapp/webhook` : "/api/whatsapp/webhook";
 
@@ -279,50 +378,70 @@ export function WhatsAppInboxWorkspace({
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground">
-              Two-way WhatsApp Business inbox, WABA template sync, and real-time webhook tracking.
+              {canManageTemplates
+                ? "Two-way WhatsApp Business inbox, Meta template submissions, and full WABA sync."
+                : "View full WhatsApp chat history and reply directly to your assigned leads."}
             </p>
           </div>
         </div>
 
-        <div className="inline-flex rounded-xl border border-border bg-muted/40 p-1 gap-1 self-start">
-          <button
-            type="button"
-            onClick={() => setActiveTab("inbox")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
-              activeTab === "inbox" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Inbox className="w-3.5 h-3.5" />
-            <span>Inbox</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("templates")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
-              activeTab === "templates" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Templates</span>
-          </button>
-          {isAdmin && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {activeTab === "inbox" && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={syncingHistory}
+              onClick={handleSyncHistory}
+              className="h-8 text-xs gap-1.5 cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${syncingHistory ? "animate-spin" : ""}`} />
+              <span>{syncingHistory ? "Syncing..." : "Sync Kapso History"}</span>
+            </Button>
+          )}
+
+          <div className="inline-flex rounded-xl border border-border bg-muted/40 p-1 gap-1">
             <button
               type="button"
-              onClick={() => setActiveTab("setup")}
+              onClick={() => setActiveTab("inbox")}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
-                activeTab === "setup" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                activeTab === "inbox" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <Settings2 className="w-3.5 h-3.5" />
-              <span>Kapso Setup</span>
+              <Inbox className="w-3.5 h-3.5" />
+              <span>Inbox</span>
             </button>
-          )}
+            {canManageTemplates && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("templates")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
+                  activeTab === "templates" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Meta Templates</span>
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("setup")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
+                  activeTab === "setup" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Settings2 className="w-3.5 h-3.5" />
+                <span>Kapso Setup</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* TAB 1: 2-PANE INBOX */}
       {activeTab === "inbox" && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 bg-card border border-border/80 rounded-2xl overflow-hidden shadow-2xs min-h-[600px]">
+        <div className="grid grid-cols-1 lg:grid-cols-12 bg-card border border-border/80 rounded-2xl overflow-hidden shadow-2xs min-h-[620px]">
           {/* Left Pane: Conversation List */}
           <div className="lg:col-span-4 border-b lg:border-b-0 lg:border-r border-border/70 flex flex-col">
             <div className="p-3 border-b border-border/60 space-y-2.5">
@@ -361,12 +480,16 @@ export function WhatsAppInboxWorkspace({
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto divide-y divide-border/50 max-h-[540px]">
+            <div className="flex-1 overflow-y-auto divide-y divide-border/50 max-h-[560px]">
               {conversations.length === 0 ? (
                 <div className="py-12 px-4 text-center text-xs text-muted-foreground space-y-1">
                   <MessageSquare className="w-7 h-7 mx-auto opacity-30" />
                   <p className="font-semibold text-foreground">No conversations yet</p>
-                  <p>Send a WhatsApp message from any lead or connect your Kapso webhook.</p>
+                  <p>
+                    {canManageTemplates
+                      ? "Send a WhatsApp message from any lead or click Sync Kapso History."
+                      : "Conversations for your assigned leads will appear here."}
+                  </p>
                 </div>
               ) : (
                 conversations.map((c) => {
@@ -427,19 +550,18 @@ export function WhatsAppInboxWorkspace({
             </div>
           </div>
 
-          {/* Right Pane: Thread & Composer */}
+          {/* Right Pane: Thread & Rich Composer */}
           <div className="lg:col-span-8 flex flex-col bg-muted/10">
             {!activeConv ? (
               <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-xs text-muted-foreground space-y-2">
                 <MessageSquare className="w-10 h-10 opacity-25" />
                 <p className="text-sm font-semibold text-foreground">Select a WhatsApp Conversation</p>
                 <p className="max-w-sm">
-                  View two-way message history, send quick templates or replies via Kapso, and manage lead conversations.
+                  View complete message history, send approved Meta/Kapso templates with dynamic variables, or attach media.
                 </p>
               </div>
             ) : (
               <>
-                {/* Thread Header */}
                 <div className="p-3.5 bg-card border-b border-border/70 flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <div className="flex items-center gap-2">
@@ -462,7 +584,7 @@ export function WhatsAppInboxWorkspace({
                   </div>
 
                   <div className="flex items-center gap-2">
-                    {["admin", "team_lead"].includes(currentUser?.role || "") && (
+                    {canManageTemplates && (
                       <select
                         value={activeConv.assigned_to || ""}
                         onChange={(e) => handleAssignConv(e.target.value)}
@@ -490,7 +612,7 @@ export function WhatsAppInboxWorkspace({
                 </div>
 
                 {/* Messages Feed */}
-                <div className="flex-1 p-4 space-y-2.5 overflow-y-auto max-h-[420px]">
+                <div className="flex-1 p-4 space-y-2.5 overflow-y-auto max-h-[380px]">
                   {loadingMsgs ? (
                     <div className="py-10 text-center text-xs text-muted-foreground">
                       <Loader2 className="w-5 h-5 animate-spin mx-auto mb-1" />
@@ -498,7 +620,7 @@ export function WhatsAppInboxWorkspace({
                     </div>
                   ) : messages.length === 0 ? (
                     <div className="py-10 text-center text-xs text-muted-foreground">
-                      No messages in this thread yet. Send the first message below.
+                      No messages in this thread yet. Send a message or approved template below.
                     </div>
                   ) : (
                     messages.map((m) => {
@@ -515,6 +637,11 @@ export function WhatsAppInboxWorkspace({
                                 : "bg-card border border-border/80 text-foreground rounded-bl-xs"
                             }`}
                           >
+                            {m.template_name && (
+                              <div className="text-[10px] font-mono opacity-80">
+                                Template: {m.template_name}
+                              </div>
+                            )}
                             <p className="whitespace-pre-wrap leading-relaxed">{m.body}</p>
                             <div
                               className={`flex items-center justify-end gap-1.5 text-[10px] ${
@@ -544,42 +671,130 @@ export function WhatsAppInboxWorkspace({
                   )}
                 </div>
 
-                {/* Reply Composer */}
+                {/* Rich Reply Composer */}
                 <form
                   onSubmit={handleSendReply}
                   className="p-3 bg-card border-t border-border/70 space-y-2"
                 >
+                  {/* Approved Meta Templates Strip */}
                   {templates.length > 0 && (
                     <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
                       <span className="text-[10px] font-semibold text-muted-foreground shrink-0">
-                        Quick Template:
+                        Approved Templates:
                       </span>
-                      {templates.slice(0, 5).map((t) => (
+                      {templates.map((t) => (
                         <button
                           key={t.id}
                           type="button"
-                          onClick={() => setReplyText(t.template_body)}
-                          className="text-[11px] px-2 py-0.5 rounded-md border border-border bg-muted/40 hover:bg-muted text-foreground shrink-0 cursor-pointer"
+                          onClick={() => handleSelectTemplate(t)}
+                          className={`text-[11px] px-2 py-0.5 rounded-md border shrink-0 cursor-pointer ${
+                            selectedTemplate?.id === t.id
+                              ? "bg-emerald-600 text-white border-emerald-600 font-semibold"
+                              : "border-border bg-muted/40 hover:bg-muted text-foreground"
+                          }`}
                         >
                           {t.name}
                         </button>
                       ))}
                     </div>
                   )}
+
+                  {/* Selected Template Variable Auto-fill Card */}
+                  {selectedTemplate && (
+                    <div className="p-2.5 rounded-xl bg-emerald-500/5 border border-emerald-500/20 space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                          Sending Template: <code className="font-mono">{selectedTemplate.name}</code>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedTemplate(null)}
+                          className="text-muted-foreground hover:text-foreground cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      {(selectedTemplate.variables || []).length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          {(selectedTemplate.variables || []).map((v) => (
+                            <Input
+                              key={v.name}
+                              value={templateVarValues[v.name] || ""}
+                              onChange={(e) =>
+                                setTemplateVarValues((prev) => ({ ...prev, [v.name]: e.target.value }))
+                              }
+                              placeholder={`{{${v.name}}}`}
+                              className="h-7 text-xs"
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Attached Media Pill */}
+                  {attachedMedia && (
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted border border-border text-xs">
+                      {attachedMedia.type === "image" ? (
+                        <ImageIcon className="w-3.5 h-3.5 text-emerald-600" />
+                      ) : (
+                        <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                      )}
+                      <span className="truncate max-w-[200px]">{attachedMedia.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => setAttachedMedia(null)}
+                        className="text-muted-foreground hover:text-foreground cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-2">
-                    <Input
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      placeholder="Type a WhatsApp reply via Kapso..."
-                      className="h-9 text-xs flex-1"
-                    />
+                    <label
+                      className="h-9 w-9 rounded-lg border border-border bg-background hover:bg-muted flex items-center justify-center cursor-pointer shrink-0"
+                      title="Attach Image / Video / PDF via Kapso Media"
+                    >
+                      {uploadingMedia ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                      ) : (
+                        <Paperclip className="w-4 h-4 text-muted-foreground" />
+                      )}
+                      <input
+                        type="file"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleUploadMedia(f);
+                        }}
+                      />
+                    </label>
+                    {!selectedTemplate && (
+                      <Input
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        placeholder={
+                          attachedMedia
+                            ? "Optional caption for attached media..."
+                            : "Type a WhatsApp reply via Kapso..."
+                        }
+                        className="h-9 text-xs flex-1"
+                      />
+                    )}
                     <Button
                       type="submit"
-                      disabled={sending || !replyText.trim()}
-                      className="h-9 px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 cursor-pointer"
+                      disabled={sending || (!selectedTemplate && !attachedMedia && !replyText.trim())}
+                      className="h-9 px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 cursor-pointer ml-auto"
                     >
                       <Send className="w-3.5 h-3.5" />
-                      <span>{sending ? "Sending..." : "Send"}</span>
+                      <span>
+                        {sending
+                          ? "Sending..."
+                          : selectedTemplate
+                          ? "Send Template"
+                          : "Send"}
+                      </span>
                     </Button>
                   </div>
                 </form>
@@ -589,32 +804,12 @@ export function WhatsAppInboxWorkspace({
         </div>
       )}
 
-      {/* TAB 2: TEMPLATES & KAPSO SYNC */}
-      {activeTab === "templates" && (
-        <div className="space-y-4">
-          {["admin", "team_lead"].includes(currentUser?.role || "") && (
-            <div className="bg-card border border-border/80 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-2">
-              <div className="text-xs">
-                <span className="font-bold text-foreground">Sync Approved Kapso Templates</span>
-                <p className="text-muted-foreground">
-                  Pull approved WhatsApp Business templates directly from your Kapso WABA into DreamDesk CRM.
-                </p>
-              </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={syncingTemplates}
-                onClick={handleSyncKapsoTemplates}
-                className="h-8 text-xs gap-1.5 cursor-pointer"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${syncingTemplates ? "animate-spin" : ""}`} />
-                <span>{syncingTemplates ? "Syncing..." : "Sync from Kapso"}</span>
-              </Button>
-            </div>
-          )}
-          <WhatsAppTemplatesWorkspace />
-        </div>
+      {/* TAB 2: META / KAPSO TEMPLATE STUDIO */}
+      {activeTab === "templates" && canManageTemplates && (
+        <MetaKapsoTemplateStudio
+          onShowToast={onShowToast}
+          onTemplatesChanged={loadSettingsAndTemplates}
+        />
       )}
 
       {/* TAB 3: KAPSO SETUP (ADMIN ONLY) */}
@@ -667,7 +862,7 @@ export function WhatsAppInboxWorkspace({
               <Input
                 value={settings.business_account_id}
                 onChange={(e) => setSettings({ ...settings, business_account_id: e.target.value })}
-                placeholder="For syncing Meta/Kapso templates"
+                placeholder="For Meta Template submission & sync"
                 className="h-9 text-xs font-mono"
               />
             </div>

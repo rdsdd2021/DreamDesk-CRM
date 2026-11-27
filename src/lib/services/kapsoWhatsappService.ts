@@ -7,6 +7,9 @@ import {
   WhatsAppConversation,
   WhatsAppMessage,
   WhatsAppSettings,
+  WhatsAppTemplate,
+  WhatsAppTemplateButton,
+  WhatsAppTemplateHeaderType,
 } from "@/types/crm";
 
 const KAPSO_API_BASE = "https://api.kapso.ai";
@@ -147,6 +150,453 @@ export class KapsoWhatsappService {
     }
   }
 
+  static async uploadMedia(
+    fileBuffer: Buffer,
+    fileName: string,
+    mimeType: string
+  ): Promise<{ id: string; url?: string }> {
+    const cfg = this.getRawConfig();
+    if (!cfg.kapso_api_key || !cfg.phone_number_id) {
+      throw new Error("Kapso API Key and Phone Number ID are required to upload media.");
+    }
+
+    const formData = new FormData();
+    formData.append("messaging_product", "whatsapp");
+    const blob = new Blob([new Uint8Array(fileBuffer)], { type: mimeType || "application/octet-stream" });
+    formData.append("file", blob, fileName);
+
+    const res = await fetch(
+      `${KAPSO_API_BASE}/meta/whatsapp/v24.0/${cfg.phone_number_id}/media`,
+      {
+        method: "POST",
+        headers: { "X-API-Key": cfg.kapso_api_key },
+        body: formData,
+      }
+    );
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json?.id) {
+      throw new Error(json?.error?.message || json?.message || `Kapso Media Upload HTTP ${res.status}`);
+    }
+    return { id: String(json.id), url: json.url };
+  }
+
+  static listTemplates(onlyApproved = false): WhatsAppTemplate[] {
+    const db = getDatabase();
+    const sql = onlyApproved
+      ? `SELECT * FROM whatsapp_templates WHERE status = 'APPROVED' ORDER BY name ASC`
+      : `SELECT * FROM whatsapp_templates ORDER BY COALESCE(synced_at, created_at) DESC, name ASC`;
+    const rows = db.prepare(sql).all() as any[];
+
+    return rows.map((r) => ({
+      id: r.id,
+      kapso_template_id: r.kapso_template_id || null,
+      name: r.name,
+      category: r.category || "UTILITY",
+      language: r.language || "en_US",
+      parameter_format: (r.parameter_format as any) || "NAMED",
+      status: (r.status as any) || "APPROVED",
+      header_type: (r.header_type as any) || "NONE",
+      header_content: r.header_content || null,
+      template_body: r.template_body,
+      footer_text: r.footer_text || null,
+      buttons: r.buttons_json ? JSON.parse(r.buttons_json) : [],
+      variables: r.variables_json ? JSON.parse(r.variables_json) : [],
+      rejected_reason: r.rejected_reason || null,
+      is_default: r.is_default,
+      synced_at: r.synced_at || null,
+      created_at: r.created_at,
+    }));
+  }
+
+  static async createAndSubmitTemplate(input: {
+    name: string;
+    category: "MARKETING" | "UTILITY" | "AUTHENTICATION";
+    language: string;
+    parameter_format: "NAMED" | "POSITIONAL";
+    header_type: WhatsAppTemplateHeaderType;
+    header_text?: string;
+    header_handle?: string;
+    body_text: string;
+    footer_text?: string;
+    variables?: { name: string; example: string }[];
+    buttons?: WhatsAppTemplateButton[];
+  }): Promise<WhatsAppTemplate> {
+    const cfg = this.getRawConfig();
+    if (!cfg.kapso_api_key || !cfg.business_account_id) {
+      throw new Error(
+        "Kapso API Key and Business Account ID (WABA) are required to submit templates to Meta."
+      );
+    }
+
+    const cleanName = String(input.name || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    if (!cleanName) throw new Error("Template name is required (lowercase letters, numbers, underscores).");
+    if (!input.body_text?.trim()) throw new Error("Template body text is required.");
+
+    const components: any[] = [];
+
+    // 1. HEADER
+    if (input.header_type && input.header_type !== "NONE") {
+      if (input.header_type === "TEXT") {
+        if (!input.header_text?.trim()) throw new Error("Header text is required for TEXT header.");
+        components.push({
+          type: "HEADER",
+          format: "TEXT",
+          text: input.header_text.trim(),
+        });
+      } else {
+        if (!input.header_handle?.trim()) {
+          throw new Error(`Sample media handle is required for ${input.header_type} header.`);
+        }
+        components.push({
+          type: "HEADER",
+          format: input.header_type,
+          example: { header_handle: [input.header_handle.trim()] },
+        });
+      }
+    }
+
+    // 2. BODY
+    const bodyComp: any = {
+      type: "BODY",
+      text: input.body_text.trim(),
+    };
+    const vars = Array.isArray(input.variables) ? input.variables.filter((v) => v.name) : [];
+    if (vars.length > 0) {
+      if (input.parameter_format === "NAMED") {
+        bodyComp.example = {
+          body_text_named_params: vars.map((v) => ({
+            param_name: v.name,
+            example: v.example || "Sample",
+          })),
+        };
+      } else {
+        bodyComp.example = {
+          body_text: [vars.map((v) => v.example || "Sample")],
+        };
+      }
+    }
+    components.push(bodyComp);
+
+    // 3. FOOTER
+    if (input.footer_text?.trim()) {
+      components.push({
+        type: "FOOTER",
+        text: input.footer_text.trim().slice(0, 60),
+      });
+    }
+
+    // 4. BUTTONS
+    const cleanButtons = (input.buttons || []).filter((b) => b.text?.trim()).slice(0, 3);
+    if (cleanButtons.length > 0) {
+      components.push({
+        type: "BUTTONS",
+        buttons: cleanButtons.map((b) => {
+          if (b.type === "URL") return { type: "URL", text: b.text.trim(), url: b.url?.trim() || "https://example.com" };
+          if (b.type === "PHONE_NUMBER") return { type: "PHONE_NUMBER", text: b.text.trim(), phone_number: b.phone_number?.trim() || "+910000000000" };
+          return { type: "QUICK_REPLY", text: b.text.trim() };
+        }),
+      });
+    }
+
+    const payload = {
+      name: cleanName,
+      category: input.category,
+      language: input.language || "en_US",
+      parameter_format: input.parameter_format || "NAMED",
+      components,
+    };
+
+    const res = await fetch(
+      `${KAPSO_API_BASE}/meta/whatsapp/v24.0/${cfg.business_account_id}/message_templates`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": cfg.kapso_api_key,
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(json?.error?.message || json?.message || `Meta/Kapso returned HTTP ${res.status}`);
+    }
+
+    const db = getDatabase();
+    const id = `kapso_${cleanName}_${payload.language}`;
+    const now = new Date().toISOString();
+    const status = String(json?.status || "PENDING").toUpperCase();
+
+    db.prepare(
+      `
+      INSERT INTO whatsapp_templates (
+        id, kapso_template_id, name, category, language, parameter_format, status,
+        header_type, header_content, template_body, footer_text, buttons_json,
+        components_json, variables_json, synced_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        kapso_template_id = excluded.kapso_template_id,
+        category = excluded.category,
+        language = excluded.language,
+        parameter_format = excluded.parameter_format,
+        status = excluded.status,
+        header_type = excluded.header_type,
+        header_content = excluded.header_content,
+        template_body = excluded.template_body,
+        footer_text = excluded.footer_text,
+        buttons_json = excluded.buttons_json,
+        components_json = excluded.components_json,
+        variables_json = excluded.variables_json,
+        synced_at = excluded.synced_at
+    `
+    ).run(
+      id,
+      json?.id ? String(json.id) : null,
+      cleanName,
+      payload.category,
+      payload.language,
+      payload.parameter_format,
+      status,
+      input.header_type || "NONE",
+      input.header_text || input.header_handle || null,
+      input.body_text.trim(),
+      input.footer_text?.trim() || null,
+      JSON.stringify(cleanButtons),
+      JSON.stringify(components),
+      JSON.stringify(vars),
+      now
+    );
+
+    return this.listTemplates(false).find((t) => t.id === id)!;
+  }
+
+  static async deleteTemplate(templateId: string): Promise<void> {
+    const db = getDatabase();
+    const existing = db.prepare(`SELECT * FROM whatsapp_templates WHERE id = ?`).get(templateId) as any;
+    if (!existing) return;
+
+    const cfg = this.getRawConfig();
+    if (cfg.kapso_api_key && cfg.business_account_id && existing.name) {
+      const url = `${KAPSO_API_BASE}/meta/whatsapp/v24.0/${cfg.business_account_id}/message_templates?name=${encodeURIComponent(existing.name)}`;
+      await fetch(url, {
+        method: "DELETE",
+        headers: { "X-API-Key": cfg.kapso_api_key },
+      }).catch(() => {});
+    }
+
+    db.prepare(`DELETE FROM whatsapp_templates WHERE id = ?`).run(templateId);
+  }
+
+  static async syncTemplatesFromKapso(): Promise<{ synced: number; templates: WhatsAppTemplate[] }> {
+    const cfg = this.getRawConfig();
+    if (!cfg.kapso_api_key || !cfg.business_account_id) {
+      throw new Error("Kapso API Key and Business Account ID (WABA) are required to sync templates.");
+    }
+
+    const res = await fetch(
+      `${KAPSO_API_BASE}/meta/whatsapp/v24.0/${cfg.business_account_id}/message_templates?limit=100`,
+      { headers: { "X-API-Key": cfg.kapso_api_key } }
+    );
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(json?.error?.message || json?.message || `Kapso HTTP ${res.status}`);
+    }
+
+    const list: any[] = Array.isArray(json?.data) ? json.data : [];
+    const db = getDatabase();
+    const now = new Date().toISOString();
+    let synced = 0;
+
+    for (const tpl of list) {
+      const name = String(tpl?.name || "").trim();
+      if (!name) continue;
+      const comps: any[] = Array.isArray(tpl?.components) ? tpl.components : [];
+      const headerComp = comps.find((c) => c.type === "HEADER");
+      const bodyComp = comps.find((c) => c.type === "BODY");
+      const footerComp = comps.find((c) => c.type === "FOOTER");
+      const btnsComp = comps.find((c) => c.type === "BUTTONS");
+
+      const bodyText = bodyComp?.text || `[Kapso Template: ${name}]`;
+      const category = String(tpl?.category || "UTILITY");
+      const language = String(tpl?.language || "en_US");
+      const paramFormat = tpl?.parameter_format === "POSITIONAL" ? "POSITIONAL" : "NAMED";
+      const status = String(tpl?.status || "APPROVED").toUpperCase();
+      const headerType = (headerComp?.format || "NONE") as WhatsAppTemplateHeaderType;
+      const headerContent = headerComp?.text || headerComp?.example?.header_handle?.[0] || null;
+      const footerText = footerComp?.text || null;
+      const buttons = Array.isArray(btnsComp?.buttons) ? btnsComp.buttons : [];
+
+      // Extract {{var}} placeholders from bodyText
+      const varMatches = Array.from(bodyText.matchAll(/\{\{([a-zA-Z0-9_]+)\}\}/g)).map((m: any) => String(m[1]));
+      const uniqueVars = Array.from(new Set(varMatches)).map((v) => ({ name: v, example: "" }));
+
+      const id = `kapso_${name.toLowerCase().replace(/[^a-z0-9_]/g, "_")}_${language}`;
+
+      db.prepare(
+        `
+        INSERT INTO whatsapp_templates (
+          id, kapso_template_id, name, category, language, parameter_format, status,
+          header_type, header_content, template_body, footer_text, buttons_json,
+          components_json, variables_json, rejected_reason, synced_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          kapso_template_id = excluded.kapso_template_id,
+          category = excluded.category,
+          language = excluded.language,
+          parameter_format = excluded.parameter_format,
+          status = excluded.status,
+          header_type = excluded.header_type,
+          header_content = excluded.header_content,
+          template_body = excluded.template_body,
+          footer_text = excluded.footer_text,
+          buttons_json = excluded.buttons_json,
+          components_json = excluded.components_json,
+          variables_json = excluded.variables_json,
+          rejected_reason = excluded.rejected_reason,
+          synced_at = excluded.synced_at
+      `
+      ).run(
+        id,
+        tpl?.id ? String(tpl.id) : null,
+        name,
+        category,
+        language,
+        paramFormat,
+        status,
+        headerType,
+        headerContent,
+        bodyText,
+        footerText,
+        JSON.stringify(buttons),
+        JSON.stringify(comps),
+        JSON.stringify(uniqueVars),
+        tpl?.rejected_reason || null,
+        now
+      );
+      synced++;
+    }
+
+    return { synced, templates: this.listTemplates(false) };
+  }
+
+  static async syncHistoryFromKapso(): Promise<{ conversationsSynced: number; messagesSynced: number }> {
+    const cfg = this.getRawConfig();
+    if (!cfg.kapso_api_key || !cfg.phone_number_id) {
+      throw new Error("Kapso API Key and Phone Number ID are required to sync chat history.");
+    }
+
+    const db = getDatabase();
+    const convRes = await fetch(
+      `${KAPSO_API_BASE}/meta/whatsapp/v24.0/${cfg.phone_number_id}/conversations?limit=50`,
+      { headers: { "X-API-Key": cfg.kapso_api_key } }
+    );
+    const convJson = await convRes.json().catch(() => ({}));
+    if (!convRes.ok) {
+      throw new Error(convJson?.error?.message || convJson?.message || `Kapso HTTP ${convRes.status}`);
+    }
+
+    const convList: any[] = Array.isArray(convJson?.data) ? convJson.data : [];
+    let conversationsSynced = 0;
+    let messagesSynced = 0;
+
+    for (const c of convList) {
+      const rawPhone = c?.phone_number || c?.wa_id || "";
+      const phoneDigits = normalizePhoneDigits(rawPhone);
+      if (!phoneDigits) continue;
+
+      const matchedLead = db
+        .prepare(
+          `SELECT id, name, assigned_to FROM leads WHERE phone_digits = ? OR phone_digits LIKE ? LIMIT 1`
+        )
+        .get(phoneDigits, `%${phoneDigits.slice(-10)}`) as any;
+
+      const now = c?.last_active_at || c?.updated_at || new Date().toISOString();
+      let localConv = db
+        .prepare(`SELECT * FROM whatsapp_conversations WHERE phone_digits = ?`)
+        .get(phoneDigits) as any;
+
+      if (!localConv) {
+        const ins = db
+          .prepare(
+            `
+            INSERT INTO whatsapp_conversations (
+              kapso_conversation_id, lead_id, phone_number, phone_digits, contact_name,
+              assigned_to, status, unread_count, last_message_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, 'open', 0, ?, ?)
+          `
+          )
+          .run(
+            c?.id || null,
+            matchedLead?.id || null,
+            rawPhone,
+            phoneDigits,
+            c?.contact_name || matchedLead?.name || null,
+            matchedLead?.assigned_to || null,
+            now,
+            now
+          );
+        localConv = db
+          .prepare(`SELECT * FROM whatsapp_conversations WHERE id = ?`)
+          .get(Number(ins.lastInsertRowid));
+        conversationsSynced++;
+      } else if (c?.id && !localConv.kapso_conversation_id) {
+        db.prepare(`UPDATE whatsapp_conversations SET kapso_conversation_id = ?, lead_id = COALESCE(lead_id, ?) WHERE id = ?`).run(
+          c.id,
+          matchedLead?.id || null,
+          localConv.id
+        );
+      }
+
+      if (c?.id) {
+        const msgRes = await fetch(
+          `${KAPSO_API_BASE}/meta/whatsapp/v24.0/${cfg.phone_number_id}/messages?conversation_id=${encodeURIComponent(c.id)}&limit=50`,
+          { headers: { "X-API-Key": cfg.kapso_api_key } }
+        );
+        const msgJson = await msgRes.json().catch(() => ({}));
+        const msgs: any[] = Array.isArray(msgJson?.data) ? msgJson.data : [];
+        for (const m of msgs) {
+          const kapsoMsgId = m?.id ? String(m.id) : null;
+          if (kapsoMsgId) {
+            const exists = db
+              .prepare(`SELECT id FROM whatsapp_messages WHERE kapso_message_id = ?`)
+              .get(kapsoMsgId);
+            if (exists) continue;
+          }
+          const k = m?.kapso || {};
+          const direction = k?.direction === "outbound" ? "outbound" : "inbound";
+          const bodyText = k?.content || m?.text?.body || "[WhatsApp Message]";
+          const createdAt = m?.timestamp || k?.timestamp || now;
+          db.prepare(
+            `
+            INSERT INTO whatsapp_messages (
+              conversation_id, kapso_message_id, lead_id, direction, message_type,
+              body, media_url, status, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `
+          ).run(
+            localConv.id,
+            kapsoMsgId,
+            matchedLead?.id || localConv.lead_id || null,
+            direction,
+            k?.has_media ? "image" : "text",
+            bodyText,
+            k?.media_url || null,
+            k?.status || (direction === "inbound" ? "delivered" : "sent"),
+            createdAt
+          );
+          messagesSynced++;
+        }
+      }
+    }
+
+    return { conversationsSynced, messagesSynced };
+  }
+
   static getOrCreateConversationForLead(leadId: number): WhatsAppConversation {
     const db = getDatabase();
     const lead = db.prepare(`SELECT id, name, phone, assigned_to FROM leads WHERE id = ?`).get(leadId) as any;
@@ -195,9 +645,10 @@ export class KapsoWhatsappService {
     const conditions: string[] = [];
     const params: any[] = [];
 
+    // Counselors strictly see ALL chat history for leads currently assigned to them (only their assigned leads)
     if (!userScope.canViewAllLeads) {
-      conditions.push(`(wc.assigned_to = ? OR l.assigned_to = ?)`);
-      params.push(userScope.userId, userScope.userId);
+      conditions.push(`l.assigned_to = ?`);
+      params.push(userScope.userId);
     }
 
     const filter = options?.filter || "all";
@@ -228,7 +679,7 @@ export class KapsoWhatsappService {
           u.name AS assigned_user_name
         FROM whatsapp_conversations wc
         LEFT JOIN leads l ON wc.lead_id = l.id
-        LEFT JOIN users u ON wc.assigned_to = u.id
+        LEFT JOIN users u ON COALESCE(l.assigned_to, wc.assigned_to) = u.id
         ${whereSql}
         ORDER BY wc.last_message_at DESC, wc.id DESC
         LIMIT ?
@@ -261,18 +712,14 @@ export class KapsoWhatsappService {
           u.name AS assigned_user_name
         FROM whatsapp_conversations wc
         LEFT JOIN leads l ON wc.lead_id = l.id
-        LEFT JOIN users u ON wc.assigned_to = u.id
+        LEFT JOIN users u ON COALESCE(l.assigned_to, wc.assigned_to) = u.id
         WHERE wc.id = ?
       `
       )
       .get(conversationId) as any;
 
     if (!conv) return null;
-    if (
-      !userScope.canViewAllLeads &&
-      conv.assigned_to !== userScope.userId &&
-      conv.lead_assigned_to !== userScope.userId
-    ) {
+    if (!userScope.canViewAllLeads && conv.lead_assigned_to !== userScope.userId) {
       return null;
     }
 
@@ -280,7 +727,6 @@ export class KapsoWhatsappService {
       .prepare(`SELECT * FROM whatsapp_messages WHERE conversation_id = ? ORDER BY id ASC`)
       .all(conversationId) as WhatsAppMessage[];
 
-    // Mark unread as read on open
     if (conv.unread_count > 0) {
       db.prepare(`UPDATE whatsapp_conversations SET unread_count = 0 WHERE id = ?`).run(conversationId);
     }
@@ -327,10 +773,15 @@ export class KapsoWhatsappService {
     leadId?: number;
     conversationId?: number;
     toPhone?: string;
-    messageType?: "text" | "template";
+    messageType?: "text" | "template" | "image" | "document" | "video";
     body: string;
     templateName?: string;
     languageCode?: string;
+    parameterFormat?: "NAMED" | "POSITIONAL";
+    templateVariables?: { name: string; value: string }[];
+    headerMediaType?: WhatsAppTemplateHeaderType;
+    mediaUrl?: string;
+    mediaId?: string;
     user: User;
   }): Promise<{ message: WhatsAppMessage; conversation: WhatsAppConversation }> {
     const db = getDatabase();
@@ -371,31 +822,72 @@ export class KapsoWhatsappService {
     if (!conv) throw new Error("Conversation or Lead not found");
 
     const toDigits = normalizePhoneDigits(conv.phone_digits || conv.phone_number);
-    const msgType = params.messageType === "template" && params.templateName ? "template" : "text";
+    const msgType = params.messageType || "text";
     const textBody = String(params.body || "").trim();
-    if (!textBody && msgType === "text") {
-      throw new Error("Message body is required");
-    }
 
-    const kapsoPayload =
-      msgType === "template"
-        ? {
-            messaging_product: "whatsapp",
-            recipient_type: "individual",
-            to: toDigits,
-            type: "template",
-            template: {
-              name: params.templateName,
-              language: { code: params.languageCode || "en" },
-            },
-          }
-        : {
-            messaging_product: "whatsapp",
-            recipient_type: "individual",
-            to: toDigits,
-            type: "text",
-            text: { body: textBody },
-          };
+    let kapsoPayload: any;
+    if (msgType === "template" && params.templateName) {
+      const components: any[] = [];
+      if (params.headerMediaType && ["IMAGE", "VIDEO", "DOCUMENT"].includes(params.headerMediaType)) {
+        const mediaObj = params.mediaId
+          ? { id: params.mediaId }
+          : params.mediaUrl
+          ? { link: params.mediaUrl }
+          : null;
+        if (mediaObj) {
+          components.push({
+            type: "header",
+            parameters: [
+              {
+                type: params.headerMediaType.toLowerCase(),
+                [params.headerMediaType.toLowerCase()]: mediaObj,
+              },
+            ],
+          });
+        }
+      }
+      if (Array.isArray(params.templateVariables) && params.templateVariables.length > 0) {
+        components.push({
+          type: "body",
+          parameters: params.templateVariables.map((v) =>
+            params.parameterFormat === "POSITIONAL"
+              ? { type: "text", text: v.value || " " }
+              : { type: "text", parameter_name: v.name, text: v.value || " " }
+          ),
+        });
+      }
+
+      kapsoPayload = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: toDigits,
+        type: "template",
+        template: {
+          name: params.templateName,
+          language: { code: params.languageCode || "en_US" },
+          ...(components.length > 0 ? { components } : {}),
+        },
+      };
+    } else if (["image", "document", "video"].includes(msgType) && (params.mediaId || params.mediaUrl)) {
+      const mediaObj: any = params.mediaId ? { id: params.mediaId } : { link: params.mediaUrl };
+      if (textBody) mediaObj.caption = textBody;
+      kapsoPayload = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: toDigits,
+        type: msgType,
+        [msgType]: mediaObj,
+      };
+    } else {
+      if (!textBody) throw new Error("Message body is required");
+      kapsoPayload = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: toDigits,
+        type: "text",
+        text: { body: textBody },
+      };
+    }
 
     const apiRes = await fetch(
       `${KAPSO_API_BASE}/meta/whatsapp/v24.0/${cfg.phone_number_id}/messages`,
@@ -417,13 +909,14 @@ export class KapsoWhatsappService {
       ? null
       : apiJson?.error?.message || apiJson?.message || `Kapso HTTP ${apiRes.status}`;
 
+    const displayBody = textBody || `[Template: ${params.templateName}]`;
     const insertRes = db
       .prepare(
         `
         INSERT INTO whatsapp_messages (
           conversation_id, kapso_message_id, lead_id, direction, message_type,
-          body, template_name, status, error_message, sent_by, sent_by_name, created_at
-        ) VALUES (?, ?, ?, 'outbound', ?, ?, ?, ?, ?, ?, ?, ?)
+          body, template_name, media_url, status, error_message, sent_by, sent_by_name, created_at
+        ) VALUES (?, ?, ?, 'outbound', ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
       )
       .run(
@@ -431,8 +924,9 @@ export class KapsoWhatsappService {
         kapsoMsgId,
         conv.lead_id || null,
         msgType,
-        textBody || `[Template: ${params.templateName}]`,
+        displayBody,
         params.templateName || null,
+        params.mediaUrl || null,
         status,
         errorMsg,
         params.user.id,
@@ -452,7 +946,7 @@ export class KapsoWhatsappService {
         unread_count = 0
       WHERE id = ?
     `
-    ).run((textBody || `[Template: ${params.templateName}]`).slice(0, 120), now, now, conv.id);
+    ).run(displayBody.slice(0, 120), now, now, conv.id);
 
     if (conv.lead_id && apiRes.ok) {
       db.prepare(
@@ -463,7 +957,7 @@ export class KapsoWhatsappService {
       `
       ).run(
         conv.lead_id,
-        textBody.slice(0, 240),
+        displayBody.slice(0, 240),
         params.templateName || "Kapso Integrated Chat",
         params.user.id,
         params.user.name
@@ -485,51 +979,6 @@ export class KapsoWhatsappService {
     return { message: savedMessage, conversation: updatedConv };
   }
 
-  static async syncTemplatesFromKapso(): Promise<{ synced: number; templates: any[] }> {
-    const cfg = this.getRawConfig();
-    if (!cfg.kapso_api_key || !cfg.business_account_id) {
-      throw new Error("Kapso API Key and Business Account ID (WABA) are required to sync templates.");
-    }
-
-    const res = await fetch(
-      `${KAPSO_API_BASE}/meta/whatsapp/v24.0/${cfg.business_account_id}/message_templates?limit=100`,
-      { headers: { "X-API-Key": cfg.kapso_api_key } }
-    );
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      throw new Error(json?.error?.message || json?.message || `Kapso HTTP ${res.status}`);
-    }
-
-    const list: any[] = Array.isArray(json?.data) ? json.data : [];
-    const db = getDatabase();
-    let synced = 0;
-
-    for (const tpl of list) {
-      const name = String(tpl?.name || "").trim();
-      if (!name) continue;
-      const bodyComp = Array.isArray(tpl?.components)
-        ? tpl.components.find((c: any) => c.type === "BODY")
-        : null;
-      const bodyText = bodyComp?.text || `[Kapso Template: ${name}]`;
-      const category = String(tpl?.category || "UTILITY");
-      const id = `kapso_${name.toLowerCase().replace(/[^a-z0-9_]/g, "_")}`;
-
-      db.prepare(
-        `
-        INSERT INTO whatsapp_templates (id, name, category, template_body, is_default)
-        VALUES (?, ?, ?, ?, 0)
-        ON CONFLICT(id) DO UPDATE SET
-          name = excluded.name,
-          category = excluded.category,
-          template_body = excluded.template_body
-      `
-      ).run(id, name, category, bodyText);
-      synced++;
-    }
-
-    return { synced, templates: list };
-  }
-
   static processWebhook(payload: any, eventHeader?: string | null): { processed: number } {
     const events: any[] =
       payload?.batch && Array.isArray(payload?.data)
@@ -545,7 +994,6 @@ export class KapsoWhatsappService {
       const convData = ev?.conversation || ev?.data?.conversation || null;
       const kapsoMsg = msg?.kapso || {};
 
-      // Status update handling
       if (msg?.id && kapsoMsg?.status && eventType.includes("status")) {
         const mappedStatus = ["sent", "delivered", "read", "failed"].includes(kapsoMsg.status)
           ? kapsoMsg.status
@@ -560,7 +1008,6 @@ export class KapsoWhatsappService {
         continue;
       }
 
-      // Inbound message handling
       const direction = kapsoMsg?.direction === "outbound" ? "outbound" : "inbound";
       if (!msg && !convData) continue;
 
@@ -583,7 +1030,6 @@ export class KapsoWhatsappService {
       const kapsoMsgId = msg?.id || null;
       const now = new Date().toISOString();
 
-      // Dedupe if kapso_message_id already recorded
       if (kapsoMsgId) {
         const dup = db
           .prepare(`SELECT id FROM whatsapp_messages WHERE kapso_message_id = ?`)
@@ -591,7 +1037,6 @@ export class KapsoWhatsappService {
         if (dup) continue;
       }
 
-      // Match lead by phone_digits
       const matchedLead = db
         .prepare(
           `SELECT id, name, assigned_to FROM leads WHERE phone_digits = ? OR phone_digits LIKE ? LIMIT 1`
@@ -678,7 +1123,7 @@ export class KapsoWhatsappService {
       );
 
       if (direction === "inbound") {
-        const targetUser = conv.assigned_to || matchedLead?.assigned_to;
+        const targetUser = matchedLead?.assigned_to || conv.assigned_to;
         if (targetUser) {
           const senderLabel = contactName || matchedLead?.name || rawPhone;
           db.prepare(
