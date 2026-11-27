@@ -73,13 +73,10 @@ The most critical piece of information before placing a call is: *“What did th
 
 Counselors can toggle between two density views in the upper right corner:
 
-### A. `Compact` Mode (Default — 75% Vertical Space Savings)
-- Condenses each event into a sleek, single-line linear row:
-  - Action Category Icon: 🟢 `PhoneCall`, 🟣 `StageShift`, 🔵 `ConsultationNote`, 🟢 `Assignment`, ⚪ `SystemTag`.
-  - Event title and relative timestamp (`10m ago`, `2h ago`).
-  - Truncated 1-line remark preview (`line-clamp-1`).
-  - Clickable `[▾ Details]` toggle to reveal full notes, attribute deltas, and metadata on demand.
-  - Global **Expand all** and **Collapse all** bulk controls.
+### A. `Compact` Mode (Default — 2-Layer Smart Compaction & 75%+ Space Savings)
+- **Layer 1 — Simultaneous Action Bundles**: Events logged by the same actor within a **10-second window** (for example, `Call Connected` + `Stage Changed: New → Interested` + `Follow-up Callback Scheduled`, or `Assigned to Counselor` + `Task Scheduled`) are automatically merged into a single rich **Bundle Card** displaying the primary headline, inline transition/callback chips, a `N bundled` badge, and a click-to-expand list of all underlying events.
+- **Layer 2 — Consecutive Outreach & System Stacks**: Adjacent same-type outreach or system events (`Outbound Call Initiated`, `WhatsApp Outreach Initiated`, `field_update`) collapse into a single stack card (e.g., `3× WhatsApp Outreach Initiated · 03:01 PM – 03:15 PM`) that expands on click.
+- **Single Compact Rows**: Individual events condense into a single-line row with action icon, title, relative/clock timestamp, 1-line preview, and `[▾ Details]` toggle, plus global **Expand all** / **Collapse all** controls.
 
 ### B. `Detailed` Mode
 - Full card layout displaying complete remarks, old-to-new transition pills, and ISO timestamps permanently expanded.

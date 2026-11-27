@@ -42,6 +42,14 @@ flowchart TD
 
 ---
 
+## Broadcasts, Dynamic Action Buttons & Mobile Push (`v1.5.0`)
+
+- **Team Broadcasts (`BroadcastsService`, `BroadcastModal.tsx`, `/api/broadcasts`)**: Admins and Team Leads can dispatch high-priority announcements or directives to all staff, specific roles, or selected users with customizable **Action Buttons** (e.g., `Acknowledge`, `On It`, custom replies).
+- **Read & Response Audit Log**: Tracks per-recipient delivery, read timestamps, and exact button responses in real time.
+- **Android Push & System Notification-Bar Actions (`mobile/App.tsx`, `/api/mobile/push-token`, `/api/broadcasts/[id]/respond`)**: Hybrid Expo mobile app registers device Expo push tokens on login and surfaces interactive action buttons directly in the Android notification shade — tapping **Acknowledge** posts back to `/api/broadcasts/:id/respond` without even opening the app.
+
+---
+
 ## 2. Dynamic Priority & SLA Tiers
 
 When scheduling tasks from any bulk modal or manual entry, tasks feature automated SLA due dates:

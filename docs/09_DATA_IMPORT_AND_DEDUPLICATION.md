@@ -12,8 +12,11 @@ Universities receive student leads from dozens of external sources: school visit
 
 DreamDesk CRM solves this with:
 - **Visual Column Auto-Mapper**: Automatically recognizes header synonyms and discovers new custom columns.
-- **10-Digit Normalized Deduplication**: Strips formatting variations (`+91`, `91`, leading `0`, spaces, dashes) to catch duplicates accurately.
-- **Safe Duplicate Merging (Zero Data Loss)**: Consolidates duplicate records into one primary profile while re-parenting 100% of past call logs, consultation remarks, and tasks.
+- **Canonical E.164 Phone Normalization & Validation (`phoneNormalizer.ts`)**: Converts valid numbers (`918695911105`, `+91 7002015274`, `09876543210`, `9876543210`) to canonical E.164 (`+91XXXXXXXXXX`), normalizes legacy rows on startup, and **rejects invalid/dummy numbers** with row-level error reporting.
+- **3-Mode Multi-Contact Deduplication**: Matches uploaded rows against **both** primary `leads.phone` and secondary/guardian/caller-added contacts (`alternate_contacts` + phone attributes), with configurable handling:
+  - **Skip Duplicates (Default)**: Skips matching rows and reports which lead & contact matched.
+  - **Merge Missing Fields**: Fills blank fields and missing custom attributes on the existing lead without overwriting counselor assignment, primary phone, or stage.
+  - **Import Anyway (Flag Radar)**: Creates the record (e.g., sibling sharing a parent number) and surfaces it in **Duplicate Radar**.
 
 ```mermaid
 graph TD
@@ -61,29 +64,14 @@ When an operator uploads a CSV or Excel sheet:
 
 ---
 
-## 3. Component 2: 10-Digit Standardized Phone Normalization
+## 3. Component 2: Canonical E.164 Phone Normalization & Validation
 
-*Implementation*: [`normalizePhoneNumber`](file:///C:/Users/Ramanuj%20Dey%20Sarkar/Desktop/New%20folder%20%282%29/DreamDesk%20CRM/src/lib/services/leadsService.ts#L35)
+*Implementation*: [`normalizeAndValidatePhone`](file:///C:/Users/Ramanuj%20Dey%20Sarkar/Desktop/New%20folder%20%282%29/DreamDesk%20CRM/src/lib/utils/phoneNormalizer.ts)
 
-Phone numbers entered on web forms come in unpredictable formats:
-- `+91 98765 43210`
-- `919876543210`
-- `09876543210`
-- `98765-43210`
-- `9876543210`
-
-The normalization engine strips all non-digits, strips country code prefixes (`+91` or `91`), removes leading zeros, and extracts the standardized **10-digit number**:
-```typescript
-export function normalizePhoneNumber(phone?: string | null): string {
-  if (!phone) return "";
-  const cleaned = phone.replace(/[^0-9]/g, "");
-  if (cleaned.length === 12 && cleaned.startsWith("91")) return cleaned.slice(2);
-  if (cleaned.length === 11 && cleaned.startsWith("0")) return cleaned.slice(1);
-  if (cleaned.length > 10) return cleaned.slice(-10);
-  return cleaned;
-}
-```
-Both the CSV ingestion pre-check and the database duplicate scanner use this identical normalized logic, guaranteeing 100% duplicate detection accuracy.
+Phone numbers entered via CSVs, web forms, or counselor edits come in unpredictable formats (`+91 98765 43210`, `919876543210`, `09876543210`, `98765-43210`, or junk like `12345` / `0000000000`).
+- **Canonical Storage**: Valid 10-digit Indian numbers are stored in `leads.phone` as `+91XXXXXXXXXX` with `leads.phone_digits` as `91XXXXXXXXXX` (international E.164 numbers `+` + 10–15 digits are preserved).
+- **Strict Rejection**: Numbers shorter than 10 digits, containing letters, or repeating dummy digits are rejected during CSV ingestion (`rejectedCount`, `rejectedRows`) and contact creation.
+- **Multi-Contact Duplicate Matching**: Both CSV ingestion and Duplicate Radar match normalized digits across primary `leads.phone`, `alternate_contacts`, and phone-like keys in `raw_attributes`.
 
 ---
 

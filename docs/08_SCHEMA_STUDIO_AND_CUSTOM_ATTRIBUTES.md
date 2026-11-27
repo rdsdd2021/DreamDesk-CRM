@@ -30,6 +30,7 @@ graph TD
     QueryEngine --> Table[Leads Table: Dynamic Column Renderer]
     QueryEngine --> Sidebar[Filter Sidebar: Auto-Discovered Facet Accordions]
     QueryEngine --> Drawer[Student Profile Drawer: Dynamic Field Editors]
+    Registry --> TemplateStudio[Kapso Template Studio: Drag-and-Drop Variable Suggestions]
 ```
 
 ---

@@ -11,13 +11,13 @@ This repository of guides covers all architectural foundations, enterprise featu
 |---|---|---|---|
 | **01** | [**Lead Allocation & Distribution Engine**](./01_LEAD_ALLOCATION_AND_DISTRIBUTION.md) | Named assignment batches, smart filter claims, caller reports, reassigned handoff & priority rules | Admins, Team Leads, Counselors |
 | **02** | [**7-Day Counselor Ownership Policy & Anti-Poaching Governance**](./02_COUNSELOR_OWNERSHIP_POLICY.md) | Call locks, interaction protection, batch validation, overrides & audit trails | Admins, Team Leads |
-| **03** | [**Prioritized Bulk Task Engine & Daily Team Ops**](./03_TASK_ENGINE_AND_NOTIFICATIONS.md) | Daily Team Floor, Check-in/EOD, Daily Targets, SOP Playbooks, Proof/Sign-off, Nudges & SLAs | All Staff |
-| **04** | [**Smart Executive Journey & Multi-Density Timeline**](./04_EXECUTIVE_JOURNEY_AND_TIMELINE.md) | 4-card briefing strip, compact vs detailed views, date bucketing & quick notes | Counselors, Telecallers, TLs |
-| **05** | [**Bulk Operations Suite & Background Jobs**](./05_BULK_OPERATIONS_SUITE.md) | Multi-select dock, non-blocking server background jobs, live progress & task log console | Admins, Team Leads |
-| **06** | [**Admissions Playbook, Smart Outcomes & Telecalling Framework**](./06_CALL_DISPOSITIONS_AND_CALLBACKS.md) | 4 Reaction Trays, friction-free recipe popup, starter packs, composite scoring, retry cadence & stage locks | Counselors, Telecallers, Team Leads |
-| **07** | [**WhatsApp, Multi-Contact & Communication Drawer**](./07_WHATSAPP_AND_COMMUNICATION_DRAWER.md) | Thumb-friendly Call/WhatsApp, multi-number contacts, swipe navigation & template interpolation | Counselors, Telecallers |
-| **08** | [**Dynamic Schema Studio & Custom Attributes**](./08_SCHEMA_STUDIO_AND_CUSTOM_ATTRIBUTES.md) | Zero-migration JSON attributes, on-the-fly custom fields & faceted search filters | Super Admins |
-| **09** | [**Data Import, Streaming 60MB+ CSVs & Deduplication**](./09_DATA_IMPORT_AND_DEDUPLICATION.md) | Streaming multipart CSV ingestion, header auto-mapping, 10-digit normalization & safe merge | Admins, Operations |
+| **03** | [**Prioritized Bulk Task Engine & Daily Team Ops**](./03_TASK_ENGINE_AND_NOTIFICATIONS.md) | Daily Team Floor, Check-in/EOD, Broadcasts, Android Notification Actions, SOP Playbooks & SLAs | All Staff |
+| **04** | [**Smart Executive Journey & Multi-Density Timeline**](./04_EXECUTIVE_JOURNEY_AND_TIMELINE.md) | 4-card briefing strip, 2-layer timeline compaction (bundles & stacks), detailed view & quick notes | Counselors, Telecallers, TLs |
+| **05** | [**Bulk Operations Suite & Background Jobs**](./05_BULK_OPERATIONS_SUITE.md) | Multi-select dock, non-blocking server background jobs, crash recovery, cancel & task log console | Admins, Team Leads |
+| **06** | [**Admissions Playbook, Smart Outcomes & Telecalling Framework**](./06_CALL_DISPOSITIONS_AND_CALLBACKS.md) | 4 Reaction Trays, friction-free recipe popup, SOP trigger rules, composite scoring & stage locks | Counselors, Telecallers, TLs |
+| **07** | [**Kapso WhatsApp, Multi-Contact Routing & Communication Drawer**](./07_WHATSAPP_AND_COMMUNICATION_DRAWER.md) | Integrated Kapso WhatsApp Inbox, Meta Template Studio, 24h window, Call/IVR vs WA routing & swipe navigation | Counselors, Telecallers |
+| **08** | [**Dynamic Schema Studio & Custom Attributes**](./08_SCHEMA_STUDIO_AND_CUSTOM_ATTRIBUTES.md) | Zero-migration JSON attributes, phone masking, Template Studio variable suggestions & faceted filters | Super Admins |
+| **09** | [**Data Import, E.164 Validation, Streaming 60MB+ CSVs & Deduplication**](./09_DATA_IMPORT_AND_DEDUPLICATION.md) | Streaming multipart CSV ingestion, E.164 normalization/rejection, Skip/Merge/Allow & multi-contact dedup | Admins, Operations |
 | **10** | [**RBAC, Team Lead Pods, Geolocation & User Management**](./10_RBAC_SECURITY_AND_USER_MANAGEMENT.md) | 5-tier role hierarchy, Team Lead pod assignment, view/search guards & session security | Super Admins, Compliance |
 | **11** | [**Executive Analytics, Outreach Velocity & Reporting**](./11_ANALYTICS_DASHBOARD_AND_REPORTING.md) | Hourly/daily call velocity trends, uncalled today queue, counselor leaderboard & 1-click CSV reports | Leadership, Admins, TLs |
 | **12** | [**Productivity Hotkeys & Operator Fast-Paths**](./12_KEYBOARD_SHORTCUTS_AND_FAST_PATHS.md) | Keyboard controls (<kbd>c</kbd>, <kbd>w</kbd>, <kbd>j</kbd>/<kbd>k</kbd>, <kbd>[</kbd>/<kbd>]</kbd>), CmdK command center & 100-call/day workflow | All Users |
@@ -36,17 +36,18 @@ graph TD
     
     subgraph Core Domain Services
         Services --> AuthService[AuthService: Scrypt + Session Purge]
-        Services --> LeadsService[LeadsService: Facets, Bulk & Duplicates]
+        Services --> LeadsService[LeadsService: E.164, Facets & Dedup]
         Services --> PolicyService[PolicyService: 7-Day Anti-Poaching Lock]
-        Services --> TasksService[TasksService: SLA Engine & Alerts]
+        Services --> TasksService[TasksService: SLA Engine & Broadcasts]
+        Services --> KapsoService[KapsoWhatsappService: Inbox & Templates]
     end
 
     Services <-->|Sub-30ms Dynamic Queries| DB[(SQLite 3 WAL Engine / 64MB Cache)]
     DB --- T1[users & sessions]
     DB --- T2[leads & raw_attributes JSON]
-    DB --- T3[crm_tasks & user_notifications]
+    DB --- T3[crm_tasks, broadcasts & notifications]
     DB --- T4[lead_activities & activity_logs]
-    DB --- T5[campaigns, dispositions & schema_meta]
+    DB --- T5[whatsapp_conversations, messages & templates]
 ```
 
 ---

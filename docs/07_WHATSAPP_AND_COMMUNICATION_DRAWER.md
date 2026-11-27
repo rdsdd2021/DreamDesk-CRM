@@ -1,85 +1,56 @@
-# 💬 WhatsApp & Multi-Channel Communications Guide
+# 💬 Kapso Integrated WhatsApp, Multi-Contact Routing & Communications Guide
 
-This guide covers the **1-Click WhatsApp Integration & Communications Drawer** in DreamDesk CRM, designed to allow admissions counselors to instantly dispatch official brochures, fee structures, and follow-ups with dynamic personalized variable interpolation.
+This guide covers the **Kapso Cloud API WhatsApp Integration**, **Role-Scoped Inbox**, **Meta Template Studio**, **24-Hour Window Guard**, and **Multi-Contact Channel Routing** in DreamDesk CRM (with all external `wa.me` links completely removed).
 
 ---
 
 ## 1. Feature Overview & Purpose
 
-In student admissions, WhatsApp is the highest-engagement communication channel. Students and parents frequently ignore cold emails, but open WhatsApp messages within 3 minutes.
-
-DreamDesk CRM features a native **WhatsApp Communications Drawer**:
-- **1-Click Launch**: Press <kbd>w</kbd> or click the green WhatsApp icon on any student row or profile drawer.
-- **Dynamic Variable Interpolation**: Automatically replaces placeholders (`{name}`, `{stream}`, `{lead_code}`, `{counselor_name}`) with the student's actual information.
-- **Pre-Built Template Library**: Instant template switcher for official brochures, campus visits, scholarship test links, and follow-up reminders.
-- **Timeline Audit Tracking**: Every WhatsApp message dispatched writes an interaction log into the student's timeline.
+In student admissions, WhatsApp is the highest-engagement communication channel. DreamDesk CRM embeds WhatsApp directly inside the platform via **Kapso (`https://api.kapso.ai`)**:
+- **Zero External Links**: All `wa.me` redirects are removed; counselors message, preview templates, upload media, and read full chat history directly inside the CRM.
+- **24-Hour Customer Service Window Check**: Enforces Meta's 24h rule before allowing **Free-text Reply** (`last_inbound_at`). Outside the 24h window (or when no inbound reply exists yet), Free-text Reply is locked and the modal automatically switches to **Approved Meta Template**.
+- **Role-Scoped WhatsApp Inbox (`WhatsAppInboxWorkspace.tsx`)**: Counselors strictly see complete chat history for leads assigned to them; Admins/Team Leads also see unlinked inbound inquiries (`Not in CRM`) with a 1-click **+ Save as Lead** action.
+- **Realistic Bubble Preview (`WhatsAppTemplateBubblePreview.tsx`)**: Previews `TEXT`, `IMAGE`, `VIDEO`, and `DOCUMENT` headers, live variable substitutions, footers, read ticks, and interactive Meta buttons (`QUICK_REPLY`, `URL`, `PHONE_NUMBER`, `COPY_CODE`).
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Counselor as Admissions Counselor
-    participant UI as WhatsApp Drawer (WhatsAppModal)
-    participant Engine as Variable Interpolator
-    participant WhatsApp as WhatsApp Web / Desktop App
+    participant UI as Kapso WhatsApp Modal / Inbox
+    participant API as /api/whatsapp/send
+    participant Kapso as Kapso Cloud API (Meta v24.0)
     participant Timeline as Student Activity Log
 
-    Counselor->>UI: Hits hotkey "w" on Student Row
-    UI->>Engine: Passes lead record & template text
-    Engine->>Engine: Replaces {name}, {stream}, {lead_code}
-    UI->>Counselor: Displays personalized live message preview
-    Counselor->>UI: Clicks "Send via WhatsApp"
-    UI->>WhatsApp: Opens wa.me/91XXXXXXXXXX?text=encoded_message
-    UI->>Timeline: Logs "WhatsApp Message Dispatched" event
-    Note over Timeline: Protects lead under 7-Day Policy Lock!
+    Counselor->>UI: Opens WhatsApp ("w" hotkey or Inbox)
+    UI->>UI: Checks 24h inbound window (last_inbound_at)
+    alt Within 24h Window
+        Counselor->>UI: Sends Free-text, Media, or Template
+    else Outside 24h Window
+        Counselor->>UI: Selects Approved Meta Template & fills variables
+    end
+    UI->>API: POST /api/whatsapp/send (to_phone, template_variables, media)
+    API->>Kapso: Dispatches to canonical E.164 recipient digits
+    API->>Timeline: Logs "WhatsApp Sent (Kapso)" + saves message
 ```
 
 ---
 
-## 2. Dynamic Variable Interpolation
+## 2. Meta Template Studio & Drag-and-Drop CRM Placeholders
 
-The WhatsApp engine dynamically parses and injects student metadata in real-time:
+*Component*: `MetaKapsoTemplateStudio.tsx` | *API*: `/api/whatsapp/templates`, `/api/whatsapp/templates/sync`, `/api/whatsapp/media`
 
-| Placeholder | Replaced With | Example Injected Value |
-|---|---|---|
-| `{name}` | Student's full name | `Aarav Sharma` |
-| `{stream}` | Preferred academic stream | `Computer Science & Engineering` |
-| `{lead_code}` | Unique student inquiry code | `LD-001042` |
-| `{phone}` | Registered contact number | `+91 98765 43210` |
-| `{counselor_name}`| Logged-in counselor's name | `Dr. Priya Sharma` |
-| `{callback_at}` | Scheduled callback timestamp | `Tomorrow at 4:30 PM` |
-
-### Raw Template:
-```
-Hello {name}! Thank you for your interest in the {stream} program at DreamDesk University.
-Your application ID is {lead_code}.
-I have attached the complete 2026 course curriculum and fee structure brochure: https://admissions.dreamdesk.edu/brochure
-Best regards,
-{counselor_name}
-```
-
-### Interpolated Output:
-```
-Hello Aarav Sharma! Thank you for your interest in the Computer Science & Engineering program at DreamDesk University.
-Your application ID is LD-001042.
-I have attached the complete 2026 course curriculum and fee structure brochure: https://admissions.dreamdesk.edu/brochure
-Best regards,
-Dr. Priya Sharma
-```
+- **Sync & Authoring**: Sync existing approved templates from Meta/Kapso or submit new `UTILITY` / `MARKETING` / `AUTHENTICATION` templates (`NAMED` `{{student_name}}` or `POSITIONAL` `{{1}}`).
+- **Headers & Media Upload**: Supports `NONE`, `TEXT`, `IMAGE`, `VIDEO`, and `DOCUMENT` headers uploaded directly to Kapso Media (`/meta/whatsapp/v24.0/{phone_number_id}/media`).
+- **Drag-and-Drop CRM Field Placeholders**: Drag CRM schema chips (`Student Name`, `Lead Code`, `Stream`, `City`, custom Schema Studio fields) directly into the Template Body or onto any row in the structured **Variable Fields & CRM Header Mapping** form outside the body.
 
 ---
 
-## 3. Pre-Seeded Template Library
+## 3. Multi-Contact Channel Routing (Call/IVR vs WhatsApp)
 
-The CRM comes pre-configured with standard higher-education templates:
-
-1. **Official Admission Brochure & Fee Structure**:
-   - Dispatches download links, curriculum highlights, and annual fee schedule.
-2. **Counseling Session & Campus Visit Confirmation**:
-   - Confirms visit date, campus location GPS link, and parking gate pass.
-3. **Scholarship Aptitude Test Invitation**:
-   - Shares online test registration portal, syllabus, and exam instructions.
-4. **Follow-up / Unanswered Call Note**:
-   - Courteous notice: *"Tried reaching you regarding your application. Please let me know when you're available for a quick 5-minute call."*
+A single student lead can hold multiple linked numbers (`Primary`, `Father`, `Mother`, `Guardian`, `Alternate`) in `leads.phone` and `leads.alternate_contacts`:
+- **Call / IVR (`Set Primary`)**: Designates `leads.phone` as the default number for click-to-call (`tel:`) and IVR dialing.
+- **WhatsApp (`Set WA` / `whatsapp_phone`)**: Designates which linked number is used by default for WhatsApp outreach (falls back to `leads.phone` when unset).
+- **In-Modal Picker**: In `WhatsAppModal`, counselors can switch between any linked contact on the lead before sending.
 
 ---
 
@@ -87,7 +58,7 @@ The CRM comes pre-configured with standard higher-education templates:
 
 Beside WhatsApp, the CRM provides desktop softphone and mobile dialing:
 - **Hotkey Dialing**: Press <kbd>c</kbd> on any row or inside the profile drawer to trigger click-to-call immediately.
-- **Protocol**: Triggers standard `tel:+91XXXXXXXXXX` URI, opening Microsoft Teams, Skype, MicroSIP, or the default mobile dialer.
+- **Protocol**: Triggers standard `tel:+91XXXXXXXXXX` URI (handled natively by Android's dialer in the `mobile/` WebView wrapper).
 - **Call Disposition Trigger**: After hanging up, the disposition drawer automatically prompts the counselor to log the outcome.
 
 ---

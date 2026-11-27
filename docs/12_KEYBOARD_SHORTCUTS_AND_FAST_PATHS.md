@@ -31,7 +31,7 @@ DreamDesk CRM features an enterprise-grade, **keyboard-first productivity suite*
 | **Row Selection** | Toggle Checkbox | <kbd>x</kbd> or <kbd>Space</kbd> | Toggles the bulk selection checkbox for the currently highlighted lead row | Leads DataGrid |
 | **Lead Inspection** | Open Lead Profile | <kbd>Enter</kbd> or <kbd>o</kbd> | Opens the slide-out Executive Journey & Communication Drawer | Highlighted lead row |
 | **Telephony Action** | One-Click Direct Dial | <kbd>c</kbd> | Launches softphone dialer (`tel:${phone}`) for the active lead | Highlighted row or open drawer |
-| **WhatsApp Action** | Launch WhatsApp Web | <kbd>w</kbd> | Opens official WhatsApp chat (`https://wa.me/${phone}`) in a new tab | Highlighted row or open drawer |
+| **WhatsApp Action** | Open Kapso WhatsApp | <kbd>w</kbd> | Opens the integrated Kapso WhatsApp modal (24h window & templates) | Highlighted row or open drawer |
 | **Drawer Stepper** | Next Lead (Sequential) | <kbd>]</kbd> or <kbd>Alt</kbd> + <kbd>→</kbd> | Advances to the next student in the list without closing the drawer | Open Lead Drawer |
 | **Drawer Stepper** | Prev Lead (Sequential) | <kbd>[</kbd> or <kbd>Alt</kbd> + <kbd>←</kbd> | Moves back to the previous student in the list without closing drawer | Open Lead Drawer |
 | **Workspace Toggles** | Toggle Filter Sidebar | <kbd>f</kbd> | Slides the left faceted filter panel open or closed | Leads DataGrid |
@@ -67,7 +67,7 @@ flowchart TD
     MatchHotkey -->|'x' / 'Space'| ToggleSelect[Toggle Lead ID in selectedLeadIds Array]
     MatchHotkey -->|'Enter' / 'o'| OpenDrawer[setSelectedLeadForDetail(leads[activeLeadIndex])]
     MatchHotkey -->|'c'| DirectDial[window.location.href = 'tel:' + phone]
-    MatchHotkey -->|'w'| LaunchWA[window.open('https://wa.me/' + cleanPhone)]
+    MatchHotkey -->|'w'| LaunchWA[Open Integrated Kapso WhatsAppModal]
     MatchHotkey -->|']' / 'Alt+Right'| NextDrawer[Sequential Advance in LeadDrawer]
     MatchHotkey -->|'[' / 'Alt+Left'| PrevDrawer[Sequential Previous in LeadDrawer]
     MatchHotkey -->|'f'| ToggleFilters[Toggle FilterSidebar Visibility]
@@ -237,9 +237,9 @@ sequenceDiagram
 - The sequential stepper buttons and hotkeys (<kbd>[</kbd> and <kbd>]</kbd>) are disabled when at the beginning (`index === 0`) or end (`index === leads.length - 1`) of the loaded lead dataset.
 - State is preserved optimistically across transitions so that remarks or dispositions logged for Lead #1 are persisted to the database before Lead #2 is loaded into view.
 
-### 4. Telephony Number Sanitation
-- Direct dial (<kbd>c</kbd>) invokes `tel:${targetLead.phone}`.
-- WhatsApp launcher (<kbd>w</kbd>) strips all non-digit characters (`targetLead.phone.replace(/[^0-9]/g, "")`) to ensure clean E.164 international formatting when opening `https://wa.me/` URLs.
+### 4. Telephony & WhatsApp Number Sanitation
+- Direct dial (<kbd>c</kbd>) invokes `tel:${targetLead.phone}` (using canonical E.164 `+91XXXXXXXXXX`).
+- Integrated WhatsApp (<kbd>w</kbd>) opens `WhatsAppModal` targeting the lead's designated `whatsapp_phone` (or primary `phone`), normalizing to E.164 digits for Kapso Cloud API dispatch.
 
 ---
 

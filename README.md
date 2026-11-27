@@ -15,7 +15,8 @@
 
 - **Framework**: [Next.js 16 (App Router + Turbopack)](https://nextjs.org) with React 19
 - **Database Engine**: Embedded **SQLite with WAL Mode** (`better-sqlite3`), 64MB memory cache tuning, sub-30ms queries across 500k records, and normalized indexed JSON metadata
-- **Services Architecture**: Decoupled domain service layer (`authService`, `leadsService`, `policyService`, `tasksService`)
+- **Services Architecture**: Decoupled domain service layer (`authService`, `leadsService`, `policyService`, `tasksService`, `kapsoWhatsappService`, `broadcastsService`)
+- **WhatsApp & Mobile**: Integrated **Kapso Cloud API** WhatsApp Inbox, Meta Template Studio, 24h window guard, Broadcasts with Android notification-bar actions, and **Hybrid Expo WebView Mobile App (`v1.5.0`)**
 - **Styling**: Tailwind CSS v4 + Radix UI / Base UI accessible primitives
 - **Analytics & Data Viz**: Recharts 3 + Lucide Icons + CmdK Command Center
 - **Security & RBAC**: Scrypt password hashing with cryptographically random salts, instant session revocation, IP & Geolocation tracking
@@ -188,7 +189,10 @@ The CRM exposes 30+ optimized App Router REST endpoints with strict session auth
 | | `GET` | `/api/leads/[id]/activities` | Retrieve lead activity history & timeline | Role-scoped |
 | | `POST` | `/api/leads/[id]/disposition` | Log call disposition, notes & scheduled callbacks | Role-scoped |
 | | `POST` | `/api/leads/[id]/call-intent` | Secure one-time click-to-dial trigger (`tel:...`) with audit | Role-scoped |
-| | `POST` | `/api/leads/[id]/whatsapp-intent` | Secure WhatsApp template launcher (`wa.me`) with audit | Role-scoped |
+| | `POST` | `/api/whatsapp/send` | Send Kapso WhatsApp message, media, or Meta template | Role-scoped |
+| | `GET/POST` | `/api/whatsapp/conversations` | Role-scoped WhatsApp Inbox & thread history | Role-scoped |
+| | `GET/POST` | `/api/whatsapp/templates` | Meta/Kapso template studio & sync (`/sync`) | Admin / TL |
+| | `POST` | `/api/broadcasts` | Team broadcasts with dynamic action buttons | Admin / TL |
 | | `POST` | `/api/leads/[id]/unmask` | Compliance unmask of student contact number | Admin / TL |
 | | `PATCH` | `/api/leads/[id]/field` | Update single custom schema field | Role-scoped |
 | | `PATCH` | `/api/leads/[id]/tags` | Add or remove tags on a single lead | Role-scoped |

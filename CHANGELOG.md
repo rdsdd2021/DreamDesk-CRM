@@ -4,6 +4,26 @@ All notable changes, architectural enhancements, schema migrations, and feature 
 
 ---
 
+## [v1.5.0] — 2026-11-28
+
+### 💬 Kapso Integrated WhatsApp, Meta Template Studio & 24h Window
+- **Full Kapso Cloud API Integration (`KapsoWhatsappService`, `/api/whatsapp/*`)**: Removed all external `wa.me` links across web and mobile; all WhatsApp messaging, media, and chat history now run directly inside the CRM.
+- **Role-Scoped WhatsApp Inbox (`WhatsAppInboxWorkspace.tsx`)**: Counselors see complete chat history strictly for their assigned leads; Admins/Team Leads can view unlinked inbound inquiries (`Not in CRM`) and convert them with 1-click **+ Save as Lead**.
+- **Meta Template Studio (`MetaKapsoTemplateStudio.tsx`)**: Sync approved templates from Meta/Kapso, author new templates (`NAMED` / `POSITIONAL`, `TEXT`/`IMAGE`/`VIDEO`/`DOCUMENT` headers, interactive buttons), upload media via Kapso Media API, and **drag-and-drop CRM field placeholders** into the template body or variable mapper.
+- **24-Hour Customer Service Window & Realistic Bubble Preview (`WhatsAppModal.tsx`, `WhatsAppTemplateBubblePreview.tsx`)**: Enforces Meta's 24h inbound window before enabling Free-text Reply, auto-switches to Approved Meta Templates when closed, and previews headers, bodies, footers, and buttons realistically. Fixed Meta `#132000` template parameter forwarding in `/api/whatsapp/send` and `#100 Invalid parameter` in Kapso media upload.
+
+### 📞 E.164 Phone Normalization, Merge Import & Multi-Contact Routing
+- **Canonical E.164 Phone Normalizer (`phoneNormalizer.ts`, `database.ts`)**: Standardizes Indian mobile numbers to `+91XXXXXXXXXX` (and valid international numbers to `+<country><number>`), migrates legacy rows on startup, and rejects malformed/dummy numbers on import and contact creation.
+- **3-Mode Multi-Contact CSV Deduplication (`ImportModal.tsx`, `ImportWorkspace.tsx`, `leadsService.ts`)**: Matches duplicates across **both** primary `leads.phone` and secondary/guardian contacts (`alternate_contacts` + phone attributes) with **Skip Duplicates**, **Merge Missing Fields**, and **Import Anyway (Flag Radar)** modes plus row-level rejection reporting.
+- **Per-Contact Channel Routing (`EnhancedLeadDrawer.tsx`, `/api/leads/[id]/contacts`)**: Designate separate numbers for **Primary Call/IVR** (`Set Primary`) vs **WhatsApp** (`Set WA` / `whatsapp_phone`) and pick any linked contact in `WhatsAppModal`.
+
+### ⏱️ 2-Layer Lead Timeline Compaction & Broadcasts + Mobile App
+- **2-Layer Compact Timeline (`LeadTimeline.tsx`)**: Compact mode now bundles simultaneous same-actor events within 10s (e.g. `Call Connected` + `Stage Changed` + `Callback Scheduled`) into rich summary cards and collapses consecutive outreach/system events into expandable stacks, while **Detailed** mode preserves the flat chronological log.
+- **Broadcasts & Android Notification-Bar Actions (`BroadcastsService`, `BroadcastModal.tsx`, `/api/broadcasts/*`)**: Admin/TL broadcasts with dynamic action buttons (`Acknowledge`, custom responses), read/ack audit logs, and native Android notification-bar action handling.
+- **Hybrid Mobile App (`mobile/App.tsx`, `eas.json`)**: Updated to `v1.5.0` wrapping the full live CRM web app in `WebView` with native `expo-notifications`, `tel:` dialer routing, hardware back navigation, and EAS APK build config.
+
+---
+
 ## [v1.4.4] — 2026-11-27
 
 ### 👥 User Management Suite & Fields Tab Phone Masking
