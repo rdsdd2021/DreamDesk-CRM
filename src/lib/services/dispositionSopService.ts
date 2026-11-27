@@ -1,6 +1,7 @@
 import { getDatabase } from "@/lib/db/database";
 import { SyncService } from "@/lib/services/syncService";
 import { WorkTasksService } from "@/lib/services/workTasksService";
+import { PushNotificationService } from "@/lib/services/pushNotificationService";
 import { DispositionSopRule, TaskPriority, User } from "@/types/crm";
 
 export class DispositionSopService {
@@ -203,6 +204,12 @@ export class DispositionSopService {
           rule.priority,
           JSON.stringify({ lead_id: lead.id, rule_id: rule.id })
         );
+        PushNotificationService.sendToUser(targetUserId, {
+          title: "SOP Call Task Triggered",
+          body: `${taskTitle} (due in ${rule.sla_hours}h)`,
+          priority: rule.priority === "urgent" || rule.priority === "high" ? "high" : "default",
+          data: { type: "task", screen: "LeadDetail", lead_id: lead.id },
+        });
         createdCallTasks += 1;
       }
 

@@ -1,5 +1,6 @@
 import { getDatabase } from "@/lib/db/database";
 import { SyncService } from "@/lib/services/syncService";
+import { PushNotificationService } from "@/lib/services/pushNotificationService";
 import {
   CrmTask,
   TaskPriority,
@@ -127,10 +128,12 @@ export class TasksService {
       // Dispatch notification to each affected caller
       for (const [userId, info] of counselorTaskCounts.entries()) {
         const priorityLabel = priority.toUpperCase();
+        const notifTitle = `New ${priorityLabel} Tasks Assigned (${info.count})`;
+        const notifMessage = `${createdBy} assigned you ${info.count} follow-up task(s) for your leads: "${title}"`;
         insertNotificationStmt.run({
           user_id: userId,
-          title: `New ${priorityLabel} Tasks Assigned (${info.count})`,
-          message: `${createdBy} assigned you ${info.count} follow-up task(s) for your leads: "${title}"`,
+          title: notifTitle,
+          message: notifMessage,
           priority,
           metadata: JSON.stringify({
             task_title: title,
@@ -139,6 +142,12 @@ export class TasksService {
             due_date: dueDateIso,
             source_action: sourceAction,
           }),
+        });
+        PushNotificationService.sendToUser(userId, {
+          title: notifTitle,
+          body: notifMessage,
+          priority: priority === "urgent" || priority === "high" ? "high" : "default",
+          data: { type: "task", screen: "Tasks" },
         });
       }
     });

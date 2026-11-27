@@ -441,6 +441,20 @@ function initializeSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_user_notif_user_time ON user_notifications(user_id, created_at DESC);
   `);
 
+  // 11b. Mobile Push Notification Tokens (Expo / Android)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS push_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token TEXT NOT NULL,
+      platform TEXT NOT NULL DEFAULT 'android',
+      device_name TEXT,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, token)
+    );
+    CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens(user_id);
+  `);
+
   // 12. Operational & Team Work Tasks (One-time, Recurring, Timed, Linked)
   db.exec(`
     CREATE TABLE IF NOT EXISTS work_tasks (

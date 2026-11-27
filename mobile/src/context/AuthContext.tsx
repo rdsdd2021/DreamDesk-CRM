@@ -1,5 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { MobileApiClient } from "../api/mobileApiClient";
+import {
+  registerForPushNotifications,
+  unregisterPushNotifications,
+  syncLocalNotificationsFallback,
+} from "../services/notifications";
 
 export interface MobileUser {
   id: string;
@@ -39,6 +44,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data?.authenticated && data.user) {
         setCurrentUser(data.user);
         setPermissions(data.permissions);
+        void registerForPushNotifications();
+        void syncLocalNotificationsFallback();
       } else {
         setCurrentUser(null);
         setPermissions(null);
@@ -54,6 +61,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const interval = setInterval(() => {
+      void syncLocalNotificationsFallback();
+    }, 25000);
+    return () => clearInterval(interval);
+  }, [currentUser]);
 
   const login = async (email: string, password: string) => {
     try {
@@ -72,6 +87,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data?.user) {
         setCurrentUser(data.user);
         setPermissions(data.permissions);
+        void registerForPushNotifications();
+        void syncLocalNotificationsFallback();
         return { success: true };
       }
 
@@ -83,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
+      await unregisterPushNotifications();
       await MobileApiClient.fetchJson("/api/auth/logout", { method: "POST" });
     } finally {
       await MobileApiClient.setSessionCookie(null);

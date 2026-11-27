@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
-import { NavigationContainer } from "@react-navigation/native";
+import { NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
+import * as Notifications from "expo-notifications";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Colors } from "../theme/colors";
@@ -79,8 +80,23 @@ function MainTabNavigator() {
   );
 }
 
+export const navigationRef = createNavigationContainerRef<any>();
+
 export function RootNavigator() {
   const { isAuthenticated, isLoading } = useAuth();
+
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as any;
+      if (!navigationRef.isReady() || !isAuthenticated) return;
+      if (data?.lead_id) {
+        navigationRef.navigate("LeadDetail", { leadId: Number(data.lead_id) });
+      } else if (data?.screen === "Tasks") {
+        navigationRef.navigate("Main", { screen: "Tasks" });
+      }
+    });
+    return () => sub.remove();
+  }, [isAuthenticated]);
 
   if (isLoading) {
     return (
@@ -91,7 +107,7 @@ export function RootNavigator() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator
         screenOptions={{
           headerStyle: {

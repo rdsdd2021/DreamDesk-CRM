@@ -1,5 +1,6 @@
 import { getDatabase } from "@/lib/db/database";
 import { SyncService } from "@/lib/services/syncService";
+import { PushNotificationService } from "@/lib/services/pushNotificationService";
 import {
   WorkTask,
   WorkTaskChecklistItem,
@@ -309,6 +310,8 @@ export class WorkTasksService {
 
       // Notify assignee if assigned by someone else
       if (input.assigned_to !== input.created_by) {
+        const notifTitle = "New Work Task Assigned";
+        const notifBody = `${input.created_by_name} assigned you: "${input.title.trim()}"`;
         db.prepare(
           `
           INSERT INTO user_notifications (user_id, title, message, type, priority, metadata)
@@ -316,11 +319,17 @@ export class WorkTasksService {
         `
         ).run(
           input.assigned_to,
-          "New Work Task Assigned",
-          `${input.created_by_name} assigned you: "${input.title.trim()}"`,
+          notifTitle,
+          notifBody,
           input.priority || "normal",
           JSON.stringify({ work_task_id: taskId })
         );
+        PushNotificationService.sendToUser(input.assigned_to, {
+          title: notifTitle,
+          body: notifBody,
+          priority: input.priority === "urgent" || input.priority === "high" ? "high" : "default",
+          data: { type: "task", screen: "Tasks", work_task_id: taskId },
+        });
       }
 
       return taskId;

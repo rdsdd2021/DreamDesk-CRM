@@ -1412,8 +1412,15 @@ export default function CRMPage() {
 
   const getFilterParamsObject = (): FilterParams => {
     const facetsToApply = { ...selectedFacets };
-    if (roleMode === "counselor") {
+    const trimmedSearch = debouncedSearch.trim();
+    const cleanDigits = trimmedSearch.replace(/[^0-9]/g, "");
+    const isGlobalLookup =
+      cleanDigits.length >= 6 || /^ld-\d+/i.test(trimmedSearch) || /^\d{1,10}$/.test(trimmedSearch);
+
+    if (roleMode === "counselor" && !isGlobalLookup) {
       facetsToApply["assigned_to"] = [activeCounselorId];
+    } else if (isGlobalLookup) {
+      delete facetsToApply["assigned_to"];
     }
 
     return {

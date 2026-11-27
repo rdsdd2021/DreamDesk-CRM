@@ -70,14 +70,25 @@ export class LeadsService {
    * Retrieves paginated leads with dynamic faceted filtering, search, and sorting.
    * Scoped by UserScope to guarantee strict private lead isolation.
    */
+  static isGlobalIdentifierSearch(search?: string): boolean {
+    if (!search) return false;
+    const trimmed = search.trim();
+    if (!trimmed) return false;
+    const cleanDigits = trimmed.replace(/[^0-9]/g, "");
+    // Phone number (6+ digits) or Lead ID (LD-... or numeric ID)
+    return cleanDigits.length >= 6 || /^ld-\d+/i.test(trimmed) || /^\d{1,10}$/.test(trimmed);
+  }
+
   static getLeads(params: FilterParams, userScope?: UserScope): LeadsResponse {
     const db = getDatabase();
     const page = Math.max(1, params.page || 1);
     const limit = Math.min(200, Math.max(10, params.limit || 50));
     const offset = (page - 1) * limit;
+    const isGlobalLookup = this.isGlobalIdentifierSearch(params.search);
 
     // Strict security constraint: if user cannot view all leads, force assigned_to = [userScope.userId]
-    if (userScope && !userScope.canViewAllLeads) {
+    // EXCEPT when performing a database-wide lookup by phone number or Lead ID
+    if (userScope && !userScope.canViewAllLeads && !isGlobalLookup) {
       params.assigned_to = [userScope.userId];
     }
 
@@ -208,6 +219,7 @@ export class LeadsService {
           OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(leads.alternate_contacts, ''), ' ', ''), '-', ''), '+', ''), '(', ''), ')', '') LIKE @search_digits
           OR leads.email LIKE @search 
           OR leads.lead_code LIKE @search 
+          OR CAST(leads.id AS TEXT) = @exact_search
           OR campaigns.name LIKE @search
           OR dispositions.name LIKE @search
           OR leads.tags LIKE @search
@@ -215,6 +227,7 @@ export class LeadsService {
         )`);
         queryParams.search = `%${searchTrimmed}%`;
         queryParams.search_digits = `%${cleanDigits}%`;
+        queryParams.exact_search = searchTrimmed;
       } else {
         conditions.push(`(
           leads.name LIKE @search 
@@ -222,12 +235,14 @@ export class LeadsService {
           OR leads.alternate_contacts LIKE @search
           OR leads.email LIKE @search 
           OR leads.lead_code LIKE @search 
+          OR CAST(leads.id AS TEXT) = @exact_search
           OR campaigns.name LIKE @search
           OR dispositions.name LIKE @search
           OR leads.tags LIKE @search
           OR leads.raw_attributes LIKE @search
         )`);
         queryParams.search = `%${searchTrimmed}%`;
+        queryParams.exact_search = searchTrimmed;
       }
     }
 
@@ -244,7 +259,9 @@ export class LeadsService {
     }
 
     // Assigned Counselor filter & Mandatory User Scope enforcement
-    if (userScope && !userScope.canViewAllLeads) {
+    // Bypass strict counselor scope when searching database-wide by phone number or Lead ID
+    const isGlobalLookup = this.isGlobalIdentifierSearch(params.search);
+    if (userScope && !userScope.canViewAllLeads && !isGlobalLookup) {
       // Security: Counselors & Telecallers MUST ALWAYS be strictly constrained to their own leads
       conditions.push(`leads.assigned_to = @mandatory_user_id`);
       queryParams.mandatory_user_id = userScope.userId;

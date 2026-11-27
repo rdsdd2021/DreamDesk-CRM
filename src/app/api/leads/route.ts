@@ -68,9 +68,13 @@ export async function GET(request: NextRequest) {
     };
 
     let finalAssignedTo = assigned_to;
-    // If user is counselor or telecaller, enforce strict private leads!
-    if (!userScope.canViewAllLeads) {
+    const isGlobalLookup = LeadsService.isGlobalIdentifierSearch(search);
+    // If user is counselor or telecaller, enforce strict private leads
+    // EXCEPT when searching database-wide by phone number or Lead ID
+    if (!userScope.canViewAllLeads && !isGlobalLookup) {
       finalAssignedTo = [userScope.userId];
+    } else if (isGlobalLookup && !userScope.canViewAllLeads) {
+      finalAssignedTo = undefined;
     }
 
     const date_from = searchParams.get("date_from") || undefined;
