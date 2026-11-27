@@ -4,6 +4,18 @@ All notable changes, architectural enhancements, schema migrations, and feature 
 
 ---
 
+## [v1.4.4] — 2026-11-27
+
+### 👥 User Management Suite & Fields Tab Phone Masking
+- **User Management Modal (`UserManageModal.tsx`, `TeamWorkspace.tsx`, `/api/users`, `/api/users/[id]/audit`)**:
+  - Edit user profile (`name`, `email`, `role`, `Reports To`, `max_leads_cap`).
+  - Configure per-user permission overrides (`permissions_override`) on top of role defaults.
+  - Inspect active device sessions (IP, location, user agent), check-in history, and security audit logs with **Force Logout All Devices**.
+  - Deactivate or permanently delete users with lead handoff choices (**Move to Unassigned**, **Reassign to another caller**, or **Leave as-is**).
+- **Fields Tab Phone Masking (`leadsService.ts`)**: Automatically masks phone-like keys and 10–15 digit phone values inside `raw_attributes` for callers so imported spreadsheet phone columns are protected just like the primary phone.
+
+---
+
 ## [v1.4.3] — 2026-11-27
 
 ### ⚡ Disposition → SOP Automation Rules & Full Phone Number Search

@@ -177,6 +177,9 @@ export class AuthService {
         u.last_login_location,
         u.deactivated_at,
         u.deactivated_by,
+        u.team_lead_id,
+        u.max_leads_cap,
+        u.permissions_override,
         u.created_at
       FROM sessions s
       JOIN users u ON s.user_id = u.id
@@ -186,7 +189,16 @@ export class AuthService {
     if (!row) return null;
 
     const role = (row.role as UserRole) || "counselor";
-    const permissions = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.counselor;
+    const basePermissions = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.counselor;
+    let parsedOverride: Record<string, boolean> | null = null;
+    if (row.permissions_override) {
+      try {
+        parsedOverride = JSON.parse(row.permissions_override);
+      } catch {
+        parsedOverride = null;
+      }
+    }
+    const permissions = parsedOverride ? { ...basePermissions, ...parsedOverride } : basePermissions;
 
     const user: User = {
       id: row.id,
@@ -200,6 +212,9 @@ export class AuthService {
       last_login_location: row.last_login_location,
       deactivated_at: row.deactivated_at,
       deactivated_by: row.deactivated_by,
+      team_lead_id: row.team_lead_id || null,
+      max_leads_cap: row.max_leads_cap || 500,
+      permissions_override: parsedOverride,
       created_at: row.created_at,
     };
 
@@ -312,8 +327,10 @@ export class AuthService {
    */
   static deactivateUser(
     userId: string,
-    deactivatedBy: string = "Admin"
-  ): { success: boolean; terminatedSessions: number } {
+    deactivatedBy: string = "Admin",
+    leadAction: "leave" | "unassign" | "reassign" = "leave",
+    reassignToUserId?: string | null
+  ): { success: boolean; terminatedSessions: number; movedLeads: number } {
     const db = getDatabase();
     const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
     if (!user) throw new Error("User not found.");
@@ -329,19 +346,110 @@ export class AuthService {
     const delResult = db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
     const terminatedSessions = delResult.changes;
 
-    // 3. Log in activity logs
+    // 3. Optional Lead Handoff
+    let movedLeads = 0;
+    if (leadAction === "unassign") {
+      const res = db.prepare("UPDATE leads SET assigned_to = NULL, updated_at = CURRENT_TIMESTAMP WHERE assigned_to = ?").run(userId);
+      movedLeads = res.changes;
+    } else if (leadAction === "reassign" && reassignToUserId && reassignToUserId !== userId) {
+      const res = db
+        .prepare("UPDATE leads SET assigned_to = ?, is_reassigned = 1, previous_counselor_name = ?, reassigned_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE assigned_to = ?")
+        .run(reassignToUserId, user.name, userId);
+      movedLeads = res.changes;
+    }
+
+    // 4. Log in activity logs
     try {
       db.prepare(`
         INSERT INTO activity_logs (action_type, description, metadata, performed_by)
         VALUES ('USER_DEACTIVATED', ?, ?, ?)
       `).run(
-        `Staff account ${user.name} (${user.email}) was deactivated. Terminated ${terminatedSessions} active sessions.`,
-        JSON.stringify({ userId, terminatedSessions, deactivatedBy }),
+        `Staff account ${user.name} (${user.email}) was deactivated. Terminated ${terminatedSessions} active sessions.${movedLeads > 0 ? ` Moved ${movedLeads} leads.` : ""}`,
+        JSON.stringify({ userId, terminatedSessions, movedLeads, leadAction, deactivatedBy }),
         deactivatedBy
       );
     } catch {}
 
-    return { success: true, terminatedSessions };
+    return { success: true, terminatedSessions, movedLeads };
+  }
+
+  static forceLogoutUser(userId: string, actorName: string = "Admin"): { terminatedSessions: number } {
+    const db = getDatabase();
+    const user = db.prepare("SELECT name, email FROM users WHERE id = ?").get(userId) as any;
+    const delResult = db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
+    const terminatedSessions = delResult.changes;
+    try {
+      db.prepare(`
+        INSERT INTO activity_logs (action_type, description, metadata, performed_by)
+        VALUES ('FORCE_LOGOUT', ?, ?, ?)
+      `).run(
+        `Force-terminated ${terminatedSessions} active session(s) for ${user?.name || userId}.`,
+        JSON.stringify({ userId, terminatedSessions }),
+        actorName
+      );
+    } catch {}
+    return { terminatedSessions };
+  }
+
+  static deleteUser(
+    userId: string,
+    leadAction: "unassign" | "reassign" = "unassign",
+    reassignToUserId?: string | null,
+    actorName: string = "Admin"
+  ): { movedLeads: number } {
+    const db = getDatabase();
+    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+    if (!user) throw new Error("User not found.");
+
+    let movedLeads = 0;
+    db.transaction(() => {
+      if (leadAction === "reassign" && reassignToUserId && reassignToUserId !== userId) {
+        const res = db
+          .prepare("UPDATE leads SET assigned_to = ?, is_reassigned = 1, previous_counselor_name = ?, reassigned_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE assigned_to = ?")
+          .run(reassignToUserId, user.name, userId);
+        movedLeads = res.changes;
+      } else {
+        const res = db
+          .prepare("UPDATE leads SET assigned_to = NULL, updated_at = CURRENT_TIMESTAMP WHERE assigned_to = ?")
+          .run(userId);
+        movedLeads = res.changes;
+      }
+
+      db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
+      db.prepare("UPDATE users SET team_lead_id = NULL WHERE team_lead_id = ?").run(userId);
+      db.prepare("DELETE FROM users WHERE id = ?").run(userId);
+
+      db.prepare(`
+        INSERT INTO activity_logs (action_type, description, metadata, performed_by)
+        VALUES ('USER_DELETED', ?, ?, ?)
+      `).run(
+        `Permanently deleted user ${user.name} (${user.email}). Handed off ${movedLeads} leads (${leadAction}).`,
+        JSON.stringify({ userId, movedLeads, leadAction }),
+        actorName
+      );
+    })();
+
+    return { movedLeads };
+  }
+
+  static getUserAuditDetails(userId: string) {
+    const db = getDatabase();
+    const sessions = db
+      .prepare(
+        `SELECT id, ip_address, location, user_agent, created_at, expires_at FROM sessions WHERE user_id = ? AND expires_at > CURRENT_TIMESTAMP ORDER BY created_at DESC`
+      )
+      .all(userId);
+    const checkins = db
+      .prepare(
+        `SELECT checkin_date, presence_status, morning_focus, checked_in_at, eod_submitted_at FROM daily_checkins WHERE user_id = ? ORDER BY checkin_date DESC LIMIT 10`
+      )
+      .all(userId);
+    const logs = db
+      .prepare(
+        `SELECT action_type, description, created_at, performed_by FROM activity_logs WHERE description LIKE ? OR metadata LIKE ? ORDER BY created_at DESC LIMIT 15`
+      )
+      .all(`%${userId}%`, `%${userId}%`);
+    return { sessions, checkins, logs };
   }
 
   /**

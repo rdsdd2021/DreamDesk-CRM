@@ -54,6 +54,8 @@ export function normalizePhoneNumber(phone?: string | null): string {
   return cleaned;
 }
 
+const PHONE_KEY_REGEX = /phone|mobile|contact|whatsapp|tel|father|mother|guardian|cell|number/i;
+
 export class LeadsService {
   private static _facetCacheMap = new Map<string, { data: FacetGroup[]; timestamp: number }>();
   private static _summaryCacheMap = new Map<string, { data: any; timestamp: number }>();
@@ -152,7 +154,7 @@ export class LeadsService {
       previous_notes: row.previous_notes || null,
       reassigned_at: row.reassigned_at || null,
       tags: this.safeParseArray(row.tags),
-      raw_attributes: this.safeParseJson(row.raw_attributes),
+      raw_attributes: this.maskRawAttributesPhones(this.safeParseJson(row.raw_attributes), shouldMaskPhone),
       notes: row.notes,
       created_at: row.created_at,
       updated_at: row.updated_at,
@@ -1807,10 +1809,77 @@ export class LeadsService {
       ORDER BY users.name ASC
     `).all() as any[];
 
-    return users.map((u) => ({
-      ...u,
-      assigned_count: u.assigned_count || 0,
-    }));
+    return users.map((u) => {
+      let parsedOverride: Record<string, boolean> | null = null;
+      if (u.permissions_override) {
+        try {
+          parsedOverride = JSON.parse(u.permissions_override);
+        } catch {
+          parsedOverride = null;
+        }
+      }
+      return {
+        ...u,
+        max_leads_cap: u.max_leads_cap || 500,
+        permissions_override: parsedOverride,
+        assigned_count: u.assigned_count || 0,
+      };
+    });
+  }
+
+  static updateUserProfile(
+    userId: string,
+    patch: {
+      name?: string;
+      email?: string;
+      role?: string;
+      team_lead_id?: string | null;
+      max_leads_cap?: number;
+      permissions_override?: Record<string, boolean> | null;
+    },
+    performedBy: string
+  ): void {
+    const db = getDatabase();
+    const existing = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+    if (!existing) throw new Error("User not found.");
+
+    const nextName = patch.name?.trim() || existing.name;
+    const nextEmail = patch.email?.toLowerCase().trim() || existing.email;
+    const nextRole = patch.role || existing.role;
+    const nextTeamLeadId =
+      patch.team_lead_id !== undefined
+        ? patch.team_lead_id && patch.team_lead_id !== userId
+          ? patch.team_lead_id
+          : null
+        : existing.team_lead_id;
+    const nextCap =
+      patch.max_leads_cap !== undefined
+        ? Math.max(10, Number(patch.max_leads_cap) || 500)
+        : existing.max_leads_cap || 500;
+    const nextOverride =
+      patch.permissions_override !== undefined
+        ? patch.permissions_override && Object.keys(patch.permissions_override).length > 0
+          ? JSON.stringify(patch.permissions_override)
+          : null
+        : existing.permissions_override;
+
+    db.prepare(
+      `
+      UPDATE users
+      SET name = ?, email = ?, role = ?, team_lead_id = ?, max_leads_cap = ?, permissions_override = ?
+      WHERE id = ?
+    `
+    ).run(nextName, nextEmail, nextRole, nextTeamLeadId, nextCap, nextOverride, userId);
+
+    try {
+      db.prepare(
+        `INSERT INTO activity_logs (action_type, description, affected_count, metadata, performed_by) VALUES ('USER_UPDATED', ?, 1, ?, ?)`
+      ).run(
+        `Updated user ${nextName} (${nextEmail}) — Role: ${nextRole}, Cap: ${nextCap}`,
+        JSON.stringify({ userId, role: nextRole, team_lead_id: nextTeamLeadId, max_leads_cap: nextCap }),
+        performedBy
+      );
+    } catch {}
   }
 
   /**
@@ -2099,6 +2168,26 @@ export class LeadsService {
     } catch {
       return {};
     }
+  }
+
+  private static maskRawAttributesPhones(
+    attrs: Record<string, any>,
+    shouldMask: boolean
+  ): Record<string, any> {
+    if (!shouldMask || !attrs || typeof attrs !== "object") return attrs;
+    const result: Record<string, any> = {};
+    for (const [key, val] of Object.entries(attrs)) {
+      if (val === null || val === undefined) {
+        result[key] = val;
+        continue;
+      }
+      const str = String(val).trim();
+      const digits = str.replace(/[^0-9]/g, "");
+      const looksLikePhoneValue = digits.length >= 10 && digits.length <= 15 && /^[+\d\s().-]+$/.test(str);
+      const isPhoneKey = PHONE_KEY_REGEX.test(key) && digits.length >= 7;
+      result[key] = looksLikePhoneValue || isPhoneKey ? maskPhoneNumber(str) : val;
+    }
+    return result;
   }
 
   private static safeParseArray(jsonString?: string | null): string[] {
@@ -2843,7 +2932,7 @@ export class LeadsService {
       sub_disposition_name: updated.sub_disposition_name,
       callback_at: updated.callback_at,
       tags: this.safeParseArray(updated.tags),
-      raw_attributes: this.safeParseJson(updated.raw_attributes),
+      raw_attributes: this.maskRawAttributesPhones(this.safeParseJson(updated.raw_attributes), shouldMaskPhone),
       notes: updated.notes,
       created_at: updated.created_at,
       updated_at: updated.updated_at,
@@ -2929,7 +3018,7 @@ export class LeadsService {
       previous_notes: row.previous_notes || null,
       reassigned_at: row.reassigned_at || null,
       tags: this.safeParseArray(row.tags),
-      raw_attributes: this.safeParseJson(row.raw_attributes),
+      raw_attributes: this.maskRawAttributesPhones(this.safeParseJson(row.raw_attributes), shouldMaskPhone),
       notes: row.notes,
       created_at: row.created_at,
       updated_at: row.updated_at,

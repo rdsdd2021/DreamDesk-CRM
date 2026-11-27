@@ -34,9 +34,11 @@ import {
   EyeOff,
   Copy,
   Check,
+  UserCog,
 } from "lucide-react";
 
 import { TeamFloorPanel } from "@/components/crm/TeamFloorPanel";
+import { UserManageModal } from "@/components/crm/UserManageModal";
 
 interface TeamWorkspaceProps {
   users: User[];
@@ -76,8 +78,11 @@ export function TeamWorkspace({
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Deactivation state
+  // Deactivation & Manage state
   const [targetUserToDeactivate, setTargetUserToDeactivate] = useState<User | null>(null);
+  const [deactivateLeadAction, setDeactivateLeadAction] = useState<"leave" | "unassign" | "reassign">("leave");
+  const [deactivateReassignTo, setDeactivateReassignTo] = useState("");
+  const [targetUserToManage, setTargetUserToManage] = useState<User | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   // Password reset modal state
@@ -184,7 +189,15 @@ export function TeamWorkspace({
       const res = await fetch("/api/users", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, status: newStatus }),
+        body: JSON.stringify({
+          userId,
+          status: newStatus,
+          leadAction: newStatus === "inactive" ? deactivateLeadAction : undefined,
+          reassignToUserId:
+            newStatus === "inactive" && deactivateLeadAction === "reassign"
+              ? deactivateReassignTo
+              : undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to update staff status");
@@ -465,7 +478,7 @@ export function TeamWorkspace({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {users.map((user) => {
           const leadCount = user.assigned_count || 0;
-          const maxCapacity = 500;
+          const maxCapacity = user.max_leads_cap || 500;
           const percentage = Math.min(100, Math.round((leadCount / maxCapacity) * 100));
           const isDeactivated = user.status === "inactive";
           const isCurrentUser = currentUser?.id === user.id;
@@ -620,9 +633,20 @@ export function TeamWorkspace({
                     <ArrowRight className="w-3 h-3" />
                   </Button>
 
-                  {/* Password & Status Actions */}
+                  {/* Password, Manage & Status Actions */}
                   {canManageTeam && (
                     <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setTargetUserToManage(user)}
+                        className="h-7 text-xs gap-1 border-border/80 text-foreground hover:bg-muted cursor-pointer"
+                        title="Edit user details, permissions & sessions"
+                      >
+                        <UserCog className="w-3 h-3 text-indigo-500" />
+                        <span className="hidden sm:inline">Manage</span>
+                      </Button>
+
                       <Button
                         size="sm"
                         variant="outline"
@@ -706,6 +730,37 @@ export function TeamWorkspace({
             </DialogDescription>
           </DialogHeader>
 
+          <div className="space-y-2 text-xs">
+            <label className="block font-semibold text-foreground">
+              Assigned Leads Handling ({targetUserToDeactivate?.assigned_count || 0} leads)
+            </label>
+            <select
+              value={deactivateLeadAction}
+              onChange={(e) => setDeactivateLeadAction(e.target.value as any)}
+              className="w-full h-9 rounded-xl border border-border bg-background px-2.5 text-xs"
+            >
+              <option value="leave">Leave leads assigned (keep history)</option>
+              <option value="unassign">Move all leads to Unassigned Pool</option>
+              <option value="reassign">Reassign all leads to another caller</option>
+            </select>
+            {deactivateLeadAction === "reassign" && (
+              <select
+                value={deactivateReassignTo}
+                onChange={(e) => setDeactivateReassignTo(e.target.value)}
+                className="w-full h-9 rounded-xl border border-border bg-background px-2.5 text-xs"
+              >
+                <option value="">Select target caller...</option>
+                {users
+                  .filter((u) => u.id !== targetUserToDeactivate?.id && u.status === "active")
+                  .map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.role.replace("_", " ")})
+                    </option>
+                  ))}
+              </select>
+            )}
+          </div>
+
           <div className="flex justify-end gap-2.5 pt-2">
             <Button
               type="button"
@@ -734,6 +789,20 @@ export function TeamWorkspace({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* User Management Modal (Profile, Role, Permissions, Sessions & Delete) */}
+      <UserManageModal
+        user={targetUserToManage}
+        allUsers={users}
+        currentUser={currentUser}
+        onClose={() => setTargetUserToManage(null)}
+        onSaved={(msg) => {
+          setSuccessMsg(msg);
+          setTimeout(() => setSuccessMsg(null), 4000);
+          if (onUserUpdated) onUserUpdated();
+          else onUserAdded();
+        }}
+      />
 
       {/* Reset Password Modal */}
       <Dialog

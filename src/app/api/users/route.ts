@@ -60,7 +60,20 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { userId, status, newPassword, action, team_lead_id } = body;
+    const {
+      userId,
+      status,
+      newPassword,
+      action,
+      team_lead_id,
+      name,
+      email,
+      role,
+      max_leads_cap,
+      permissions_override,
+      leadAction,
+      reassignToUserId,
+    } = body;
 
     if (action === "assign_team_lead") {
       if (!userId) {
@@ -68,6 +81,53 @@ export async function PATCH(request: NextRequest) {
       }
       LeadsService.updateUserTeamLead(userId, team_lead_id || null, session.user.name);
       return NextResponse.json({ success: true, message: "Team Lead assignment updated." });
+    }
+
+    if (action === "edit_user") {
+      if (!userId) {
+        return NextResponse.json({ error: "userId is required" }, { status: 400 });
+      }
+      LeadsService.updateUserProfile(
+        userId,
+        { name, email, role, team_lead_id, max_leads_cap, permissions_override },
+        session.user.name
+      );
+      return NextResponse.json({ success: true, message: "User details & permissions updated." });
+    }
+
+    if (action === "force_logout") {
+      if (!userId) {
+        return NextResponse.json({ error: "userId is required" }, { status: 400 });
+      }
+      const res = AuthService.forceLogoutUser(userId, session.user.name);
+      return NextResponse.json({
+        success: true,
+        terminatedSessions: res.terminatedSessions,
+        message: `Terminated ${res.terminatedSessions} active session(s).`,
+      });
+    }
+
+    if (action === "delete_user") {
+      if (!userId) {
+        return NextResponse.json({ error: "userId is required" }, { status: 400 });
+      }
+      if (userId === session.user.id || userId === "usr_admin") {
+        return NextResponse.json(
+          { error: "Security restriction: Cannot delete your own or primary Super Admin account." },
+          { status: 400 }
+        );
+      }
+      const res = AuthService.deleteUser(
+        userId,
+        leadAction === "reassign" ? "reassign" : "unassign",
+        reassignToUserId || null,
+        session.user.name
+      );
+      return NextResponse.json({
+        success: true,
+        movedLeads: res.movedLeads,
+        message: `User permanently deleted (${res.movedLeads} leads handed off).`,
+      });
     }
 
     // Handle Password Reset Request
@@ -107,12 +167,20 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (status === "inactive") {
-      const result = AuthService.deactivateUser(userId, session.user.name);
+      const result = AuthService.deactivateUser(
+        userId,
+        session.user.name,
+        leadAction || "leave",
+        reassignToUserId || null
+      );
       return NextResponse.json({
         success: true,
         status: "inactive",
         terminatedSessions: result.terminatedSessions,
-        message: `Account deactivated successfully. Instantly terminated ${result.terminatedSessions} active session(s).`,
+        movedLeads: result.movedLeads,
+        message: `Account deactivated (${result.terminatedSessions} session(s) ended${
+          result.movedLeads > 0 ? `, ${result.movedLeads} leads moved` : ""
+        }).`,
       });
     } else {
       AuthService.reactivateUser(userId, session.user.name);

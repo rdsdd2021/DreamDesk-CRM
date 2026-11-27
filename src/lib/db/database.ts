@@ -565,6 +565,12 @@ function initializeSchema(db: Database.Database) {
   if (!userColNames.has("team_lead_id")) {
     db.exec("ALTER TABLE users ADD COLUMN team_lead_id TEXT;");
   }
+  if (!userColNames.has("permissions_override")) {
+    db.exec("ALTER TABLE users ADD COLUMN permissions_override TEXT;");
+  }
+  if (!userColNames.has("max_leads_cap")) {
+    db.exec("ALTER TABLE users ADD COLUMN max_leads_cap INTEGER NOT NULL DEFAULT 500;");
+  }
 
   const wtCols = db.prepare("PRAGMA table_info(work_tasks)").all() as { name: string }[];
   const wtColNames = new Set(wtCols.map((c) => c.name));

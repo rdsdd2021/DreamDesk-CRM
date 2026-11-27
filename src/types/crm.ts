@@ -15,6 +15,8 @@ export interface User {
   deactivated_by?: string | null;
   team_lead_id?: string | null;
   team_lead_name?: string | null;
+  max_leads_cap?: number;
+  permissions_override?: Record<string, boolean> | null;
   created_at: string;
 }
 
