@@ -14,6 +14,7 @@ import {
   LeadSummaryStats,
   SavedView,
   Campaign,
+  PresenceStatus,
 } from "@/types/crm";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { CommandCenter } from "@/components/crm/CommandCenter";
@@ -110,6 +111,8 @@ export default function CRMPage() {
   const [authLoading, setAuthLoading] = useState(true);
   const [needsMorningCheckin, setNeedsMorningCheckin] = useState(true);
   const [dailyTarget, setDailyTarget] = useState<any>(null);
+  const [presenceStatus, setPresenceStatus] = useState<PresenceStatus>("available");
+  const [presenceUpdatedAt, setPresenceUpdatedAt] = useState<string | null>(null);
 
   // Authenticate session on load
   const checkAuth = useCallback(async () => {
@@ -135,6 +138,8 @@ export default function CRMPage() {
       setPermissions(data.permissions);
       setNeedsMorningCheckin(!data.dailyOps?.checkin?.checked_in_at);
       setDailyTarget(data.dailyOps?.target || null);
+      setPresenceStatus(data.dailyOps?.checkin?.presence_status || "available");
+      setPresenceUpdatedAt(data.dailyOps?.checkin?.updated_at || data.dailyOps?.checkin?.checked_in_at || null);
 
       // Enforce counselor perspective lock
       if (
@@ -1448,6 +1453,8 @@ export default function CRMPage() {
         currentUser={currentUser}
         initialNeedsCheckin={needsMorningCheckin}
         initialTarget={dailyTarget}
+        initialPresenceStatus={presenceStatus}
+        initialPresenceUpdatedAt={presenceUpdatedAt}
         onLogout={handleLogout}
       >
       <div className="flex h-screen bg-background overflow-hidden text-foreground">
@@ -1563,8 +1570,28 @@ export default function CRMPage() {
             </h1>
           </div>
 
-          {/* Right Header Actions: Status + Notification + Theme Mode */}
+          {/* Right Header Actions: User Info (Desktop) + Status + Notification + Theme Mode */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* Desktop-only User Name & Designation */}
+            {currentUser && (
+              <div className="hidden md:flex items-center gap-2 pr-2.5 mr-0.5 border-r border-border/70">
+                <div
+                  className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-white text-xs shadow-2xs shrink-0"
+                  style={{ backgroundColor: currentUser.avatar_color || "#4f46e5" }}
+                >
+                  {currentUser.name.charAt(0)}
+                </div>
+                <div className="leading-tight text-right">
+                  <div className="text-xs font-bold text-foreground truncate max-w-[140px]">
+                    {currentUser.name}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground capitalize font-medium">
+                    {currentUser.role.replace("_", " ")}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* 1. Status Button */}
             {currentUser && <DailyPresencePill />}
 

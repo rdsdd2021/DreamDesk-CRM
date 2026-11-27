@@ -64,6 +64,21 @@ const PRESENCE_OPTIONS: {
   },
 ];
 
+function formatElapsedDuration(sinceIso?: string | null, nowMs?: number): string {
+  if (!sinceIso) return "00:00";
+  const parsed = Date.parse(sinceIso);
+  if (!Number.isFinite(parsed)) return "00:00";
+  const totalSeconds = Math.max(0, Math.floor(((nowMs ?? Date.now()) - parsed) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  if (hours > 0) {
+    return `${hours}:${pad(minutes)}:${pad(seconds)}`;
+  }
+  return `${pad(minutes)}:${pad(seconds)}`;
+}
+
 export function DailyPresencePill() {
   const [checkin, setCheckin] = useState<DailyCheckin | null>(null);
   const [autoStats, setAutoStats] = useState<DailyAutoStats>({
@@ -74,6 +89,7 @@ export function DailyPresencePill() {
     conversions: 0,
   });
   const [updating, setUpdating] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   // Wrap-Up / EOD Modal triggered directly from "Wrap Up" status
   const [showEodModal, setShowEodModal] = useState(false);
@@ -101,6 +117,11 @@ export function DailyPresencePill() {
     return () => window.removeEventListener("daily-ops-updated", onUpdated);
   }, [load]);
 
+  useEffect(() => {
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   const handleChange = async (next: PresenceStatus) => {
     if (next === "wrap_up") {
       await load();
@@ -111,20 +132,21 @@ export function DailyPresencePill() {
     }
 
     setUpdating(true);
+    const optimisticNow = new Date().toISOString();
     setCheckin((prev) =>
       prev
-        ? { ...prev, presence_status: next }
+        ? { ...prev, presence_status: next, updated_at: optimisticNow }
         : {
             id: 0,
             user_id: "",
-            checkin_date: new Date().toISOString().slice(0, 10),
+            checkin_date: optimisticNow.slice(0, 10),
             presence_status: next,
             morning_focus: null,
             checked_in_at: null,
             eod_submitted_at: null,
             eod_notes: null,
             eod_blockers: null,
-            updated_at: new Date().toISOString(),
+            updated_at: optimisticNow,
           }
     );
     try {
@@ -169,6 +191,7 @@ export function DailyPresencePill() {
 
   const current = checkin?.presence_status || "available";
   const meta = PRESENCE_OPTIONS.find((p) => p.value === current) || PRESENCE_OPTIONS[0];
+  const elapsedLabel = formatElapsedDuration(checkin?.updated_at || checkin?.checked_in_at, nowMs);
 
   return (
     <>
@@ -180,6 +203,9 @@ export function DailyPresencePill() {
         >
           <span className={`h-2 w-2 rounded-full shrink-0 ${meta.dotClass}`} />
           <span>{meta.label}</span>
+          <span className="font-mono tabular-nums text-[10px] opacity-75 border-l border-current/20 pl-1.5">
+            {elapsedLabel}
+          </span>
           <ChevronDown className="h-3 w-3 opacity-70" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44 p-1 rounded-xl">
