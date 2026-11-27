@@ -15,6 +15,7 @@ import { MobileApiClient } from "../api/mobileApiClient";
 import { MobileLead } from "../components/LeadCard";
 import { AcademicHighlightsCard } from "../components/AcademicHighlightsCard";
 import { RapidLoggerModal } from "../components/RapidLoggerModal";
+import { WhatsAppChatModal } from "../components/WhatsAppChatModal";
 import { useCallTracker } from "../hooks/useCallTracker";
 import { PhoneCall, MessageSquare, Mail, MapPin, Sparkles, History } from "lucide-react-native";
 
@@ -39,6 +40,7 @@ export function LeadDetailScreen({ route }: any) {
   // Rapid Logger
   const [isRapidLoggerOpen, setIsRapidLoggerOpen] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+  const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
 
   const { startCall } = useCallTracker((_id, _name, durationSec) => {
     setCallDuration(durationSec);
@@ -91,19 +93,9 @@ export function LeadDetailScreen({ route }: any) {
     }
   };
 
-  const handleWhatsApp = async () => {
+  const handleWhatsApp = () => {
     if (!lead?.id) return;
-    try {
-      const { data } = await MobileApiClient.fetchJson<{ launchUrl: string }>(
-        `/api/leads/${lead.id}/whatsapp-intent`,
-        { method: "POST" }
-      );
-      if (data?.launchUrl) {
-        await Linking.openURL(data.launchUrl);
-      }
-    } catch {
-      Alert.alert("WhatsApp Error", "Could not open WhatsApp");
-    }
+    setIsWhatsAppOpen(true);
   };
 
   if (loading || !lead) {
@@ -302,6 +294,13 @@ export function LeadDetailScreen({ route }: any) {
             }
           });
         }}
+      />
+
+      <WhatsAppChatModal
+        visible={isWhatsAppOpen}
+        leadId={lead.id}
+        leadName={lead.name}
+        onClose={() => setIsWhatsAppOpen(false)}
       />
     </View>
   );

@@ -491,6 +491,59 @@ function initializeSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_broadcast_recipients_uid ON broadcast_recipients(user_id);
   `);
 
+  // 11d. Kapso Integrated WhatsApp Business Settings, Conversations & Messages
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS whatsapp_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      kapso_api_key TEXT,
+      phone_number_id TEXT,
+      business_account_id TEXT,
+      webhook_secret TEXT,
+      display_phone_number TEXT,
+      is_connected INTEGER NOT NULL DEFAULT 0,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS whatsapp_conversations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      kapso_conversation_id TEXT,
+      lead_id INTEGER REFERENCES leads(id) ON DELETE SET NULL,
+      phone_number TEXT NOT NULL,
+      phone_digits TEXT NOT NULL,
+      contact_name TEXT,
+      assigned_to TEXT REFERENCES users(id) ON DELETE SET NULL,
+      status TEXT NOT NULL DEFAULT 'open', -- 'open' | 'resolved'
+      unread_count INTEGER NOT NULL DEFAULT 0,
+      last_message_preview TEXT,
+      last_message_direction TEXT DEFAULT 'outbound',
+      last_message_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(phone_digits)
+    );
+    CREATE INDEX IF NOT EXISTS idx_wa_conv_lead ON whatsapp_conversations(lead_id);
+    CREATE INDEX IF NOT EXISTS idx_wa_conv_assigned ON whatsapp_conversations(assigned_to, status);
+    CREATE INDEX IF NOT EXISTS idx_wa_conv_last_msg ON whatsapp_conversations(last_message_at DESC);
+
+    CREATE TABLE IF NOT EXISTS whatsapp_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversation_id INTEGER NOT NULL REFERENCES whatsapp_conversations(id) ON DELETE CASCADE,
+      kapso_message_id TEXT,
+      lead_id INTEGER REFERENCES leads(id) ON DELETE SET NULL,
+      direction TEXT NOT NULL, -- 'inbound' | 'outbound'
+      message_type TEXT NOT NULL DEFAULT 'text',
+      body TEXT NOT NULL,
+      template_name TEXT,
+      media_url TEXT,
+      status TEXT NOT NULL DEFAULT 'sent', -- 'queued' | 'sent' | 'delivered' | 'read' | 'failed'
+      error_message TEXT,
+      sent_by TEXT,
+      sent_by_name TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_wa_msg_conv ON whatsapp_messages(conversation_id, created_at ASC);
+    CREATE INDEX IF NOT EXISTS idx_wa_msg_kapso_id ON whatsapp_messages(kapso_message_id);
+  `);
+
   // 12. Operational & Team Work Tasks (One-time, Recurring, Timed, Linked)
   db.exec(`
     CREATE TABLE IF NOT EXISTS work_tasks (

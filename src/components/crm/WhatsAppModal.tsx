@@ -150,27 +150,30 @@ export function WhatsAppModal({
   };
 
   const handleSendWhatsApp = async () => {
-    if (!lead?.id) return;
+    if (!lead?.id || !messageText.trim()) return;
     try {
       setLoading(true);
-      const res = await fetch(`/api/leads/${lead.id}/whatsapp-intent`, {
+      const selectedTpl = templates.find((t) => t.id === selectedTemplateId);
+      const res = await fetch(`/api/whatsapp/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ templateText: messageText }),
+        body: JSON.stringify({
+          lead_id: lead.id,
+          message_type: "text",
+          body: messageText.trim(),
+          template_name: selectedTpl?.name,
+        }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to launch WhatsApp");
+      if (!res.ok) throw new Error(data.error || "Failed to send WhatsApp message");
 
       if (onMessageSent) {
         onMessageSent(lead.id, messageText);
       }
 
-      if (data.launchUrl) {
-        window.open(data.launchUrl, "_blank");
-      }
       onClose();
     } catch (err: any) {
-      alert(err.message || "Failed to trigger WhatsApp");
+      alert(err.message || "Failed to send WhatsApp message via Kapso");
     } finally {
       setLoading(false);
     }

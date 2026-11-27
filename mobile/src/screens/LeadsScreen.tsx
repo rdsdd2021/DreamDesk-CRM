@@ -17,6 +17,7 @@ import { MobileApiClient } from "../api/mobileApiClient";
 import { LeadCard, MobileLead } from "../components/LeadCard";
 import { FilterModal, MobileFilterState } from "../components/FilterModal";
 import { RapidLoggerModal } from "../components/RapidLoggerModal";
+import { WhatsAppChatModal } from "../components/WhatsAppChatModal";
 import { useCallTracker } from "../hooks/useCallTracker";
 import { MobileCache } from "../utils/cache";
 import { Search, Filter, X } from "lucide-react-native";
@@ -46,6 +47,7 @@ export function LeadsScreen({ navigation }: any) {
   // Rapid Logger State
   const [activeCallLead, setActiveCallLead] = useState<{ id: number; name: string } | null>(null);
   const [isRapidLoggerOpen, setIsRapidLoggerOpen] = useState(false);
+  const [whatsAppLead, setWhatsAppLead] = useState<{ id: number; name: string } | null>(null);
   const [callDuration, setCallDuration] = useState(0);
   const [dispositions, setDispositions] = useState<any[]>([]);
 
@@ -156,18 +158,8 @@ export function LeadsScreen({ navigation }: any) {
     fetchLeads(nextPage);
   };
 
-  const handleTriggerWhatsApp = async (lead: MobileLead) => {
-    try {
-      const { data } = await MobileApiClient.fetchJson<{ launchUrl: string }>(
-        `/api/leads/${lead.id}/whatsapp-intent`,
-        { method: "POST" }
-      );
-      if (data?.launchUrl) {
-        await Linking.openURL(data.launchUrl);
-      }
-    } catch {
-      Alert.alert("WhatsApp Error", "Could not launch WhatsApp");
-    }
+  const handleTriggerWhatsApp = (lead: MobileLead) => {
+    setWhatsAppLead({ id: lead.id, name: lead.name });
   };
 
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
@@ -313,6 +305,14 @@ export function LeadsScreen({ navigation }: any) {
         onClose={() => setIsFilterModalOpen(false)}
         onApply={(newFilters) => setFilters(newFilters)}
         onReset={() => setFilters({})}
+      />
+
+      {/* Integrated Kapso WhatsApp Chat Modal */}
+      <WhatsAppChatModal
+        visible={Boolean(whatsAppLead)}
+        leadId={whatsAppLead?.id ?? null}
+        leadName={whatsAppLead?.name}
+        onClose={() => setWhatsAppLead(null)}
       />
 
       {/* Rapid Logger Modal */}

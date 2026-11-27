@@ -77,17 +77,8 @@ export function TasksModal({
     }
   };
 
-  const handleTaskWhatsApp = async (leadId: number) => {
-    try {
-      const res = await fetch(`/api/leads/${leadId}/whatsapp-intent`, { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to launch WhatsApp");
-      if (data.whatsappUri) {
-        window.open(data.whatsappUri, "_blank");
-      }
-    } catch (err: any) {
-      alert(err.message || "Failed to launch WhatsApp");
-    }
+  const handleTaskWhatsApp = (leadId: number) => {
+    window.dispatchEvent(new CustomEvent("open-kapso-whatsapp", { detail: { leadId } }));
   };
 
   const loadTasks = async () => {

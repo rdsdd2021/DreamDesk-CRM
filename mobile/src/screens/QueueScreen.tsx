@@ -15,6 +15,7 @@ import { MobileApiClient } from "../api/mobileApiClient";
 import { MobileLead } from "../components/LeadCard";
 import { AcademicHighlightsCard } from "../components/AcademicHighlightsCard";
 import { RapidLoggerModal } from "../components/RapidLoggerModal";
+import { WhatsAppChatModal } from "../components/WhatsAppChatModal";
 import { useCallTracker } from "../hooks/useCallTracker";
 import { MobileCache } from "../utils/cache";
 import { PhoneCall, Sparkles, CheckCircle2, ChevronRight, MessageSquare, Eye } from "lucide-react-native";
@@ -30,6 +31,7 @@ export function QueueScreen({ navigation }: any) {
   // Rapid Logger Modal
   const [isRapidLoggerOpen, setIsRapidLoggerOpen] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+  const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
 
   const { startCall } = useCallTracker((_leadId, _leadName, durationSec) => {
     setCallDuration(durationSec);
@@ -73,19 +75,9 @@ export function QueueScreen({ navigation }: any) {
 
   const currentLead = queueLeads[currentIndex];
 
-  const handleTriggerWhatsApp = async () => {
+  const handleTriggerWhatsApp = () => {
     if (!currentLead) return;
-    try {
-      const { data } = await MobileApiClient.fetchJson<{ launchUrl: string }>(
-        `/api/leads/${currentLead.id}/whatsapp-intent`,
-        { method: "POST" }
-      );
-      if (data?.launchUrl) {
-        await Linking.openURL(data.launchUrl);
-      }
-    } catch {
-      Alert.alert("WhatsApp Error", "Could not launch WhatsApp");
-    }
+    setIsWhatsAppOpen(true);
   };
 
   const handleNextLead = (logged = false) => {
@@ -268,6 +260,13 @@ export function QueueScreen({ navigation }: any) {
         onSuccess={() => {
           handleNextLead(true);
         }}
+      />
+
+      <WhatsAppChatModal
+        visible={isWhatsAppOpen}
+        leadId={currentLead.id}
+        leadName={currentLead.name}
+        onClose={() => setIsWhatsAppOpen(false)}
       />
     </ScrollView>
   );

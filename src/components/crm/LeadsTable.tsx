@@ -190,21 +190,12 @@ export function LeadsTable({
     }
   };
 
-  const handleTriggerWhatsApp = async (leadId: number, e?: React.MouseEvent) => {
+  const handleTriggerWhatsApp = (leadId: number, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    try {
-      const { data, error } = await ApiClient.fetchJson<{ success: boolean; launchUrl: string }>(
-        `/api/leads/${leadId}/whatsapp-intent`,
-        { method: "POST" }
-      );
-      if (error) throw new Error(error.message);
-      if (data?.launchUrl) {
-        window.open(data.launchUrl, "_blank");
-      }
-    } catch (err: any) {
-      console.error("WhatsApp intent failed:", err);
-      alert(err.message || "Failed to launch WhatsApp");
-    }
+    const targetLead = leads.find((l) => l.id === leadId);
+    window.dispatchEvent(
+      new CustomEvent("open-kapso-whatsapp", { detail: { leadId, lead: targetLead } })
+    );
   };
 
   const getStatusBadge = (status: string) => {

@@ -802,3 +802,51 @@ export interface PolicyValidationResult {
   days_remaining?: number;
   lock_days?: number;
 }
+
+export interface WhatsAppSettings {
+  kapso_api_key: string;
+  has_api_key?: boolean;
+  phone_number_id: string;
+  business_account_id: string;
+  webhook_secret: string;
+  display_phone_number: string;
+  is_connected: boolean;
+  updated_at?: string;
+}
+
+export interface WhatsAppConversation {
+  id: number;
+  kapso_conversation_id?: string | null;
+  lead_id?: number | null;
+  lead_code?: string | null;
+  lead_name?: string | null;
+  lead_status?: string | null;
+  phone_number: string;
+  phone_digits: string;
+  contact_name?: string | null;
+  assigned_to?: string | null;
+  assigned_user_name?: string | null;
+  status: 'open' | 'resolved';
+  unread_count: number;
+  last_message_preview?: string | null;
+  last_message_direction?: 'inbound' | 'outbound';
+  last_message_at: string;
+  updated_at: string;
+}
+
+export interface WhatsAppMessage {
+  id: number;
+  conversation_id: number;
+  kapso_message_id?: string | null;
+  lead_id?: number | null;
+  direction: 'inbound' | 'outbound';
+  message_type: 'text' | 'template' | 'image' | 'document' | 'audio';
+  body: string;
+  template_name?: string | null;
+  media_url?: string | null;
+  status: 'queued' | 'sent' | 'delivered' | 'read' | 'failed';
+  error_message?: string | null;
+  sent_by?: string | null;
+  sent_by_name?: string | null;
+  created_at: string;
+}

@@ -322,24 +322,9 @@ export function EnhancedLeadDrawer({
     }
   };
 
-  const handleWhatsAppContact = async (contactId?: string) => {
+  const handleWhatsAppContact = (_contactId?: string) => {
     if (!lead?.id) return;
-    try {
-      const { data, error } = await ApiClient.fetchJson<{ success: boolean; launchUrl: string }>(
-        `/api/leads/${lead.id}/whatsapp-intent`,
-        {
-          method: "POST",
-          body: JSON.stringify(contactId ? { contactId } : {}),
-        }
-      );
-      if (error) throw new Error(error.message);
-      if (data?.launchUrl) {
-        window.open(data.launchUrl, "_blank", "noopener,noreferrer");
-      }
-      fetchActivities(lead.id);
-    } catch (err: any) {
-      alert(err.message || "Failed to launch WhatsApp");
-    }
+    window.dispatchEvent(new CustomEvent("open-kapso-whatsapp", { detail: { lead } }));
   };
 
   const handleSaveContactHandoff = async () => {
@@ -458,22 +443,19 @@ export function EnhancedLeadDrawer({
   const handleSendWhatsAppTemplate = async (templateText: string) => {
     if (!lead?.id) return;
     try {
-      const { data, error } = await ApiClient.fetchJson<{ success: boolean; launchUrl: string }>(
-        `/api/leads/${lead.id}/whatsapp-intent`,
+      const { error } = await ApiClient.fetchJson<{ success: boolean }>(
+        `/api/whatsapp/send`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ templateText }),
+          body: JSON.stringify({ lead_id: lead.id, message_type: "text", body: templateText }),
         }
       );
       if (error) throw new Error(error.message);
-      if (data?.launchUrl) {
-        window.open(data.launchUrl, "_blank");
-      }
       fetchActivities(lead.id);
     } catch (err: any) {
-      console.error("WhatsApp trigger failed:", err);
-      alert(err.message || "Failed to trigger WhatsApp launch");
+      console.error("WhatsApp send failed:", err);
+      alert(err.message || "Failed to send WhatsApp message");
     }
   };
 

@@ -1,0 +1,730 @@
+"use client";
+
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  User,
+  WhatsAppConversation,
+  WhatsAppMessage,
+  WhatsAppSettings,
+  WhatsAppTemplate,
+} from "@/types/crm";
+import { WhatsAppTemplatesWorkspace } from "@/components/crm/WhatsAppTemplatesWorkspace";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Check,
+  CheckCheck,
+  CheckCircle2,
+  Clock,
+  Copy,
+  Inbox,
+  KeyRound,
+  Loader2,
+  MessageSquare,
+  RefreshCw,
+  Search,
+  Send,
+  Settings2,
+  Sparkles,
+  UserCheck,
+  XCircle,
+} from "lucide-react";
+
+interface WhatsAppInboxWorkspaceProps {
+  currentUser: User | null;
+  users: User[];
+  onShowToast?: (text: string, type: "success" | "error") => void;
+  onOpenLeadById?: (leadId: number) => void;
+}
+
+export function WhatsAppInboxWorkspace({
+  currentUser,
+  users,
+  onShowToast,
+  onOpenLeadById,
+}: WhatsAppInboxWorkspaceProps) {
+  const isAdmin = currentUser?.role === "admin";
+  const [activeTab, setActiveTab] = useState<"inbox" | "templates" | "setup">("inbox");
+
+  // Inbox state
+  const [conversations, setConversations] = useState<WhatsAppConversation[]>([]);
+  const [convFilter, setConvFilter] = useState<"all" | "unread" | "open" | "resolved">("all");
+  const [search, setSearch] = useState("");
+  const [loadingConvs, setLoadingConvs] = useState(true);
+  const [selectedConvId, setSelectedConvId] = useState<number | null>(null);
+  const [activeConv, setActiveConv] = useState<WhatsAppConversation | null>(null);
+  const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
+  const [loadingMsgs, setLoadingMsgs] = useState(false);
+
+  // Composer state
+  const [replyText, setReplyText] = useState("");
+  const [sending, setSending] = useState(false);
+  const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
+  const [syncingTemplates, setSyncingTemplates] = useState(false);
+
+  // Kapso Settings state
+  const [settings, setSettings] = useState<WhatsAppSettings>({
+    kapso_api_key: "",
+    phone_number_id: "",
+    business_account_id: "",
+    webhook_secret: "",
+    display_phone_number: "",
+    is_connected: false,
+  });
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [testingConn, setTestingConn] = useState(false);
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
+
+  const loadConversations = useCallback(async () => {
+    try {
+      const sp = new URLSearchParams();
+      sp.set("filter", convFilter);
+      if (search.trim()) sp.set("search", search.trim());
+      const res = await fetch(`/api/whatsapp/conversations?${sp.toString()}`, { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setConversations(data.conversations || []);
+      }
+    } finally {
+      setLoadingConvs(false);
+    }
+  }, [convFilter, search]);
+
+  const loadThread = useCallback(async (convId: number) => {
+    setLoadingMsgs(true);
+    try {
+      const res = await fetch(`/api/whatsapp/conversations/${convId}`, { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setActiveConv(data.conversation || null);
+        setMessages(data.messages || []);
+        setConversations((prev) =>
+          prev.map((c) => (c.id === convId ? { ...c, unread_count: 0 } : c))
+        );
+      }
+    } finally {
+      setLoadingMsgs(false);
+    }
+  }, []);
+
+  const loadSettingsAndTemplates = useCallback(async () => {
+    try {
+      const [tplRes, setRes] = await Promise.all([
+        fetch("/api/whatsapp-templates", { cache: "no-store" }),
+        ["admin", "team_lead"].includes(currentUser?.role || "")
+          ? fetch("/api/whatsapp/settings", { cache: "no-store" })
+          : Promise.resolve(null),
+      ]);
+      if (tplRes.ok) {
+        const tData = await tplRes.json();
+        if (Array.isArray(tData)) setTemplates(tData);
+      }
+      if (setRes && setRes.ok) {
+        const sData = await setRes.json();
+        if (sData?.settings) setSettings(sData.settings);
+      }
+    } catch {
+      // ignore
+    }
+  }, [currentUser?.role]);
+
+  useEffect(() => {
+    loadConversations();
+    const timer = setInterval(loadConversations, 12000);
+    return () => clearInterval(timer);
+  }, [loadConversations]);
+
+  useEffect(() => {
+    loadSettingsAndTemplates();
+  }, [loadSettingsAndTemplates]);
+
+  useEffect(() => {
+    if (selectedConvId) {
+      loadThread(selectedConvId);
+    }
+  }, [selectedConvId, loadThread]);
+
+  const handleSendReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeConv || !replyText.trim()) return;
+    setSending(true);
+    try {
+      const res = await fetch("/api/whatsapp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversation_id: activeConv.id,
+          lead_id: activeConv.lead_id || undefined,
+          message_type: "text",
+          body: replyText.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to send message");
+      setReplyText("");
+      if (data.message) setMessages((prev) => [...prev, data.message]);
+      await loadConversations();
+    } catch (err: any) {
+      onShowToast?.(err?.message || "Failed to send WhatsApp message", "error");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleToggleConvStatus = async () => {
+    if (!activeConv) return;
+    const next = activeConv.status === "resolved" ? "open" : "resolved";
+    const res = await fetch(`/api/whatsapp/conversations/${activeConv.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: next }),
+    });
+    if (res.ok) {
+      setActiveConv((prev) => (prev ? { ...prev, status: next } : prev));
+      setConversations((prev) => prev.map((c) => (c.id === activeConv.id ? { ...c, status: next } : c)));
+      onShowToast?.(`Conversation marked ${next}`, "success");
+    }
+  };
+
+  const handleAssignConv = async (userId: string) => {
+    if (!activeConv) return;
+    const res = await fetch(`/api/whatsapp/conversations/${activeConv.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assigned_to: userId || null }),
+    });
+    if (res.ok) {
+      setActiveConv((prev) => (prev ? { ...prev, assigned_to: userId || null } : prev));
+      loadConversations();
+      onShowToast?.("Conversation assignment updated", "success");
+    }
+  };
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingSettings(true);
+    try {
+      const res = await fetch("/api/whatsapp/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save Kapso settings");
+      if (data.settings) setSettings(data.settings);
+      onShowToast?.("Kapso WhatsApp settings saved", "success");
+    } catch (err: any) {
+      onShowToast?.(err?.message || "Failed to save settings", "error");
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setTestingConn(true);
+    try {
+      const res = await fetch("/api/whatsapp/settings", { method: "PUT" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Connection test failed");
+      onShowToast?.(data.message || "Connected to Kapso!", "success");
+      loadSettingsAndTemplates();
+    } catch (err: any) {
+      onShowToast?.(err?.message || "Connection test failed", "error");
+    } finally {
+      setTestingConn(false);
+    }
+  };
+
+  const handleSyncKapsoTemplates = async () => {
+    setSyncingTemplates(true);
+    try {
+      const res = await fetch("/api/whatsapp/templates/sync", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Sync failed");
+      onShowToast?.(`Synced ${data.synced || 0} template(s) from Kapso WABA`, "success");
+      loadSettingsAndTemplates();
+    } catch (err: any) {
+      onShowToast?.(err?.message || "Failed to sync Kapso templates", "error");
+    } finally {
+      setSyncingTemplates(false);
+    }
+  };
+
+  const webhookUrl =
+    typeof window !== "undefined" ? `${window.location.origin}/api/whatsapp/webhook` : "/api/whatsapp/webhook";
+
+  return (
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
+      {/* Top Sub-Navigation */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-emerald-600/15 text-emerald-600 flex items-center justify-center">
+            <MessageSquare className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base sm:text-lg font-bold text-foreground">
+                Integrated WhatsApp (Kapso)
+              </h2>
+              <Badge
+                variant="outline"
+                className={`text-[10px] font-semibold ${
+                  settings.is_connected
+                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                    : "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                }`}
+              >
+                {settings.is_connected ? "● Kapso Connected" : "Setup Required"}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Two-way WhatsApp Business inbox, WABA template sync, and real-time webhook tracking.
+            </p>
+          </div>
+        </div>
+
+        <div className="inline-flex rounded-xl border border-border bg-muted/40 p-1 gap-1 self-start">
+          <button
+            type="button"
+            onClick={() => setActiveTab("inbox")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
+              activeTab === "inbox" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Inbox className="w-3.5 h-3.5" />
+            <span>Inbox</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("templates")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
+              activeTab === "templates" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Templates</span>
+          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setActiveTab("setup")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
+                activeTab === "setup" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Settings2 className="w-3.5 h-3.5" />
+              <span>Kapso Setup</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* TAB 1: 2-PANE INBOX */}
+      {activeTab === "inbox" && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 bg-card border border-border/80 rounded-2xl overflow-hidden shadow-2xs min-h-[600px]">
+          {/* Left Pane: Conversation List */}
+          <div className="lg:col-span-4 border-b lg:border-b-0 lg:border-r border-border/70 flex flex-col">
+            <div className="p-3 border-b border-border/60 space-y-2.5">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search name, phone, or lead ID..."
+                  className="h-8 pl-8 text-xs rounded-lg"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                {(["all", "unread", "open", "resolved"] as const).map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => setConvFilter(f)}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold capitalize cursor-pointer ${
+                      convFilter === f
+                        ? "bg-emerald-600 text-white"
+                        : "bg-muted/50 text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {f}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={loadConversations}
+                  className="ml-auto p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+                  title="Refresh conversations"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingConvs ? "animate-spin" : ""}`} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto divide-y divide-border/50 max-h-[540px]">
+              {conversations.length === 0 ? (
+                <div className="py-12 px-4 text-center text-xs text-muted-foreground space-y-1">
+                  <MessageSquare className="w-7 h-7 mx-auto opacity-30" />
+                  <p className="font-semibold text-foreground">No conversations yet</p>
+                  <p>Send a WhatsApp message from any lead or connect your Kapso webhook.</p>
+                </div>
+              ) : (
+                conversations.map((c) => {
+                  const selected = c.id === selectedConvId;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setSelectedConvId(c.id)}
+                      className={`w-full text-left p-3 transition-colors cursor-pointer flex items-start gap-2.5 ${
+                        selected ? "bg-emerald-500/10" : "hover:bg-muted/40"
+                      }`}
+                    >
+                      <div className="w-9 h-9 rounded-full bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 font-bold text-xs flex items-center justify-center shrink-0">
+                        {(c.contact_name || c.lead_name || "W").charAt(0)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs font-bold text-foreground truncate">
+                            {c.contact_name || c.lead_name || c.phone_number}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground shrink-0">
+                            {new Date(c.last_message_at).toLocaleTimeString("en-IN", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-muted-foreground truncate mt-0.5">
+                          {c.last_message_direction === "outbound" ? "You: " : ""}
+                          {c.last_message_preview || c.phone_number}
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          {c.lead_code && (
+                            <Badge variant="outline" className="text-[9px] h-4 px-1 font-mono">
+                              {c.lead_code}
+                            </Badge>
+                          )}
+                          <Badge
+                            variant="outline"
+                            className={`text-[9px] h-4 px-1 capitalize ${
+                              c.status === "resolved" ? "text-muted-foreground" : "text-emerald-600 border-emerald-500/30"
+                            }`}
+                          >
+                            {c.status}
+                          </Badge>
+                          {c.unread_count > 0 && (
+                            <Badge className="text-[9px] h-4 px-1.5 bg-emerald-600 text-white ml-auto">
+                              {c.unread_count}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Right Pane: Thread & Composer */}
+          <div className="lg:col-span-8 flex flex-col bg-muted/10">
+            {!activeConv ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-xs text-muted-foreground space-y-2">
+                <MessageSquare className="w-10 h-10 opacity-25" />
+                <p className="text-sm font-semibold text-foreground">Select a WhatsApp Conversation</p>
+                <p className="max-w-sm">
+                  View two-way message history, send quick templates or replies via Kapso, and manage lead conversations.
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Thread Header */}
+                <div className="p-3.5 bg-card border-b border-border/70 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-foreground">
+                        {activeConv.contact_name || activeConv.lead_name || activeConv.phone_number}
+                      </span>
+                      <span className="text-xs font-mono text-muted-foreground">
+                        {activeConv.phone_number}
+                      </span>
+                    </div>
+                    {activeConv.lead_id && onOpenLeadById && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenLeadById(activeConv.lead_id!)}
+                        className="text-[11px] text-primary hover:underline font-medium cursor-pointer"
+                      >
+                        Open Lead Profile ({activeConv.lead_code || `#${activeConv.lead_id}`}) →
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {["admin", "team_lead"].includes(currentUser?.role || "") && (
+                      <select
+                        value={activeConv.assigned_to || ""}
+                        onChange={(e) => handleAssignConv(e.target.value)}
+                        className="h-8 rounded-lg border border-border bg-background px-2 text-xs"
+                      >
+                        <option value="">Unassigned</option>
+                        {users.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleToggleConvStatus}
+                      className="h-8 text-xs gap-1 cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{activeConv.status === "resolved" ? "Reopen" : "Resolve"}</span>
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Messages Feed */}
+                <div className="flex-1 p-4 space-y-2.5 overflow-y-auto max-h-[420px]">
+                  {loadingMsgs ? (
+                    <div className="py-10 text-center text-xs text-muted-foreground">
+                      <Loader2 className="w-5 h-5 animate-spin mx-auto mb-1" />
+                      Loading messages...
+                    </div>
+                  ) : messages.length === 0 ? (
+                    <div className="py-10 text-center text-xs text-muted-foreground">
+                      No messages in this thread yet. Send the first message below.
+                    </div>
+                  ) : (
+                    messages.map((m) => {
+                      const isOutbound = m.direction === "outbound";
+                      return (
+                        <div
+                          key={m.id}
+                          className={`flex ${isOutbound ? "justify-end" : "justify-start"}`}
+                        >
+                          <div
+                            className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-xs shadow-2xs space-y-1 ${
+                              isOutbound
+                                ? "bg-emerald-600 text-white rounded-br-xs"
+                                : "bg-card border border-border/80 text-foreground rounded-bl-xs"
+                            }`}
+                          >
+                            <p className="whitespace-pre-wrap leading-relaxed">{m.body}</p>
+                            <div
+                              className={`flex items-center justify-end gap-1.5 text-[10px] ${
+                                isOutbound ? "text-emerald-100" : "text-muted-foreground"
+                              }`}
+                            >
+                              {m.sent_by_name && isOutbound && <span>{m.sent_by_name} ·</span>}
+                              <span>
+                                {new Date(m.created_at).toLocaleTimeString("en-IN", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                              {isOutbound && (
+                                <>
+                                  {m.status === "read" && <CheckCheck className="w-3 h-3 text-sky-200" />}
+                                  {m.status === "delivered" && <CheckCheck className="w-3 h-3" />}
+                                  {m.status === "sent" && <Check className="w-3 h-3" />}
+                                  {m.status === "failed" && <XCircle className="w-3 h-3 text-rose-200" />}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Reply Composer */}
+                <form
+                  onSubmit={handleSendReply}
+                  className="p-3 bg-card border-t border-border/70 space-y-2"
+                >
+                  {templates.length > 0 && (
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                      <span className="text-[10px] font-semibold text-muted-foreground shrink-0">
+                        Quick Template:
+                      </span>
+                      {templates.slice(0, 5).map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setReplyText(t.template_body)}
+                          className="text-[11px] px-2 py-0.5 rounded-md border border-border bg-muted/40 hover:bg-muted text-foreground shrink-0 cursor-pointer"
+                        >
+                          {t.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      placeholder="Type a WhatsApp reply via Kapso..."
+                      className="h-9 text-xs flex-1"
+                    />
+                    <Button
+                      type="submit"
+                      disabled={sending || !replyText.trim()}
+                      className="h-9 px-4 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 cursor-pointer"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>{sending ? "Sending..." : "Send"}</span>
+                    </Button>
+                  </div>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: TEMPLATES & KAPSO SYNC */}
+      {activeTab === "templates" && (
+        <div className="space-y-4">
+          {["admin", "team_lead"].includes(currentUser?.role || "") && (
+            <div className="bg-card border border-border/80 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-xs">
+                <span className="font-bold text-foreground">Sync Approved Kapso Templates</span>
+                <p className="text-muted-foreground">
+                  Pull approved WhatsApp Business templates directly from your Kapso WABA into DreamDesk CRM.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={syncingTemplates}
+                onClick={handleSyncKapsoTemplates}
+                className="h-8 text-xs gap-1.5 cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${syncingTemplates ? "animate-spin" : ""}`} />
+                <span>{syncingTemplates ? "Syncing..." : "Sync from Kapso"}</span>
+              </Button>
+            </div>
+          )}
+          <WhatsAppTemplatesWorkspace />
+        </div>
+      )}
+
+      {/* TAB 3: KAPSO SETUP (ADMIN ONLY) */}
+      {activeTab === "setup" && isAdmin && (
+        <form
+          onSubmit={handleSaveSettings}
+          className="bg-card border border-border/80 rounded-2xl p-5 space-y-4 max-w-2xl shadow-2xs"
+        >
+          <div className="flex items-center justify-between border-b border-border/60 pb-3">
+            <div className="flex items-center gap-2">
+              <KeyRound className="w-4 h-4 text-emerald-600" />
+              <span className="text-sm font-bold text-foreground">Kapso WhatsApp API Configuration</span>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={testingConn}
+              onClick={handleTestConnection}
+              className="h-8 text-xs gap-1.5 cursor-pointer"
+            >
+              {testingConn ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserCheck className="w-3.5 h-3.5 text-emerald-600" />}
+              <span>Test Connection</span>
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="space-y-1 sm:col-span-2">
+              <label className="font-semibold text-foreground">Kapso API Key (X-API-Key) *</label>
+              <Input
+                value={settings.kapso_api_key}
+                onChange={(e) => setSettings({ ...settings, kapso_api_key: e.target.value })}
+                placeholder="Paste your Kapso Project API Key..."
+                className="h-9 text-xs font-mono"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">Phone Number ID *</label>
+              <Input
+                value={settings.phone_number_id}
+                onChange={(e) => setSettings({ ...settings, phone_number_id: e.target.value })}
+                placeholder="e.g. 123456789012345"
+                className="h-9 text-xs font-mono"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">Business Account ID (WABA)</label>
+              <Input
+                value={settings.business_account_id}
+                onChange={(e) => setSettings({ ...settings, business_account_id: e.target.value })}
+                placeholder="For syncing Meta/Kapso templates"
+                className="h-9 text-xs font-mono"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">Display Phone Number</label>
+              <Input
+                value={settings.display_phone_number}
+                onChange={(e) => setSettings({ ...settings, display_phone_number: e.target.value })}
+                placeholder="+91 98XXXXXXXX"
+                className="h-9 text-xs font-mono"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">Webhook Secret Key</label>
+              <Input
+                value={settings.webhook_secret}
+                onChange={(e) => setSettings({ ...settings, webhook_secret: e.target.value })}
+                placeholder="Optional X-Webhook-Secret"
+                className="h-9 text-xs font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="p-3 rounded-xl bg-muted/30 border border-border/60 space-y-1.5 text-xs">
+            <div className="font-semibold text-foreground">Webhook Endpoint URL (Paste in Kapso Dashboard)</div>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 bg-background border border-border rounded-lg px-2.5 py-1.5 font-mono text-[11px] truncate">
+                {webhookUrl}
+              </code>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  navigator.clipboard.writeText(webhookUrl);
+                  setCopiedWebhook(true);
+                  setTimeout(() => setCopiedWebhook(false), 2000);
+                }}
+                className="h-8 text-xs gap-1 cursor-pointer"
+              >
+                {copiedWebhook ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedWebhook ? "Copied" : "Copy"}</span>
+              </Button>
+            </div>
+          </div>
+
+          <Button
+            type="submit"
+            disabled={savingSettings}
+            className="h-9 px-5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+          >
+            {savingSettings ? "Saving..." : "Save Kapso Configuration"}
+          </Button>
+        </form>
+      )}
+    </div>
+  );
+}

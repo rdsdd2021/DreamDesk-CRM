@@ -41,7 +41,7 @@ import { EnhancedLeadDrawer } from "@/components/crm/EnhancedLeadDrawer";
 import { TasksModal } from "@/components/crm/TasksModal";
 import { DuplicatesModal } from "@/components/crm/DuplicatesModal";
 import { WhatsAppModal } from "@/components/crm/WhatsAppModal";
-import { WhatsAppTemplatesWorkspace } from "@/components/crm/WhatsAppTemplatesWorkspace";
+import { WhatsAppInboxWorkspace } from "@/components/crm/WhatsAppInboxWorkspace";
 import { BroadcastsWorkspace } from "@/components/crm/BroadcastsWorkspace";
 import { ImportModal } from "@/components/crm/ImportModal";
 import { TeamModal } from "@/components/crm/TeamModal";
@@ -1116,12 +1116,7 @@ export default function CRMPage() {
         const targetLead = selectedLeadForDetail || (activeLeadIndex !== null ? leads[activeLeadIndex] : null);
         if (targetLead?.id) {
           e.preventDefault();
-          fetch(`/api/leads/${targetLead.id}/whatsapp-intent`, { method: "POST" })
-            .then((r) => r.json())
-            .then((d) => {
-              if (d.launchUrl) window.open(d.launchUrl, "_blank");
-            })
-            .catch(console.error);
+          setWhatsAppTargetLead(targetLead);
         }
       }
     };
@@ -1129,6 +1124,35 @@ export default function CRMPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [leads, activeLeadIndex, dispositions, toggleFilterSidebar, selectedLeadForDetail, handleNextLead, handlePrevLead]);
+
+  // Global listener for integrated Kapso WhatsApp modal
+  useEffect(() => {
+    const onOpenWa = async (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      if (detail.lead) {
+        setWhatsAppTargetLead(detail.lead);
+        return;
+      }
+      if (detail.leadId) {
+        const found = leads.find((l) => l.id === Number(detail.leadId));
+        if (found) {
+          setWhatsAppTargetLead(found);
+          return;
+        }
+        try {
+          const res = await fetch(`/api/leads/${detail.leadId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.lead) setWhatsAppTargetLead(data.lead);
+          }
+        } catch {
+          // ignore
+        }
+      }
+    };
+    window.addEventListener("open-kapso-whatsapp", onOpenWa);
+    return () => window.removeEventListener("open-kapso-whatsapp", onOpenWa);
+  }, [leads]);
 
   const handleToggleColumnVisibility = (key: string) => {
     setVisibleColumns((prev) =>
@@ -1578,7 +1602,7 @@ export default function CRMPage() {
                 {currentView === "dashboard" && "Dashboard & Analytics"}
                 {currentView === "campaigns" && "Campaigns & Marketing Outreach"}
                 {currentView === "dispositions" && "Call Dispositions & Outcomes"}
-                {currentView === "whatsapp" && "WhatsApp Template Studio"}
+                {currentView === "whatsapp" && "WhatsApp Inbox & Management"}
                 {currentView === "fields" && "Dynamic Schema & Fields Studio"}
                 {currentView === "tasks" && "Tasks & Daily Ops"}
                 {currentView === "team" && "Counselors & Team Directory"}
@@ -1834,12 +1858,26 @@ export default function CRMPage() {
             </WorkspaceErrorBoundary>
           )}
 
-          {/* VIEW 4B-2: WHATSAPP TEMPLATES STUDIO */}
+          {/* VIEW 4B-2: INTEGRATED WHATSAPP INBOX & MANAGEMENT */}
           {currentView === "whatsapp" && canAccessView("whatsapp") && (
-            <WorkspaceErrorBoundary workspaceName="WhatsApp Template Studio">
-              <div className="max-w-7xl mx-auto">
-                <WhatsAppTemplatesWorkspace />
-              </div>
+            <WorkspaceErrorBoundary workspaceName="WhatsApp Inbox & Management">
+              <WhatsAppInboxWorkspace
+                currentUser={currentUser}
+                users={users}
+                onShowToast={showToast}
+                onOpenLeadById={async (leadId) => {
+                  const found = leads.find((l) => l.id === leadId);
+                  if (found) {
+                    setSelectedLeadForDetail(found);
+                    return;
+                  }
+                  const res = await fetch(`/api/leads/${leadId}`);
+                  if (res.ok) {
+                    const d = await res.json();
+                    if (d?.lead) setSelectedLeadForDetail(d.lead);
+                  }
+                }}
+              />
             </WorkspaceErrorBoundary>
           )}
 
