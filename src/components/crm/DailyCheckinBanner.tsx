@@ -73,15 +73,23 @@ function formatElapsedDuration(sinceIso?: string | null, nowMs?: number): string
   return `${pad(minutes)}:${pad(seconds)}`;
 }
 
-export function DailyPresencePill() {
-  const [checkin, setCheckin] = useState<DailyCheckin | null>(null);
-  const [autoStats, setAutoStats] = useState<DailyAutoStats>({
-    callsMade: 0,
-    connectedCalls: 0,
-    whatsappSent: 0,
-    tasksCompleted: 0,
-    conversions: 0,
-  });
+export function DailyPresencePill({
+  initialCheckin,
+  initialAutoStats,
+}: {
+  initialCheckin?: DailyCheckin | null;
+  initialAutoStats?: DailyAutoStats | null;
+} = {}) {
+  const [checkin, setCheckin] = useState<DailyCheckin | null>(initialCheckin ?? null);
+  const [autoStats, setAutoStats] = useState<DailyAutoStats>(
+    initialAutoStats ?? {
+      callsMade: 0,
+      connectedCalls: 0,
+      whatsappSent: 0,
+      tasksCompleted: 0,
+      conversions: 0,
+    }
+  );
   const [updating, setUpdating] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -105,11 +113,21 @@ export function DailyPresencePill() {
   }, []);
 
   useEffect(() => {
-    load();
+    if (initialCheckin !== undefined) setCheckin(initialCheckin);
+  }, [initialCheckin]);
+
+  useEffect(() => {
+    if (initialAutoStats) setAutoStats(initialAutoStats);
+  }, [initialAutoStats]);
+
+  useEffect(() => {
+    if (initialCheckin === undefined) {
+      load();
+    }
     const onUpdated = () => load();
     window.addEventListener("daily-ops-updated", onUpdated);
     return () => window.removeEventListener("daily-ops-updated", onUpdated);
-  }, [load]);
+  }, [load, initialCheckin]);
 
   useEffect(() => {
     const timer = setInterval(() => setNowMs(Date.now()), 1000);

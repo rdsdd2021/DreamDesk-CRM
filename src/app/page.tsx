@@ -114,6 +114,8 @@ export default function CRMPage() {
   const [dailyTarget, setDailyTarget] = useState<any>(null);
   const [presenceStatus, setPresenceStatus] = useState<PresenceStatus>("available");
   const [presenceUpdatedAt, setPresenceUpdatedAt] = useState<string | null>(null);
+  const [dailyCheckin, setDailyCheckin] = useState<any>(null);
+  const [dailyAutoStats, setDailyAutoStats] = useState<any>(null);
 
   // Authenticate session on load
   const checkAuth = useCallback(async () => {
@@ -141,6 +143,8 @@ export default function CRMPage() {
       setDailyTarget(data.dailyOps?.target || null);
       setPresenceStatus(data.dailyOps?.checkin?.presence_status || "available");
       setPresenceUpdatedAt(data.dailyOps?.checkin?.updated_at || data.dailyOps?.checkin?.checked_in_at || null);
+      setDailyCheckin(data.dailyOps?.checkin ?? null);
+      setDailyAutoStats(data.dailyOps?.autoStats ?? null);
 
       // Enforce counselor perspective lock
       if (
@@ -588,10 +592,17 @@ export default function CRMPage() {
         params.set("reassigned_only", "1");
       }
 
-      // If in counselor mode, force assigned_to = activeCounselorId
+      // If in counselor mode, force assigned_to = activeCounselorId (except global phone/Lead ID search)
       const facetsToApply = { ...selectedFacets };
-      if (roleMode === "counselor") {
+      const trimmedSearch = debouncedSearch.trim();
+      const cleanDigits = trimmedSearch.replace(/[^0-9]/g, "");
+      const isGlobalLookup =
+        cleanDigits.length >= 6 || /^ld-\d+/i.test(trimmedSearch) || /^\d{1,10}$/.test(trimmedSearch);
+
+      if (roleMode === "counselor" && !isGlobalLookup) {
         facetsToApply["assigned_to"] = [activeCounselorId];
+      } else if (isGlobalLookup) {
+        delete facetsToApply["assigned_to"];
       }
 
       // Append Facets
@@ -623,6 +634,7 @@ export default function CRMPage() {
   const syncDebounceRef = useRef<any>(null);
 
   const fetchLeads = useCallback(async (silent = false) => {
+    if (!currentUser) return;
     if (!silent) setLoading(true);
     try {
       const params = getFilterQueryParams(page);
@@ -653,7 +665,7 @@ export default function CRMPage() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [page, getFilterQueryParams, router]);
+  }, [currentUser, page, getFilterQueryParams, router]);
 
   useEffect(() => {
     fetchLeads();
@@ -1602,7 +1614,12 @@ export default function CRMPage() {
             )}
 
             {/* 1. Status Button */}
-            {currentUser && <DailyPresencePill />}
+            {currentUser && (
+              <DailyPresencePill
+                initialCheckin={dailyCheckin}
+                initialAutoStats={dailyAutoStats}
+              />
+            )}
 
             {/* 2. Notification Button */}
             <NotificationBell
@@ -2051,7 +2068,6 @@ export default function CRMPage() {
         isOpen={Boolean(selectedLeadForDetail)}
         onClose={() => {
           setSelectedLeadForDetail(null);
-          fetchLeads();
         }}
         users={users}
         schemaMeta={schemaMeta}
@@ -2077,7 +2093,6 @@ export default function CRMPage() {
               prev.map((l) => (String(l.id) === String(updatedLead.id) ? updatedLead : l))
             );
           }
-          fetchLeads();
         }}
         onNextLead={handleNextLead}
         onPrevLead={handlePrevLead}

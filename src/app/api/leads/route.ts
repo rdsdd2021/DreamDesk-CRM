@@ -99,7 +99,8 @@ export async function GET(request: NextRequest) {
       sort_order: sortOrder,
     };
 
-    const result = LeadsService.getLeads(filterParams, userScope);
+    const includeFacets = searchParams.get("include_facets") !== "0";
+    const result = LeadsService.getLeads(filterParams, userScope, { includeFacets });
     return NextResponse.json(result);
   } catch (error: any) {
     console.error("Failed to fetch leads:", error);

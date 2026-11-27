@@ -59,11 +59,28 @@ const PHONE_KEY_REGEX = /phone|mobile|contact|whatsapp|tel|father|mother|guardia
 export class LeadsService {
   private static _facetCacheMap = new Map<string, { data: FacetGroup[]; timestamp: number }>();
   private static _summaryCacheMap = new Map<string, { data: any; timestamp: number }>();
-  private static readonly CACHE_TTL_MS = 25000; // 25s TTL
+  private static _schemaCountsCache: { data: Map<string, number>; timestamp: number } | null = null;
+  private static readonly CACHE_TTL_MS = 120000; // 120s TTL
+  private static readonly SCHEMA_COUNTS_TTL_MS = 600000; // 10m TTL
 
-  public static invalidateCache() {
-    LeadsService._facetCacheMap.clear();
-    LeadsService._summaryCacheMap.clear();
+  public static invalidateCache(userId?: string) {
+    if (!userId) {
+      LeadsService._facetCacheMap.clear();
+      LeadsService._summaryCacheMap.clear();
+      LeadsService._schemaCountsCache = null;
+      return;
+    }
+    // Scoped invalidation: clear entries belonging to this user without wiping other active sessions
+    for (const key of LeadsService._facetCacheMap.keys()) {
+      if (key.includes(userId)) {
+        LeadsService._facetCacheMap.delete(key);
+      }
+    }
+    for (const key of LeadsService._summaryCacheMap.keys()) {
+      if (key.includes(userId)) {
+        LeadsService._summaryCacheMap.delete(key);
+      }
+    }
   }
 
   /**
@@ -79,12 +96,17 @@ export class LeadsService {
     return cleanDigits.length >= 6 || /^ld-\d+/i.test(trimmed) || /^\d{1,10}$/.test(trimmed);
   }
 
-  static getLeads(params: FilterParams, userScope?: UserScope): LeadsResponse {
+  static getLeads(
+    params: FilterParams,
+    userScope?: UserScope,
+    options?: { includeFacets?: boolean }
+  ): LeadsResponse {
     const db = getDatabase();
     const page = Math.max(1, params.page || 1);
     const limit = Math.min(200, Math.max(10, params.limit || 50));
     const offset = (page - 1) * limit;
     const isGlobalLookup = this.isGlobalIdentifierSearch(params.search);
+    const includeFacets = options?.includeFacets !== false;
 
     // Strict security constraint: if user cannot view all leads, force assigned_to = [userScope.userId]
     // EXCEPT when performing a database-wide lookup by phone number or Lead ID
@@ -171,11 +193,22 @@ export class LeadsService {
       updated_at: row.updated_at,
     }));
 
-    // 3. Compute dynamic facets for filterable fields (strictly scoped)
-    const facets = this.computeDynamicFacets(params, userScope);
+    // 3. Compute dynamic facets & summary only when requested (skip on quick CommandCenter lookups)
+    const facets = includeFacets ? this.computeDynamicFacets(params, userScope) : [];
 
     // 4. Compute database summary (contextual to active filters when present, strictly scoped by user permissions)
-    const { summary, globalSummary } = this.getSummaryStats(userScope, params);
+    const { summary, globalSummary } = includeFacets
+      ? this.getSummaryStats(userScope, params)
+      : {
+          summary: {
+            totalLeads: total,
+            unassignedCount: 0,
+            assignedCount: 0,
+            statusBreakdown: {},
+            isFiltered: true,
+          },
+          globalSummary: undefined,
+        };
 
     return {
       leads,
@@ -205,45 +238,38 @@ export class LeadsService {
     const conditions: string[] = [];
     const queryParams: Record<string, any> = {};
 
-    // Global Search
+    // Global Search (uses FTS5 + indexed phone_digits / lead_code / id instead of 11x full-table LIKE scans)
     if (params.search && params.search.trim()) {
       const searchTrimmed = params.search.trim();
       const cleanDigits = searchTrimmed.replace(/[^0-9]/g, "");
-      
-      if (cleanDigits.length >= 3) {
-        conditions.push(`(
-          leads.name LIKE @search 
-          OR leads.phone LIKE @search 
-          OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(leads.phone, ' ', ''), '-', ''), '+', ''), '(', ''), ')', '') LIKE @search_digits
-          OR leads.alternate_contacts LIKE @search
-          OR REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(leads.alternate_contacts, ''), ' ', ''), '-', ''), '+', ''), '(', ''), ')', '') LIKE @search_digits
-          OR leads.email LIKE @search 
-          OR leads.lead_code LIKE @search 
-          OR CAST(leads.id AS TEXT) = @exact_search
-          OR campaigns.name LIKE @search
-          OR dispositions.name LIKE @search
-          OR leads.tags LIKE @search
-          OR leads.raw_attributes LIKE @search
-        )`);
-        queryParams.search = `%${searchTrimmed}%`;
-        queryParams.search_digits = `%${cleanDigits}%`;
-        queryParams.exact_search = searchTrimmed;
+      const ftsTokens = searchTrimmed
+        .replace(/[^\p{L}\p{N}\s]/gu, " ")
+        .trim()
+        .split(/\s+/)
+        .filter((t) => t.length >= 2)
+        .slice(0, 5)
+        .map((t) => `"${t}"*`);
+
+      const searchParts: string[] = [];
+      if (ftsTokens.length > 0) {
+        searchParts.push(`leads.id IN (SELECT rowid FROM leads_fts WHERE leads_fts MATCH @fts_query)`);
+        queryParams.fts_query = ftsTokens.join(" ");
       } else {
-        conditions.push(`(
-          leads.name LIKE @search 
-          OR leads.phone LIKE @search 
-          OR leads.alternate_contacts LIKE @search
-          OR leads.email LIKE @search 
-          OR leads.lead_code LIKE @search 
-          OR CAST(leads.id AS TEXT) = @exact_search
-          OR campaigns.name LIKE @search
-          OR dispositions.name LIKE @search
-          OR leads.tags LIKE @search
-          OR leads.raw_attributes LIKE @search
-        )`);
-        queryParams.search = `%${searchTrimmed}%`;
-        queryParams.exact_search = searchTrimmed;
+        searchParts.push(`(leads.name LIKE @search OR leads.email LIKE @search)`);
       }
+
+      if (cleanDigits.length >= 3) {
+        searchParts.push(`leads.phone_digits LIKE @search_digits`);
+        searchParts.push(`leads.alternate_contacts LIKE @search_digits`);
+        queryParams.search_digits = `%${cleanDigits}%`;
+      }
+
+      searchParts.push(`leads.lead_code LIKE @search`);
+      searchParts.push(`CAST(leads.id AS TEXT) = @exact_search`);
+      queryParams.search = `%${searchTrimmed}%`;
+      queryParams.exact_search = searchTrimmed;
+
+      conditions.push(`(${searchParts.join(" OR ")})`);
     }
 
     // Status filter
@@ -1630,16 +1656,30 @@ export class LeadsService {
   }
 
   /**
-   * Retrieves registered dynamic schema headers with live lead usage counts.
+   * Retrieves registered dynamic schema headers.
+   * Usage counts (9x json_extract scans) are only computed when includeCounts=true (Schema Studio) and cached for 10m.
    */
-  static getSchemaMeta(): SchemaMeta[] {
+  static getSchemaMeta(includeCounts = false): SchemaMeta[] {
     const db = getDatabase();
     const headers = db
       .prepare(`SELECT * FROM lead_schema_meta ORDER BY display_order ASC`)
       .all() as SchemaMeta[];
 
-    // Compute live count of leads utilizing each dynamic field
-    return headers.map((h) => {
+    if (!includeCounts) {
+      return headers.map((h) => ({ ...h, lead_count: 0 }));
+    }
+
+    const now = Date.now();
+    if (
+      LeadsService._schemaCountsCache &&
+      now - LeadsService._schemaCountsCache.timestamp < LeadsService.SCHEMA_COUNTS_TTL_MS
+    ) {
+      const cached = LeadsService._schemaCountsCache.data;
+      return headers.map((h) => ({ ...h, lead_count: cached.get(h.key_name) ?? 0 }));
+    }
+
+    const countsMap = new Map<string, number>();
+    const result = headers.map((h) => {
       const cleanKey = h.key_name.replace(/[^a-zA-Z0-9_]/g, "");
       let leadCount = 0;
       try {
@@ -1655,12 +1695,15 @@ export class LeadsService {
       } catch {
         leadCount = 0;
       }
-
+      countsMap.set(h.key_name, leadCount);
       return {
         ...h,
         lead_count: leadCount,
       };
     });
+
+    LeadsService._schemaCountsCache = { data: countsMap, timestamp: now };
+    return result;
   }
 
   /**

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { LeadsService } from "@/lib/services/leadsService";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const meta = LeadsService.getSchemaMeta();
+    const includeCounts = request.nextUrl.searchParams.get("include_counts") === "1";
+    const meta = LeadsService.getSchemaMeta(includeCounts);
     return NextResponse.json(meta);
   } catch (error: any) {
     return NextResponse.json({ error: error?.message || "Failed to fetch schema" }, { status: 500 });

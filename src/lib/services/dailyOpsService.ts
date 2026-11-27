@@ -32,20 +32,40 @@ const DEFAULT_TARGET: DailyTarget = {
   is_override: false,
 };
 
+function getIstDayUtcBounds(dateStr: string): {
+  startSql: string;
+  endSql: string;
+  startIso: string;
+  endIso: string;
+} {
+  const start = new Date(`${dateStr}T00:00:00+05:30`);
+  const end = new Date(start.getTime() + 86400000);
+  const startIso = start.toISOString();
+  const endIso = end.toISOString();
+  return {
+    startSql: startIso.slice(0, 19).replace("T", " "),
+    endSql: endIso.slice(0, 19).replace("T", " "),
+    startIso,
+    endIso,
+  };
+}
+
 export class DailyOpsService {
   static getTodayAutoStats(userId: string, dateStr = getTodayDateStr()): DailyAutoStats {
     const db = getDatabase();
+    const { startSql, endSql, startIso, endIso } = getIstDayUtcBounds(dateStr);
 
     const actRows = db
       .prepare(
         `
         SELECT activity_type, COUNT(*) AS cnt
         FROM lead_activities
-        WHERE performed_by_id = ? AND date(created_at, 'localtime') = ?
+        WHERE performed_by_id = ?
+          AND ((created_at >= ? AND created_at < ?) OR (created_at >= ? AND created_at < ?))
         GROUP BY activity_type
       `
       )
-      .all(userId, dateStr) as { activity_type: string; cnt: number }[];
+      .all(userId, startSql, endSql, startIso, endIso) as { activity_type: string; cnt: number }[];
 
     let callsMade = 0;
     let whatsappSent = 0;
@@ -68,11 +88,11 @@ export class DailyOpsService {
         SELECT COUNT(*) AS cnt
         FROM leads
         WHERE assigned_to = ?
-          AND date(COALESCE(last_attempt_at, updated_at), 'localtime') = ?
           AND call_outcome = 'connected'
+          AND ((last_attempt_at >= ? AND last_attempt_at < ?) OR (last_attempt_at >= ? AND last_attempt_at < ?))
       `
       )
-      .get(userId, dateStr) as { cnt: number } | undefined;
+      .get(userId, startSql, endSql, startIso, endIso) as { cnt: number } | undefined;
 
     const convRow = db
       .prepare(
@@ -81,10 +101,10 @@ export class DailyOpsService {
         FROM leads
         WHERE assigned_to = ?
           AND status IN ('Admitted', 'Converted')
-          AND date(updated_at, 'localtime') = ?
+          AND ((updated_at >= ? AND updated_at < ?) OR (updated_at >= ? AND updated_at < ?))
       `
       )
-      .get(userId, dateStr) as { cnt: number } | undefined;
+      .get(userId, startSql, endSql, startIso, endIso) as { cnt: number } | undefined;
 
     const taskRow = db
       .prepare(

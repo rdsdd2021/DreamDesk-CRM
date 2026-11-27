@@ -72,7 +72,9 @@ export function CommandCenter({
     const handler = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/leads?search=${encodeURIComponent(query.trim())}&limit=5`);
+        const res = await fetch(
+          `/api/leads?search=${encodeURIComponent(query.trim())}&limit=5&include_facets=0`
+        );
         const data = await res.json();
         setSearchResults(data.leads || []);
       } catch (err) {

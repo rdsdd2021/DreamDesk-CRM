@@ -649,6 +649,72 @@ function initializeSchema(db: Database.Database) {
     }
   }
 
+  // Performance migrations: phone_digits, composite indexes, expression indexes, and FTS5
+  const perfLeadCols = db.prepare("PRAGMA table_info(leads)").all() as { name: string }[];
+  const perfLeadColNames = new Set(perfLeadCols.map((c) => c.name));
+  if (!perfLeadColNames.has("phone_digits")) {
+    db.exec("ALTER TABLE leads ADD COLUMN phone_digits TEXT;");
+    db.exec(`
+      UPDATE leads
+      SET phone_digits = REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone, ''), ' ', ''), '-', ''), '+', ''), '(', ''), ')', '')
+      WHERE phone_digits IS NULL;
+    `);
+  }
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_leads_phone_digits ON leads(phone_digits);
+    CREATE INDEX IF NOT EXISTS idx_leads_lead_code ON leads(lead_code);
+    CREATE INDEX IF NOT EXISTS idx_leads_last_attempt ON leads(last_attempt_at);
+    CREATE INDEX IF NOT EXISTS idx_leads_updated_at ON leads(updated_at);
+    CREATE INDEX IF NOT EXISTS idx_lead_activities_perf_created ON lead_activities(performed_by_id, created_at);
+
+    CREATE INDEX IF NOT EXISTS idx_leads_attr_stream ON leads(json_extract(raw_attributes, '$.stream'));
+    CREATE INDEX IF NOT EXISTS idx_leads_attr_school ON leads(json_extract(raw_attributes, '$.school'));
+    CREATE INDEX IF NOT EXISTS idx_leads_attr_city ON leads(json_extract(raw_attributes, '$.city'));
+    CREATE INDEX IF NOT EXISTS idx_leads_attr_board ON leads(json_extract(raw_attributes, '$.board'));
+    CREATE INDEX IF NOT EXISTS idx_leads_attr_gender ON leads(json_extract(raw_attributes, '$.gender'));
+    CREATE INDEX IF NOT EXISTS idx_leads_attr_score ON leads(json_extract(raw_attributes, '$.score'));
+    CREATE INDEX IF NOT EXISTS idx_leads_attr_12th_score ON leads(json_extract(raw_attributes, '$.12th_score'));
+    CREATE INDEX IF NOT EXISTS idx_leads_attr_pref_branch ON leads(json_extract(raw_attributes, '$.preferred_branch'));
+  `);
+
+  try {
+    db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS leads_fts USING fts5(
+        name, phone, phone_digits, email, lead_code, tags, raw_attributes,
+        content='leads', content_rowid='id'
+      );
+
+      CREATE TRIGGER IF NOT EXISTS leads_fts_ai AFTER INSERT ON leads BEGIN
+        INSERT INTO leads_fts(rowid, name, phone, phone_digits, email, lead_code, tags, raw_attributes)
+        VALUES (new.id, new.name, new.phone, new.phone_digits, new.email, new.lead_code, new.tags, new.raw_attributes);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS leads_fts_ad AFTER DELETE ON leads BEGIN
+        INSERT INTO leads_fts(leads_fts, rowid, name, phone, phone_digits, email, lead_code, tags, raw_attributes)
+        VALUES ('delete', old.id, old.name, old.phone, old.phone_digits, old.email, old.lead_code, old.tags, old.raw_attributes);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS leads_fts_au AFTER UPDATE ON leads BEGIN
+        INSERT INTO leads_fts(leads_fts, rowid, name, phone, phone_digits, email, lead_code, tags, raw_attributes)
+        VALUES ('delete', old.id, old.name, old.phone, old.phone_digits, old.email, old.lead_code, old.tags, old.raw_attributes);
+        INSERT INTO leads_fts(rowid, name, phone, phone_digits, email, lead_code, tags, raw_attributes)
+        VALUES (new.id, new.name, new.phone, new.phone_digits, new.email, new.lead_code, new.tags, new.raw_attributes);
+      END;
+    `);
+
+    // One-time backfill if FTS table is empty while leads exist
+    const ftsHasRow = db.prepare("SELECT rowid FROM leads_fts LIMIT 1").get();
+    if (!ftsHasRow) {
+      const leadsHasRow = db.prepare("SELECT id FROM leads LIMIT 1").get();
+      if (leadsHasRow) {
+        db.exec("INSERT INTO leads_fts(leads_fts) VALUES('rebuild');");
+      }
+    }
+  } catch (ftsErr) {
+    console.warn("FTS5 initialization skipped/failed:", ftsErr);
+  }
+
   seedInitialData(db);
   initPolicies(db);
 }
