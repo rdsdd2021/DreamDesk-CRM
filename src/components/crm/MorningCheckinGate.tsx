@@ -17,29 +17,37 @@ import {
 
 interface MorningCheckinGateProps {
   currentUser: User | null;
+  initialNeedsCheckin: boolean;
+  initialTarget: DailyTarget | null;
   onLogout: () => void;
   children: React.ReactNode;
 }
 
 export function MorningCheckinGate({
   currentUser,
+  initialNeedsCheckin,
+  initialTarget,
   onLogout,
   children,
 }: MorningCheckinGateProps) {
-  const [checking, setChecking] = useState(true);
-  const [needsCheckin, setNeedsCheckin] = useState(false);
-  const [target, setTarget] = useState<DailyTarget | null>(null);
+  const [needsCheckin, setNeedsCheckin] = useState(initialNeedsCheckin);
+  const [target, setTarget] = useState<DailyTarget | null>(initialTarget);
   const [focus, setFocus] = useState("");
   const [startingStatus, setStartingStatus] = useState<PresenceStatus>("available");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isGatedRole = Boolean(currentUser);
+  useEffect(() => {
+    setNeedsCheckin(initialNeedsCheckin);
+  }, [initialNeedsCheckin]);
+
+  useEffect(() => {
+    setTarget(initialTarget);
+  }, [initialTarget]);
 
   const checkStatus = useCallback(async () => {
-    if (!currentUser || !isGatedRole) {
+    if (!currentUser) {
       setNeedsCheckin(false);
-      setChecking(false);
       return;
     }
     try {
@@ -48,42 +56,19 @@ export function MorningCheckinGate({
         const data = await res.json();
         setNeedsCheckin(!data?.checkin?.checked_in_at);
         if (data?.target) setTarget(data.target);
-      } else {
-        setNeedsCheckin(false);
       }
     } catch {
-      setNeedsCheckin(false);
-    } finally {
-      setChecking(false);
+      // keep current state
     }
-  }, [currentUser, isGatedRole]);
+  }, [currentUser]);
 
   useEffect(() => {
-    setChecking(true);
-    checkStatus();
     const onUpdated = () => checkStatus();
     window.addEventListener("daily-ops-updated", onUpdated);
     return () => window.removeEventListener("daily-ops-updated", onUpdated);
   }, [checkStatus]);
 
-  if (!currentUser || !isGatedRole) {
-    return <>{children}</>;
-  }
-
-  if (checking) {
-    return (
-      <div className="min-h-screen w-full bg-background flex items-center justify-center p-6">
-        <div className="text-center space-y-2">
-          <Sun className="h-8 w-8 text-amber-500 animate-spin mx-auto" />
-          <p className="text-xs font-medium text-muted-foreground">
-            Verifying today&apos;s shift check-in...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!needsCheckin) {
+  if (!currentUser || !needsCheckin) {
     return <>{children}</>;
   }
 

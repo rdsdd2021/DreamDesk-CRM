@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthService } from "@/lib/services/authService";
+import { DailyOpsService } from "@/lib/services/dailyOpsService";
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,6 +19,7 @@ export async function GET(request: NextRequest) {
     }
 
     const allUsers = AuthService.getAllActiveUsers();
+    const dailyOps = DailyOpsService.getMyDailyOps(session.user.id);
 
     return NextResponse.json({
       authenticated: true,
@@ -25,6 +27,7 @@ export async function GET(request: NextRequest) {
       permissions: session.permissions,
       expiresAt: session.expiresAt,
       allUsers,
+      dailyOps,
     });
   } catch (error: any) {
     console.error("Auth check failure:", error);

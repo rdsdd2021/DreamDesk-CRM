@@ -108,6 +108,8 @@ export default function CRMPage() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [permissions, setPermissions] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [needsMorningCheckin, setNeedsMorningCheckin] = useState(false);
+  const [dailyTarget, setDailyTarget] = useState<any>(null);
 
   // Authenticate session on load
   const checkAuth = useCallback(async () => {
@@ -125,6 +127,8 @@ export default function CRMPage() {
       }
       setCurrentUser(data.user);
       setPermissions(data.permissions);
+      setNeedsMorningCheckin(!data.dailyOps?.checkin?.checked_in_at);
+      setDailyTarget(data.dailyOps?.target || null);
 
       // Enforce counselor perspective lock
       if (
@@ -1432,7 +1436,12 @@ export default function CRMPage() {
 
   return (
     <GlobalErrorBoundary>
-      <MorningCheckinGate currentUser={currentUser} onLogout={handleLogout}>
+      <MorningCheckinGate
+        currentUser={currentUser}
+        initialNeedsCheckin={needsMorningCheckin}
+        initialTarget={dailyTarget}
+        onLogout={handleLogout}
+      >
       <div className="flex h-screen bg-background overflow-hidden text-foreground">
         {/* Floating Network Offline/Online Indicator */}
         <NetworkStatusPill />
