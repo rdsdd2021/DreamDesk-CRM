@@ -62,57 +62,49 @@ export function BulkActionBar({
   const effectiveCount = isAllFilteredSelected ? totalFilteredCount : selectedCount;
 
   return (
-    <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-[calc(100vw-24px)] animate-in fade-in slide-in-from-bottom-5 duration-200">
-      <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 bg-card border-2 border-primary/20 shadow-2xl px-4 py-2.5 rounded-2xl overflow-x-auto max-w-full">
-        {/* Selection Indicator */}
-        <div className="flex items-center gap-2 pr-2 border-r border-border">
-          <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-            <CheckCircle2 className="w-4 h-4" />
-          </div>
-          <div className="text-xs">
-            <span className="font-bold text-foreground">
-              {effectiveCount.toLocaleString()}
-            </span>{" "}
-            leads selected
+    <div className="fixed bottom-20 md:bottom-5 left-1/2 -translate-x-1/2 z-50 max-w-[calc(100vw-24px)] animate-in fade-in slide-in-from-bottom-4 duration-200">
+      <div className="flex items-center gap-2 bg-card/95 backdrop-blur-md border border-border/80 shadow-[0_14px_40px_-10px_rgba(0,0,0,0.28)] px-3 py-2 rounded-2xl overflow-x-auto max-w-full">
+        {/* Selection Pill */}
+        <div className="flex items-center gap-2 pr-2.5 border-r border-border/80 shrink-0 whitespace-nowrap">
+          <div className="inline-flex items-center gap-1.5 bg-primary/10 text-primary px-2.5 py-1 rounded-lg text-xs font-semibold">
+            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+            <span>{effectiveCount.toLocaleString()}</span>
+            <span className="font-medium text-primary/80">selected</span>
           </div>
 
           {!isAllFilteredSelected && totalFilteredCount > selectedCount && (
-            <Button
-              variant="link"
-              size="sm"
+            <button
+              type="button"
               onClick={onSelectAllFiltered}
-              className="text-xs text-primary font-medium p-0 h-auto underline"
+              className="text-[11px] font-semibold text-primary bg-primary/5 hover:bg-primary/15 border border-primary/20 px-2 py-1 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
             >
-              Select all {totalFilteredCount.toLocaleString()} matching
-            </Button>
+              Select all {totalFilteredCount.toLocaleString()}
+            </button>
           )}
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {/* Bulk Assign Button */}
-          {/* Assign Leads (If allowed) */}
+        {/* Single-Row Action Dock */}
+        <div className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
           {onOpenAssignModal && (
             <Button
               size="sm"
               onClick={onOpenAssignModal}
-              className="h-8 gap-1.5 text-xs font-semibold shadow-xs"
+              className="h-8 px-3 gap-1.5 text-xs font-semibold rounded-xl shadow-xs whitespace-nowrap cursor-pointer"
             >
               <UserCheck className="w-3.5 h-3.5" />
-              <span>Assign Leads</span>
+              <span>Assign</span>
             </Button>
           )}
 
-          {/* Change Status Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger
               className={cn(
                 buttonVariants({ variant: "outline", size: "sm" }),
-                "h-8 gap-1.5 text-xs cursor-pointer"
+                "h-8 px-2.5 gap-1.5 text-xs font-medium rounded-xl whitespace-nowrap cursor-pointer"
               )}
             >
-              <Tag className="w-3.5 h-3.5" />
-              <span>Change Status</span>
+              <Tag className="w-3.5 h-3.5 text-muted-foreground" />
+              <span>Status</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="center" className="w-44">
               <DropdownMenuLabel className="text-xs">Select New Status</DropdownMenuLabel>
@@ -129,27 +121,26 @@ export function BulkActionBar({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Change Campaign (Modal or Dropdown) */}
           {onOpenBulkCampaignModal ? (
             <Button
               variant="outline"
               size="sm"
               onClick={onOpenBulkCampaignModal}
-              className="h-8 gap-1.5 text-xs font-medium cursor-pointer"
+              className="h-8 px-2.5 gap-1.5 text-xs font-medium rounded-xl whitespace-nowrap cursor-pointer"
             >
               <Target className="w-3.5 h-3.5 text-amber-500" />
-              <span>Change Campaign</span>
+              <span>Campaign</span>
             </Button>
           ) : onBulkCampaignChange && (
             <DropdownMenu>
               <DropdownMenuTrigger
                 className={cn(
                   buttonVariants({ variant: "outline", size: "sm" }),
-                  "h-8 gap-1.5 text-xs cursor-pointer"
+                  "h-8 px-2.5 gap-1.5 text-xs font-medium rounded-xl whitespace-nowrap cursor-pointer"
                 )}
               >
                 <Target className="w-3.5 h-3.5 text-primary" />
-                <span>Change Campaign</span>
+                <span>Campaign</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="center" className="w-52 max-h-64 overflow-y-auto">
                 <DropdownMenuLabel className="text-xs">Re-attribute to Campaign</DropdownMenuLabel>
@@ -173,50 +164,51 @@ export function BulkActionBar({
             </DropdownMenu>
           )}
 
-          {/* Manage Tags Button */}
           {onOpenBulkTagsModal && (
             <Button
               variant="outline"
               size="sm"
               onClick={onOpenBulkTagsModal}
-              className="h-8 gap-1.5 text-xs font-semibold cursor-pointer"
+              className="h-8 px-2.5 gap-1.5 text-xs font-medium rounded-xl whitespace-nowrap cursor-pointer"
             >
               <Bookmark className="w-3.5 h-3.5 text-primary" />
-              <span>Manage Tags</span>
+              <span>Tags</span>
             </Button>
           )}
 
-          {/* Export CSV (If allowed by RBAC) */}
           {onExportCsv && (
             <Button
               variant="outline"
               size="sm"
               onClick={onExportCsv}
-              className="h-8 gap-1.5 text-xs"
+              className="h-8 px-2.5 gap-1.5 text-xs font-medium rounded-xl whitespace-nowrap cursor-pointer"
             >
-              <Download className="w-3.5 h-3.5" />
+              <Download className="w-3.5 h-3.5 text-muted-foreground" />
               <span>Export</span>
             </Button>
           )}
 
-          {/* Delete Leads (If allowed by RBAC) */}
           {onBulkDelete && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onBulkDelete}
-              className="h-8 gap-1.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Delete</span>
-            </Button>
+            <>
+              <div className="h-5 w-px bg-border/80 mx-0.5 shrink-0" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onBulkDelete}
+                className="h-8 px-2.5 gap-1.5 text-xs font-medium rounded-xl text-destructive hover:bg-destructive/10 hover:text-destructive whitespace-nowrap cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete</span>
+              </Button>
+            </>
           )}
 
-          {/* Clear selection */}
           <button
+            type="button"
             onClick={onClearSelection}
-            className="p-1.5 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted ml-1"
-            title="Deselect all"
+            className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-colors ml-0.5 shrink-0 cursor-pointer"
+            title="Clear selection"
+            aria-label="Clear selection"
           >
             <X className="w-4 h-4" />
           </button>
