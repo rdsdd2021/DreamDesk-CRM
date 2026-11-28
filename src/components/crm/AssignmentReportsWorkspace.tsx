@@ -17,6 +17,8 @@ import {
   Sparkles,
   Loader2,
   Layers,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 
 export function AssignmentReportsWorkspace() {
@@ -24,6 +26,7 @@ export function AssignmentReportsWorkspace() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [modeFilter, setModeFilter] = useState<"all" | "auto" | "single" | "quota">("all");
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
 
   const loadReports = useCallback(async () => {
@@ -168,6 +171,34 @@ export function AssignmentReportsWorkspace() {
           <Button
             size="sm"
             variant="outline"
+            onClick={() => {
+              const allOpen = filtered.length > 0 && filtered.every((b) => expandedIds[b.id]);
+              if (allOpen) {
+                setExpandedIds({});
+              } else {
+                const next: Record<string, boolean> = {};
+                for (const b of filtered) next[b.id] = true;
+                setExpandedIds(next);
+              }
+            }}
+            disabled={filtered.length === 0}
+            className="h-8 text-xs gap-1 rounded-lg cursor-pointer"
+          >
+            {filtered.length > 0 && filtered.every((b) => expandedIds[b.id]) ? (
+              <>
+                <ChevronDown className="w-3.5 h-3.5" />
+                <span>Collapse All</span>
+              </>
+            ) : (
+              <>
+                <ChevronRight className="w-3.5 h-3.5" />
+                <span>Expand All</span>
+              </>
+            )}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
             onClick={loadReports}
             disabled={loading}
             className="h-8 text-xs gap-1.5 rounded-lg cursor-pointer"
@@ -253,81 +284,95 @@ export function AssignmentReportsWorkspace() {
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="bg-card border border-border/80 rounded-2xl overflow-hidden shadow-2xs divide-y divide-border/60">
           {filtered.map((batch) => {
+            const isExpanded = Boolean(expandedIds[batch.id]);
             const batchDialled = batch.callers.reduce((s, c) => s + (c.dialled_count || 0), 0);
             const batchPositive = batch.callers.reduce((s, c) => s + (c.positive_count || 0), 0);
             const batchDialPct =
               batch.total_assigned > 0 ? Math.min(100, Math.round((batchDialled / batch.total_assigned) * 100)) : 0;
             return (
-            <div
-              key={batch.id}
-              className="bg-card border border-border/80 rounded-2xl overflow-hidden shadow-2xs break-inside-avoid"
-            >
-              {/* Batch Header */}
-              <div className="p-4 bg-muted/25 border-b border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-1.5 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-sm font-bold text-foreground">{batch.name}</h3>
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] capitalize ${
-                        batch.mode === "auto"
-                          ? "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30"
-                          : "bg-muted text-foreground"
-                      }`}
-                    >
-                      {batch.mode}
-                    </Badge>
-                    <span className="text-[11px] text-muted-foreground">
-                      by {batch.created_by_name || "Admin"} ·{" "}
-                      {new Date(batch.created_at).toLocaleString("en-IN", {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })}
-                    </span>
-                  </div>
-                  <div className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
-                    <Filter className="w-3 h-3 text-primary shrink-0" />
-                    <span className="font-medium text-foreground">Filters:</span>
-                    <span>{batch.filter_summary}</span>
+            <div key={batch.id} className="break-inside-avoid">
+              {/* Collapsible Compact Batch Row */}
+              <button
+                type="button"
+                onClick={() =>
+                  setExpandedIds((prev) => ({ ...prev, [batch.id]: !prev[batch.id] }))
+                }
+                className="w-full text-left px-4 py-3 hover:bg-muted/30 transition-colors flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 cursor-pointer"
+              >
+                <div className="flex items-start gap-2.5 min-w-0">
+                  <span className="mt-0.5 text-muted-foreground shrink-0">
+                    {isExpanded ? (
+                      <ChevronDown className="w-4 h-4 text-primary" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4" />
+                    )}
+                  </span>
+                  <div className="min-w-0 space-y-0.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs sm:text-sm font-bold text-foreground truncate">
+                        {batch.name}
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] py-0 capitalize ${
+                          batch.mode === "auto"
+                            ? "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30"
+                            : "bg-muted text-foreground"
+                        }`}
+                      >
+                        {batch.mode}
+                      </Badge>
+                      <span className="text-[11px] text-muted-foreground">
+                        {batch.callers.length} {batch.callers.length === 1 ? "caller" : "callers"} ·{" "}
+                        {batch.created_by_name || "Admin"} ·{" "}
+                        {new Date(batch.created_at).toLocaleString("en-IN", {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 truncate">
+                      <Filter className="w-3 h-3 text-primary shrink-0" />
+                      <span className="truncate">{batch.filter_summary}</span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:items-end gap-1.5 shrink-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant="secondary" className="text-xs font-semibold gap-1">
-                      <Users className="w-3 h-3" />
-                      <span>{batch.total_assigned.toLocaleString("en-IN")} Assigned</span>
-                      {batch.claimed_assigned > 0 && (
-                        <span className="text-emerald-600 dark:text-emerald-400">
-                          ({batch.claimed_assigned.toLocaleString("en-IN")} claimed)
-                        </span>
-                      )}
-                    </Badge>
-                    <Badge
-                      variant="outline"
-                      className={
-                        batch.remaining_unassigned_in_filter > 0
-                          ? "text-xs font-semibold border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                          : "text-xs font-semibold text-muted-foreground"
-                      }
-                    >
-                      {batch.remaining_unassigned_in_filter.toLocaleString("en-IN")} Unassigned Left
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                    <span>Dialed {batchDialPct}% ({batchDialled}/{batch.total_assigned})</span>
-                    <span>·</span>
-                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                      {batchPositive} Positive
-                    </span>
-                  </div>
+                <div className="flex items-center gap-2 flex-wrap shrink-0 pl-6 lg:pl-0">
+                  <Badge variant="secondary" className="text-[11px] font-semibold gap-1">
+                    <Users className="w-3 h-3" />
+                    <span>{batch.total_assigned.toLocaleString("en-IN")} Assigned</span>
+                  </Badge>
+                  <Badge variant="outline" className="text-[11px] font-mono">
+                    Dialed {batchDialPct}%
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className={`text-[11px] font-mono ${
+                      batchPositive > 0
+                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    {batchPositive} Positive
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className={
+                      batch.remaining_unassigned_in_filter > 0
+                        ? "text-[11px] font-semibold border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                        : "text-[11px] font-semibold text-muted-foreground"
+                    }
+                  >
+                    {batch.remaining_unassigned_in_filter.toLocaleString("en-IN")} Left
+                  </Badge>
                 </div>
-              </div>
+              </button>
 
-              {/* Caller-Wise Table */}
-              <div className="overflow-x-auto">
+              {/* Caller-Wise Table (Collapsible, always visible when printing) */}
+              <div className={isExpanded ? "border-t border-border/60 bg-muted/10 overflow-x-auto" : "hidden print:block border-t border-border/60 overflow-x-auto"}>
                 <table className="w-full text-xs">
                   <thead className="bg-muted/35 border-b border-border/60 text-muted-foreground">
                     <tr>
