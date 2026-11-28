@@ -24,6 +24,7 @@ export function getDatabase(): Database.Database {
   db.pragma("journal_mode = WAL");
   db.pragma("synchronous = NORMAL");
   db.pragma("cache_size = -64000"); // 64MB memory cache
+  db.pragma("mmap_size = 268435456"); // 256MB memory-mapped I/O for fast reads
   db.pragma("temp_store = MEMORY");
   db.pragma("foreign_keys = ON");
 

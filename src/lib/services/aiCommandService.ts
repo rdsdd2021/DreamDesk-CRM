@@ -2,6 +2,7 @@ import { getDatabase } from "@/lib/db/database";
 import { AiCopilotService } from "@/lib/services/aiCopilotService";
 import { DailyOpsService } from "@/lib/services/dailyOpsService";
 import { LeadsService } from "@/lib/services/leadsService";
+import { SyncService } from "@/lib/services/syncService";
 import {
   AiCommandResponse,
   AiProposedAction,
@@ -351,6 +352,7 @@ Return strictly valid JSON:
       const newStatus = String(action.payload?.status || "").trim();
       if (!newStatus) throw new Error("Target status is required.");
       const affected = LeadsService.bulkUpdateStatus([], newStatus, true, filterParams);
+      SyncService.publish("leads_bulk_updated", "AI_BULK_STATUS", { userId: user.id, data: { affected } });
       return {
         success: true,
         message: `Updated ${affected} lead(s) to status "${newStatus}".`,
@@ -377,6 +379,7 @@ Return strictly valid JSON:
         },
         user
       );
+      SyncService.publish("leads_bulk_updated", "AI_BULK_ASSIGN", { userId: user.id, data: { affected: res.affectedCount } });
       return {
         success: true,
         message: res.message || `Assigned ${res.affectedCount} lead(s).`,
@@ -398,6 +401,7 @@ Return strictly valid JSON:
         performed_by_name: `${user.name} (AI Copilot)`,
       });
       const affected = Number((res as any)?.affectedCount || 0);
+      SyncService.publish("leads_bulk_updated", "AI_BULK_TAG", { userId: user.id, data: { affected } });
       return {
         success: true,
         message: `Tagged ${affected} lead(s) with ${tags.join(", ")}.`,

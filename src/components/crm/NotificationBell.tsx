@@ -129,8 +129,15 @@ export function NotificationBell({ currentUser, onNavigateToTasks }: Notificatio
 
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 15000); // 15s refresh
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchNotifications, 30000); // 30s fallback; instant via SSE
+    const onNotifSync = () => {
+      fetchNotifications();
+    };
+    window.addEventListener("dreamdesk-notification-sync", onNotifSync);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("dreamdesk-notification-sync", onNotifSync);
+    };
   }, [currentUser?.id]);
 
   const handleMarkAsRead = async (id: number) => {

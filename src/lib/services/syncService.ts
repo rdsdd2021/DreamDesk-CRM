@@ -3,7 +3,7 @@ import { getDatabase } from "@/lib/db/database";
 
 export interface SyncEvent {
   id: string;
-  type: "lead_updated" | "leads_bulk_updated" | "task_updated" | "notification" | "campaign" | "system";
+  type: "lead_updated" | "leads_bulk_updated" | "task_updated" | "whatsapp_updated" | "notification" | "campaign" | "system";
   action: string;
   entityId?: string | number;
   userId?: string;

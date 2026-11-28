@@ -1556,6 +1556,10 @@ export class KapsoWhatsappService {
             priority: "high",
             data: { type: "whatsapp", lead_id: matchedLead?.id || conv.lead_id, conversation_id: conv.id },
           });
+          SyncService.publish("notification", "whatsapp_inbound", {
+            userId: targetUser,
+            entityId: conv.id,
+          });
         }
       }
 
@@ -1563,7 +1567,7 @@ export class KapsoWhatsappService {
     }
 
     if (processed > 0) {
-      SyncService.publish("system", "whatsapp_webhook");
+      SyncService.publish("whatsapp_updated", "whatsapp_webhook", { data: { processed } });
     }
     return { processed };
   }

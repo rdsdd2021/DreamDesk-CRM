@@ -184,7 +184,7 @@ export default function CRMPage() {
       } catch {
         // network glitch
       }
-    }, 10000);
+    }, 30000);
     return () => clearInterval(interval);
   }, [currentUser, router]);
 
@@ -731,6 +731,15 @@ export default function CRMPage() {
 
   useRealtimeSync({
     onLeadChange: handleRealtimeLeadSync,
+    onWhatsAppChange: useCallback((evt: any) => {
+      window.dispatchEvent(new CustomEvent("dreamdesk-whatsapp-sync", { detail: evt }));
+    }, []),
+    onNotification: useCallback(() => {
+      window.dispatchEvent(new CustomEvent("dreamdesk-notification-sync"));
+    }, []),
+    onTaskChange: useCallback(() => {
+      fetchLeads(true);
+    }, [fetchLeads]),
     enabled: true,
   });
 

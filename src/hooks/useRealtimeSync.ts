@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 
 export interface SyncEventPayload {
   id: string;
-  type: "lead_updated" | "leads_bulk_updated" | "task_updated" | "notification" | "campaign" | "system";
+  type: "lead_updated" | "leads_bulk_updated" | "task_updated" | "whatsapp_updated" | "notification" | "campaign" | "system";
   action: string;
   entityId?: string | number;
   userId?: string;
@@ -15,13 +15,14 @@ export interface SyncEventPayload {
 interface UseRealtimeSyncOptions {
   onLeadChange?: (event: SyncEventPayload) => void;
   onTaskChange?: (event: SyncEventPayload) => void;
+  onWhatsAppChange?: (event: SyncEventPayload) => void;
   onNotification?: (event: SyncEventPayload) => void;
   onSync?: (event: SyncEventPayload) => void;
   enabled?: boolean;
 }
 
 export function useRealtimeSync(options: UseRealtimeSyncOptions = {}) {
-  const { onLeadChange, onTaskChange, onNotification, onSync, enabled = true } = options;
+  const { onLeadChange, onTaskChange, onWhatsAppChange, onNotification, onSync, enabled = true } = options;
 
   const [status, setStatus] = useState<"connected" | "connecting" | "offline">("connecting");
   const [lastSyncTime, setLastSyncTime] = useState<number>(Date.now());
@@ -48,6 +49,10 @@ export function useRealtimeSync(options: UseRealtimeSyncOptions = {}) {
 
     if (event.type === "task_updated" && optionsRef.current.onTaskChange) {
       optionsRef.current.onTaskChange(event);
+    }
+
+    if (event.type === "whatsapp_updated" && optionsRef.current.onWhatsAppChange) {
+      optionsRef.current.onWhatsAppChange(event);
     }
 
     if (event.type === "notification" && optionsRef.current.onNotification) {
@@ -121,6 +126,13 @@ export function useRealtimeSync(options: UseRealtimeSyncOptions = {}) {
         });
 
         es.addEventListener("task_updated", (e: MessageEvent) => {
+          try {
+            const data: SyncEventPayload = JSON.parse(e.data);
+            handleIncomingEvent(data);
+          } catch {}
+        });
+
+        es.addEventListener("whatsapp_updated", (e: MessageEvent) => {
           try {
             const data: SyncEventPayload = JSON.parse(e.data);
             handleIncomingEvent(data);

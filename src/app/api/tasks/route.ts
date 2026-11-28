@@ -4,6 +4,7 @@ import { TasksService } from "@/lib/services/tasksService";
 import { AuthService } from "@/lib/services/authService";
 import { getDatabase } from "@/lib/db/database";
 import { maskPhoneNumber } from "@/lib/utils/phoneMasker";
+import { SyncService } from "@/lib/services/syncService";
 
 export const dynamic = "force-dynamic";
 
@@ -185,6 +186,14 @@ export async function POST(request: NextRequest) {
       priority || "normal",
       JSON.stringify({ task_id: result.lastInsertRowid, lead_id, priority })
     );
+
+    SyncService.publish("task_updated", "TASK_CREATED", {
+      entityId: Number(result.lastInsertRowid),
+      userId: assigned_to,
+    });
+    SyncService.publish("notification", "TASK_ASSIGNED", {
+      userId: assigned_to,
+    });
 
     return NextResponse.json({
       success: true,

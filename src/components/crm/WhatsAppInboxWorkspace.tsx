@@ -242,8 +242,15 @@ export function WhatsAppInboxWorkspace({
 
   useEffect(() => {
     loadConversations();
-    const timer = setInterval(loadConversations, 5000);
-    return () => clearInterval(timer);
+    const timer = setInterval(loadConversations, 20000);
+    const onWaSync = () => {
+      loadConversations();
+    };
+    window.addEventListener("dreamdesk-whatsapp-sync", onWaSync);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("dreamdesk-whatsapp-sync", onWaSync);
+    };
   }, [loadConversations]);
 
   useEffect(() => {
@@ -270,8 +277,15 @@ export function WhatsAppInboxWorkspace({
     setShowAiPanel(false);
     setAiAssist(null);
     setAiError(null);
-    const threadTimer = setInterval(() => loadThread(selectedConvId, true), 4000);
-    return () => clearInterval(threadTimer);
+    const threadTimer = setInterval(() => loadThread(selectedConvId, true), 20000);
+    const onWaSync = () => {
+      loadThread(selectedConvId, true);
+    };
+    window.addEventListener("dreamdesk-whatsapp-sync", onWaSync);
+    return () => {
+      clearInterval(threadTimer);
+      window.removeEventListener("dreamdesk-whatsapp-sync", onWaSync);
+    };
   }, [selectedConvId, loadThread]);
 
   const handleSyncHistory = async () => {
