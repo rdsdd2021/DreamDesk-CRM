@@ -15,23 +15,29 @@ export interface PhoneValidationResult {
 const REPEATED_DIGITS_REGEX = /^(\d)\1{6,}$/;
 
 export function normalizeAndValidatePhone(raw?: string | null): PhoneValidationResult {
-  const input = String(raw || "").trim();
+  let input = String(raw || "").trim();
   if (!input) {
     return { valid: false, e164: "", digits: "", local10: "", error: "Phone number is empty" };
   }
 
-  // Reject if it contains letters (aside from an optional 'tel:' prefix)
-  const strippedPrefix = input.replace(/^tel:/i, "").trim();
-  if (/[a-zA-Z]/.test(strippedPrefix)) {
-    return {
-      valid: false,
-      e164: "",
-      digits: "",
-      local10: "",
-      error: `Invalid characters in phone number "${input}"`,
-    };
+  // If multiple numbers are separated by /, comma, semicolon, or pipe, take the first one
+  if (/[\/,;|]/.test(input)) {
+    const firstPart = input.split(/[\/,;|]/).map((s) => s.trim()).find(Boolean);
+    if (firstPart) input = firstPart;
   }
 
+  // Handle Excel scientific notation (e.g. 9.87654321E+09 -> 9876543210)
+  if (/^\d+(\.\d+)?[eE][+-]?\d+$/.test(input)) {
+    const num = Number(input);
+    if (Number.isFinite(num) && num > 0) {
+      input = Math.round(num).toFixed(0);
+    }
+  }
+
+  // Strip Excel float decimal suffix like 9876543210.0 or 9876543210.00
+  input = input.replace(/\.0+$/, "");
+
+  const strippedPrefix = input.replace(/^tel:/i, "").trim();
   let digitsOnly = strippedPrefix.replace(/[^0-9]/g, "");
   if (!digitsOnly) {
     return { valid: false, e164: "", digits: "", local10: "", error: "No digits found" };
@@ -42,12 +48,17 @@ export function normalizeAndValidatePhone(raw?: string | null): PhoneValidationR
     digitsOnly = digitsOnly.slice(2);
   }
 
+  // Handle +91 0XXXXXXXXXX (13 digits starting with 910) -> 91 + 10 digits
+  if (digitsOnly.length === 13 && digitsOnly.startsWith("910")) {
+    digitsOnly = `91${digitsOnly.slice(3)}`;
+  }
+
   // Indian 11-digit with leading 0 (e.g. 09876543210 -> 9876543210)
   if (digitsOnly.length === 11 && digitsOnly.startsWith("0")) {
     digitsOnly = digitsOnly.slice(1);
   }
 
-  // Bare 10-digit Indian number -> +91XXXXXXXXXX
+  // Any 10-digit number -> +91XXXXXXXXXX
   if (digitsOnly.length === 10) {
     if (REPEATED_DIGITS_REGEX.test(digitsOnly)) {
       return {
@@ -56,15 +67,6 @@ export function normalizeAndValidatePhone(raw?: string | null): PhoneValidationR
         digits: "",
         local10: "",
         error: `Dummy repeated-digit number "${input}"`,
-      };
-    }
-    if (!/^[5-9]\d{9}$/.test(digitsOnly)) {
-      return {
-        valid: false,
-        e164: "",
-        digits: "",
-        local10: "",
-        error: `Invalid 10-digit Indian mobile number "${input}" (must start with 5-9)`,
       };
     }
     return {
@@ -78,13 +80,13 @@ export function normalizeAndValidatePhone(raw?: string | null): PhoneValidationR
   // 12-digit Indian number with 91 prefix
   if (digitsOnly.length === 12 && digitsOnly.startsWith("91")) {
     const local10 = digitsOnly.slice(2);
-    if (REPEATED_DIGITS_REGEX.test(local10) || !/^[5-9]\d{9}$/.test(local10)) {
+    if (REPEATED_DIGITS_REGEX.test(local10)) {
       return {
         valid: false,
         e164: "",
         digits: "",
         local10: "",
-        error: `Invalid Indian mobile number "${input}"`,
+        error: `Dummy repeated-digit number "${input}"`,
       };
     }
     return {
@@ -95,9 +97,8 @@ export function normalizeAndValidatePhone(raw?: string | null): PhoneValidationR
     };
   }
 
-  // International E.164 (10 to 15 digits with explicit country code or '+')
+  // International E.164 (10 to 15 digits)
   if (
-    (strippedPrefix.startsWith("+") || digitsOnly.length >= 11) &&
     digitsOnly.length >= 10 &&
     digitsOnly.length <= 15 &&
     !REPEATED_DIGITS_REGEX.test(digitsOnly)
