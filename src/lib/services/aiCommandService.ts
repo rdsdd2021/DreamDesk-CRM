@@ -173,10 +173,10 @@ function getScopedMetrics(user: User) {
       .all(todayStr) as any[];
     const campaigns = db
       .prepare(
-        `SELECT COALESCE(c.name, l.campaign, 'Uncategorized') as campaign, COUNT(*) as count
+        `SELECT c.id as campaign_id, COALESCE(c.name, 'Uncategorized') as campaign, COUNT(*) as count
          FROM leads l
          LEFT JOIN campaigns c ON l.campaign_id = c.id
-         GROUP BY COALESCE(c.name, l.campaign, 'Uncategorized')
+         GROUP BY c.id, COALESCE(c.name, 'Uncategorized')
          ORDER BY count DESC
          LIMIT 10`
       )

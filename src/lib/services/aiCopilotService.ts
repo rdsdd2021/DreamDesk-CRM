@@ -184,12 +184,12 @@ export const AiCopilotService = {
       }
     }
 
-    let customData: Record<string, any> = {};
-    if (lead?.custom_data) {
+    let rawAttributes: Record<string, any> = {};
+    if (lead?.raw_attributes) {
       try {
-        customData = JSON.parse(lead.custom_data);
+        rawAttributes = JSON.parse(lead.raw_attributes);
       } catch {
-        customData = {};
+        rawAttributes = {};
       }
     }
 
@@ -199,10 +199,9 @@ export const AiCopilotService = {
           name: lead.name,
           email: lead.email,
           status: lead.status,
-          source: lead.source,
-          campaign: lead.campaign,
+          campaign_id: lead.campaign_id,
           notes: lead.notes,
-          custom_data: customData,
+          raw_attributes: rawAttributes,
         }
       : { contact_name: conv?.contact_name || "Unknown Prospect" };
 
