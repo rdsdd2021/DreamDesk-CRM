@@ -944,3 +944,20 @@ export interface AiCommandResponse {
   } | null;
   proposedAction?: AiProposedAction | null;
 }
+
+export interface LeadAiBriefResult {
+  summary: string;
+  talkingPoints: string[];
+  recommendedAction: string;
+  riskOrObjection?: string | null;
+}
+
+export interface LeadAiParseNotesResult {
+  disposition_id?: string | null;
+  disposition_name?: string | null;
+  sub_disposition_id?: string | null;
+  sub_disposition_name?: string | null;
+  callback_at?: string | null;
+  clean_notes: string;
+  extracted_fields: WhatsAppAiExtractedField[];
+}

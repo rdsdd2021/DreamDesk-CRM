@@ -32,6 +32,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { WhatsAppModal } from "@/components/crm/WhatsAppModal";
 import { LeadTimeline } from "@/components/crm/LeadTimeline";
+import { LeadAiCopilotBar } from "@/components/crm/LeadAiCopilotBar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1390,6 +1391,24 @@ export function EnhancedLeadDrawer({
                     </label>
                   </div>
                 </div>
+
+                {/* AI Pre-Call Brief & Notes Parser */}
+                <LeadAiCopilotBar
+                  leadId={lead.id}
+                  notesText={callNotes}
+                  onApplyParsedNotes={(parsed) => {
+                    if (parsed.disposition_id) setSelectedDispId(parsed.disposition_id);
+                    if (parsed.sub_disposition_id) setSelectedSubDispId(parsed.sub_disposition_id);
+                    if (parsed.callback_at) setCallbackDate(parsed.callback_at);
+                    if (parsed.clean_notes) setCallNotes(parsed.clean_notes);
+                  }}
+                  onFieldApplied={(_field, label, value) => {
+                    setToastMessage(`Updated ${label} → "${value}"`);
+                    setSuccessToast(true);
+                    setTimeout(() => setSuccessToast(false), 2500);
+                    fetchActivities(lead.id);
+                  }}
+                />
 
                 {/* Dynamic Disposition Outcome Trays */}
                 {activeReachableDisps.length === 0 ? (

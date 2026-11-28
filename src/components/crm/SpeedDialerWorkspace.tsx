@@ -5,6 +5,7 @@ import { Lead, Disposition, User, SchemaMeta, LeadActivity } from "@/types/crm";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { LeadAiCopilotBar } from "@/components/crm/LeadAiCopilotBar";
 import {
   Phone,
   MessageSquare,
@@ -723,6 +724,18 @@ export function SpeedDialerWorkspace({
               )}
             </div>
           </div>
+
+          {/* AI Pre-Call Brief & Notes Parser */}
+          <LeadAiCopilotBar
+            leadId={currentLead.id}
+            notesText={remarkText}
+            onApplyParsedNotes={(parsed) => {
+              if (parsed.disposition_id) setSelectedConnectedDispId(parsed.disposition_id);
+              if (parsed.sub_disposition_id) setSelectedSubDispId(parsed.sub_disposition_id);
+              if (parsed.callback_at) setCallbackDate(parsed.callback_at);
+              if (parsed.clean_notes) setRemarkText(parsed.clean_notes);
+            }}
+          />
 
           {/* Quick Note Composer & Preset Chips */}
           <div className="space-y-2 pt-1 border-t border-border/60">
