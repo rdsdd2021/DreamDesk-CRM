@@ -188,6 +188,17 @@ export class KapsoWhatsappService {
         ? mimeType.split(";")[0].trim()
         : extMimeMap[ext] || "application/octet-stream";
 
+    if (resolvedMime.startsWith("image/") && fileBuffer.length > 5 * 1024 * 1024) {
+      throw new Error(
+        `Image is ${(fileBuffer.length / (1024 * 1024)).toFixed(2)} MB, exceeding Meta's 5 MB limit.`
+      );
+    }
+    if ((resolvedMime.startsWith("video/") || resolvedMime.startsWith("audio/")) && fileBuffer.length > 16 * 1024 * 1024) {
+      throw new Error(
+        `Media is ${(fileBuffer.length / (1024 * 1024)).toFixed(2)} MB, exceeding Meta's 16 MB limit.`
+      );
+    }
+
     const safeName = (fileName || "upload").replace(/[^\w.\-]/g, "_");
     const formData = new FormData();
     formData.append("messaging_product", "whatsapp");

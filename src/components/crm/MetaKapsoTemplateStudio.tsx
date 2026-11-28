@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { WhatsAppTemplateBubblePreview } from "@/components/crm/WhatsAppTemplateBubblePreview";
+import { prepareMediaForKapso } from "@/lib/utils/imageCompress";
 import {
   CheckCircle2,
   Clock,
@@ -145,9 +146,10 @@ export function MetaKapsoTemplateStudio({
     }
   };
 
-  const handleUploadSampleMedia = async (file: File) => {
+  const handleUploadSampleMedia = async (rawFile: File) => {
     setUploadingMedia(true);
     try {
+      const { file } = await prepareMediaForKapso(rawFile);
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/whatsapp/media", { method: "POST", body: fd });

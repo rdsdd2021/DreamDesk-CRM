@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { WhatsAppTemplateBubblePreview } from "@/components/crm/WhatsAppTemplateBubblePreview";
+import { prepareMediaForKapso } from "@/lib/utils/imageCompress";
 import {
   Check,
   CheckCheck,
@@ -92,6 +93,11 @@ export function WhatsAppInboxWorkspace({
   const [savingSettings, setSavingSettings] = useState(false);
   const [testingConn, setTestingConn] = useState(false);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length, selectedConvId]);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -184,9 +190,10 @@ export function WhatsAppInboxWorkspace({
     }
   };
 
-  const handleUploadMedia = async (file: File) => {
+  const handleUploadMedia = async (rawFile: File) => {
     setUploadingMedia(true);
     try {
+      const { file, compressed } = await prepareMediaForKapso(rawFile);
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/whatsapp/media", { method: "POST", body: fd });
@@ -198,7 +205,12 @@ export function WhatsAppInboxWorkspace({
         ? "video"
         : "document";
       setAttachedMedia({ type, id: data.id, url: data.url, name: file.name });
-      onShowToast?.(`Attached ${file.name}`, "success");
+      onShowToast?.(
+        compressed
+          ? `Compressed & attached ${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB)`
+          : `Attached ${file.name}`,
+        "success"
+      );
     } catch (err: any) {
       onShowToast?.(err?.message || "Media upload failed", "error");
     } finally {
@@ -488,9 +500,9 @@ export function WhatsAppInboxWorkspace({
 
       {/* TAB 1: 2-PANE INBOX */}
       {activeTab === "inbox" && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 bg-card border border-border/80 rounded-2xl overflow-hidden shadow-2xs min-h-[620px]">
+        <div className="grid grid-cols-1 lg:grid-cols-12 bg-card border border-border/80 rounded-2xl overflow-hidden shadow-xs h-[calc(100vh-185px)] min-h-[560px]">
           {/* Left Pane: Conversation List */}
-          <div className="lg:col-span-4 border-b lg:border-b-0 lg:border-r border-border/70 flex flex-col">
+          <div className="lg:col-span-4 border-b lg:border-b-0 lg:border-r border-border/70 flex flex-col min-h-0">
             <div className="p-3 border-b border-border/60 space-y-2.5">
               <div className="relative">
                 <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
@@ -527,7 +539,7 @@ export function WhatsAppInboxWorkspace({
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto divide-y divide-border/50 max-h-[560px]">
+            <div className="flex-1 overflow-y-auto divide-y divide-border/40 min-h-0">
               {conversations.length === 0 ? (
                 <div className="py-12 px-4 text-center text-xs text-muted-foreground space-y-1">
                   <MessageSquare className="w-7 h-7 mx-auto opacity-30" />
@@ -541,24 +553,38 @@ export function WhatsAppInboxWorkspace({
               ) : (
                 conversations.map((c) => {
                   const selected = c.id === selectedConvId;
+                  const is24h = Boolean(
+                    c.last_inbound_at &&
+                      Date.now() - new Date(c.last_inbound_at).getTime() < 24 * 60 * 60 * 1000
+                  );
                   return (
                     <button
                       key={c.id}
                       type="button"
                       onClick={() => setSelectedConvId(c.id)}
-                      className={`w-full text-left p-3 transition-colors cursor-pointer flex items-start gap-2.5 ${
-                        selected ? "bg-emerald-500/10" : "hover:bg-muted/40"
+                      className={`w-full text-left px-3.5 py-3 transition-colors cursor-pointer flex items-start gap-2.5 border-l-2 ${
+                        selected
+                          ? "bg-emerald-500/10 border-l-emerald-600"
+                          : "border-l-transparent hover:bg-muted/40"
                       }`}
                     >
-                      <div className="w-9 h-9 rounded-full bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 font-bold text-xs flex items-center justify-center shrink-0">
-                        {(c.contact_name || c.lead_name || "W").charAt(0)}
+                      <div className="relative shrink-0">
+                        <div className="w-9 h-9 rounded-full bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 font-bold text-xs flex items-center justify-center">
+                          {(c.contact_name || c.lead_name || "W").charAt(0).toUpperCase()}
+                        </div>
+                        <span
+                          title={is24h ? "24h window open" : "Outside 24h window (Template required)"}
+                          className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-card ${
+                            is24h ? "bg-emerald-500" : "bg-amber-400"
+                          }`}
+                        />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1">
                           <span className="text-xs font-bold text-foreground truncate">
                             {c.contact_name || c.lead_name || c.phone_number}
                           </span>
-                          <span className="text-[10px] text-muted-foreground shrink-0">
+                          <span className="text-[10px] text-muted-foreground shrink-0 font-mono">
                             {new Date(c.last_message_at).toLocaleTimeString("en-IN", {
                               hour: "2-digit",
                               minute: "2-digit",
@@ -569,15 +595,19 @@ export function WhatsAppInboxWorkspace({
                           {c.last_message_direction === "outbound" ? "You: " : ""}
                           {c.last_message_preview || c.phone_number}
                         </div>
-                        <div className="flex items-center gap-1.5 mt-1">
-                          {c.lead_code && (
-                            <Badge variant="outline" className="text-[9px] h-4 px-1 font-mono">
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          {c.lead_code ? (
+                            <Badge variant="outline" className="text-[9px] h-4 px-1.5 font-mono">
                               {c.lead_code}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-amber-500/10 text-amber-700 border-amber-500/30">
+                              Unlinked
                             </Badge>
                           )}
                           <Badge
                             variant="outline"
-                            className={`text-[9px] h-4 px-1 capitalize ${
+                            className={`text-[9px] h-4 px-1.5 capitalize ${
                               c.status === "resolved" ? "text-muted-foreground" : "text-emerald-600 border-emerald-500/30"
                             }`}
                           >
@@ -598,7 +628,7 @@ export function WhatsAppInboxWorkspace({
           </div>
 
           {/* Right Pane: Thread & Rich Composer */}
-          <div className="lg:col-span-8 flex flex-col bg-muted/10">
+          <div className="lg:col-span-8 flex flex-col min-h-0 bg-[#efeae2]/45 dark:bg-zinc-950/60">
             {!activeConv ? (
               <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-xs text-muted-foreground space-y-2">
                 <MessageSquare className="w-10 h-10 opacity-25" />
@@ -657,7 +687,29 @@ export function WhatsAppInboxWorkspace({
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {(() => {
+                      const lastIn =
+                        activeConv.last_inbound_at ||
+                        messages.filter((m) => m.direction === "inbound").slice(-1)[0]?.created_at;
+                      const diffMs = lastIn ? Date.now() - new Date(lastIn).getTime() : Infinity;
+                      const is24hOpen = diffMs < 24 * 60 * 60 * 1000;
+                      const hrsLeft = is24hOpen ? Math.max(0, Math.floor((24 * 3600000 - diffMs) / 3600000)) : 0;
+                      const minsLeft = is24hOpen ? Math.max(0, Math.floor(((24 * 3600000 - diffMs) % 3600000) / 60000)) : 0;
+                      return (
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] font-semibold gap-1 ${
+                            is24hOpen
+                              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                              : "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                          }`}
+                        >
+                          {is24hOpen ? <Clock className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+                          <span>{is24hOpen ? `24h Open · ${hrsLeft}h ${minsLeft}m` : "Template Only"}</span>
+                        </Badge>
+                      );
+                    })()}
                     {canManageTemplates && (
                       <select
                         value={activeConv.assigned_to || ""}
@@ -686,7 +738,7 @@ export function WhatsAppInboxWorkspace({
                 </div>
 
                 {/* Messages Feed */}
-                <div className="flex-1 p-4 space-y-2.5 overflow-y-auto max-h-[380px]">
+                <div className="flex-1 min-h-0 p-4 space-y-2.5 overflow-y-auto">
                   {loadingMsgs ? (
                     <div className="py-10 text-center text-xs text-muted-foreground">
                       <Loader2 className="w-5 h-5 animate-spin mx-auto mb-1" />
@@ -697,52 +749,92 @@ export function WhatsAppInboxWorkspace({
                       No messages in this thread yet. Send a message or approved template below.
                     </div>
                   ) : (
-                    messages.map((m) => {
-                      const isOutbound = m.direction === "outbound";
-                      return (
-                        <div
-                          key={m.id}
-                          className={`flex ${isOutbound ? "justify-end" : "justify-start"}`}
-                        >
-                          <div
-                            className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-xs shadow-2xs space-y-1 ${
-                              isOutbound
-                                ? "bg-emerald-600 text-white rounded-br-xs"
-                                : "bg-card border border-border/80 text-foreground rounded-bl-xs"
-                            }`}
-                          >
-                            {m.template_name && (
-                              <div className="text-[10px] font-mono opacity-80">
-                                Template: {m.template_name}
+                    <>
+                      {messages.map((m, idx) => {
+                        const isOutbound = m.direction === "outbound";
+                        const curDay = new Date(m.created_at).toDateString();
+                        const prevDay = idx > 0 ? new Date(messages[idx - 1].created_at).toDateString() : null;
+                        const showDatePill = curDay !== prevDay;
+                        const todayStr = new Date().toDateString();
+                        const yesterdayStr = new Date(Date.now() - 86400000).toDateString();
+                        const dateLabel =
+                          curDay === todayStr
+                            ? "Today"
+                            : curDay === yesterdayStr
+                            ? "Yesterday"
+                            : new Date(m.created_at).toLocaleDateString("en-IN", {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              });
+
+                        return (
+                          <React.Fragment key={m.id}>
+                            {showDatePill && (
+                              <div className="flex justify-center py-1">
+                                <span className="px-2.5 py-0.5 rounded-full bg-card/90 border border-border/60 text-[10px] font-semibold text-muted-foreground shadow-2xs">
+                                  {dateLabel}
+                                </span>
                               </div>
                             )}
-                            <p className="whitespace-pre-wrap leading-relaxed">{m.body}</p>
-                            <div
-                              className={`flex items-center justify-end gap-1.5 text-[10px] ${
-                                isOutbound ? "text-emerald-100" : "text-muted-foreground"
-                              }`}
-                            >
-                              {m.sent_by_name && isOutbound && <span>{m.sent_by_name} ·</span>}
-                              <span>
-                                {new Date(m.created_at).toLocaleTimeString("en-IN", {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </span>
-                              {isOutbound && (
-                                <>
-                                  {(m.status as any) === "sending" && <Loader2 className="w-3 h-3 animate-spin" />}
-                                  {m.status === "read" && <CheckCheck className="w-3 h-3 text-sky-200" />}
-                                  {m.status === "delivered" && <CheckCheck className="w-3 h-3" />}
-                                  {m.status === "sent" && <Check className="w-3 h-3" />}
-                                  {m.status === "failed" && <XCircle className="w-3 h-3 text-rose-200" />}
-                                </>
-                              )}
+                            <div className={`flex ${isOutbound ? "justify-end" : "justify-start"}`}>
+                              <div
+                                title={m.status === "failed" && m.error_message ? m.error_message : undefined}
+                                className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-xs shadow-xs space-y-1 ${
+                                  isOutbound
+                                    ? m.status === "failed"
+                                      ? "bg-rose-600 text-white rounded-br-xs"
+                                      : "bg-emerald-600 text-white rounded-br-xs"
+                                    : "bg-card border border-border/80 text-foreground rounded-bl-xs"
+                                }`}
+                              >
+                                {m.template_name && (
+                                  <div className="text-[10px] font-mono opacity-80">
+                                    Template: {m.template_name}
+                                  </div>
+                                )}
+                                {m.media_url && m.message_type === "image" && (
+                                  <img
+                                    src={m.media_url}
+                                    alt="Attachment"
+                                    className="rounded-lg max-h-44 object-cover border border-black/10"
+                                  />
+                                )}
+                                <p className="whitespace-pre-wrap leading-relaxed">{m.body}</p>
+                                {m.status === "failed" && m.error_message && (
+                                  <div className="text-[10px] text-rose-100 bg-black/20 px-2 py-0.5 rounded">
+                                    Failed: {m.error_message}
+                                  </div>
+                                )}
+                                <div
+                                  className={`flex items-center justify-end gap-1.5 text-[10px] ${
+                                    isOutbound ? "text-emerald-100" : "text-muted-foreground"
+                                  }`}
+                                >
+                                  {m.sent_by_name && isOutbound && <span>{m.sent_by_name} ·</span>}
+                                  <span>
+                                    {new Date(m.created_at).toLocaleTimeString("en-IN", {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </span>
+                                  {isOutbound && (
+                                    <>
+                                      {(m.status as any) === "sending" && <Loader2 className="w-3 h-3 animate-spin" />}
+                                      {m.status === "read" && <CheckCheck className="w-3 h-3 text-sky-200" />}
+                                      {m.status === "delivered" && <CheckCheck className="w-3 h-3" />}
+                                      {m.status === "sent" && <Check className="w-3 h-3" />}
+                                      {m.status === "failed" && <XCircle className="w-3 h-3 text-rose-200" />}
+                                    </>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                      );
-                    })
+                          </React.Fragment>
+                        );
+                      })}
+                      <div ref={messagesEndRef} />
+                    </>
                   )}
                 </div>
 
