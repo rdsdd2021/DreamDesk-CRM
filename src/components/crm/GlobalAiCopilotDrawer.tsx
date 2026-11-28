@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   CheckCircle2,
+  Download,
   Filter,
   Loader2,
   Send,
@@ -96,6 +97,7 @@ export function GlobalAiCopilotDrawer({
     if (!customPrompt) setPrompt("");
     setError(null);
 
+    const historyPayload = turns.slice(-6).map((t) => ({ role: t.role, text: t.text }));
     const userTurn: ChatTurn = { id: `u_${Date.now()}`, role: "user", text: q };
     setTurns((prev) => [...prev, userTurn]);
     setLoading(true);
@@ -103,7 +105,12 @@ export function GlobalAiCopilotDrawer({
       const res = await fetch("/api/ai/command", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "plan", prompt: q, current_view: currentView }),
+        body: JSON.stringify({
+          mode: "plan",
+          prompt: q,
+          current_view: currentView,
+          history: historyPayload,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "AI Copilot failed");
@@ -171,7 +178,7 @@ export function GlobalAiCopilotDrawer({
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-md flex flex-col p-0 gap-0">
+      <SheetContent side="right" className="w-full sm:max-w-xl flex flex-col p-0 gap-0">
         <SheetHeader className="px-4 py-3.5 border-b border-border/80 bg-card shrink-0">
           <div className="flex items-center justify-between pr-6">
             <div className="flex items-center gap-2">
@@ -284,6 +291,157 @@ export function GlobalAiCopilotDrawer({
                         <div className="text-[11px] font-bold text-foreground truncate">{h.value}</div>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {/* Adaptive UI Blocks (Table, Bars, KPIs, List) */}
+                {turn.response?.blocks && turn.response.blocks.length > 0 && (
+                  <div className="space-y-2 pt-1">
+                    {turn.response.blocks.map((block, bIdx) => {
+                      if (block.type === "table") {
+                        const exportTableCsv = () => {
+                          const csvLines = [
+                            block.columns.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","),
+                            ...block.rows.map((r) =>
+                              r.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")
+                            ),
+                          ].join("\n");
+                          const blob = new Blob([csvLines], { type: "text/csv;charset=utf-8;" });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = `${(block.title || "ai-report").toLowerCase().replace(/[^a-z0-9]+/g, "-")}.csv`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        };
+                        return (
+                          <div key={bIdx} className="rounded-xl border border-border/80 bg-background overflow-hidden">
+                            <div className="flex items-center justify-between px-2.5 py-1.5 bg-muted/40 border-b border-border/60">
+                              <span className="text-[11px] font-bold text-foreground truncate">
+                                {block.title || "Report Table"}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={exportTableCsv}
+                                className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                              >
+                                <Download className="w-3 h-3" />
+                                <span>CSV</span>
+                              </button>
+                            </div>
+                            <div className="overflow-x-auto max-h-64">
+                              <table className="w-full text-[11px]">
+                                <thead className="bg-muted/30 text-muted-foreground border-b border-border/50">
+                                  <tr>
+                                    {block.columns.map((col, ci) => (
+                                      <th key={ci} className="text-left font-semibold px-2.5 py-1.5 whitespace-nowrap">
+                                        {col}
+                                      </th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-border/40">
+                                  {block.rows.map((row, ri) => (
+                                    <tr key={ri} className="hover:bg-muted/20">
+                                      {row.map((cell, ci) => (
+                                        <td key={ci} className="px-2.5 py-1.5 whitespace-nowrap font-mono first:font-sans first:font-semibold">
+                                          {cell}
+                                        </td>
+                                      ))}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (block.type === "bars") {
+                        const maxVal = Math.max(1, ...block.items.map((it) => Number(it.value) || 0));
+                        return (
+                          <div key={bIdx} className="rounded-xl border border-border/80 bg-background p-2.5 space-y-2">
+                            {block.title && (
+                              <div className="text-[11px] font-bold text-foreground">{block.title}</div>
+                            )}
+                            <div className="space-y-1.5">
+                              {block.items.map((it, ii) => {
+                                const pct = Math.max(2, Math.round(((Number(it.value) || 0) / maxVal) * 100));
+                                return (
+                                  <div key={ii} className="space-y-0.5">
+                                    <div className="flex items-center justify-between text-[11px]">
+                                      <span className="font-medium text-foreground truncate pr-2">{it.label}</span>
+                                      <span className="font-mono font-bold text-foreground shrink-0">
+                                        {Number(it.value).toLocaleString("en-IN")}
+                                        {it.badge && (
+                                          <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">
+                                            ({it.badge})
+                                          </span>
+                                        )}
+                                      </span>
+                                    </div>
+                                    <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+                                      <div className="h-full rounded-full bg-indigo-600" style={{ width: `${pct}%` }} />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (block.type === "kpis") {
+                        return (
+                          <div key={bIdx} className="grid grid-cols-2 gap-1.5">
+                            {block.items.map((it, ii) => (
+                              <div
+                                key={ii}
+                                className={`rounded-lg border px-2.5 py-1.5 ${
+                                  it.tone === "good"
+                                    ? "bg-emerald-500/10 border-emerald-500/30"
+                                    : it.tone === "warn"
+                                    ? "bg-amber-500/10 border-amber-500/30"
+                                    : "bg-muted/50 border-border/60"
+                                }`}
+                              >
+                                <div className="text-[10px] text-muted-foreground truncate">{it.label}</div>
+                                <div className="text-xs font-bold text-foreground truncate">{it.value}</div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }
+
+                      if (block.type === "list") {
+                        return (
+                          <div key={bIdx} className="rounded-xl border border-border/80 bg-background p-2.5 space-y-1.5">
+                            {block.title && (
+                              <div className="text-[11px] font-bold text-foreground">{block.title}</div>
+                            )}
+                            <div className="divide-y divide-border/50">
+                              {block.items.map((it, ii) => (
+                                <div key={ii} className="py-1.5 first:pt-0 last:pb-0 flex items-center justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <div className="text-[11px] font-semibold text-foreground truncate">{it.title}</div>
+                                    {it.subtitle && (
+                                      <div className="text-[10px] text-muted-foreground truncate">{it.subtitle}</div>
+                                    )}
+                                  </div>
+                                  {it.badge && (
+                                    <Badge variant="secondary" className="text-[10px] shrink-0">
+                                      {it.badge}
+                                    </Badge>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return null;
+                    })}
                   </div>
                 )}
 

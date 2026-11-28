@@ -6,6 +6,7 @@ import { SyncService } from "@/lib/services/syncService";
 import {
   AiCommandResponse,
   AiProposedAction,
+  AiUiBlock,
   AiWorkflowStepResult,
   FilterParams,
   PresenceStatus,
@@ -467,42 +468,59 @@ Include 3 to 4 highlights.`;
   async planCommand(params: {
     prompt: string;
     currentView?: string;
+    history?: { role: "user" | "assistant"; text: string }[];
     user: User;
   }): Promise<AiCommandResponse> {
-    const metrics = getScopedMetrics(params.user, params.prompt);
+    const historyText = Array.isArray(params.history) && params.history.length > 0
+      ? params.history
+          .slice(-6)
+          .map((h) => `${h.role === "user" ? "USER" : "ASSISTANT"}: ${h.text}`)
+          .join("\n")
+      : "";
+    const metrics = getScopedMetrics(
+      params.user,
+      `${historyText}\n${params.prompt}`
+    );
     const ops = isOpsRole(params.user);
 
-    const systemPrompt = `You are DreamDesk CRM's Global AI Copilot.
+    const systemPrompt = `You are DreamDesk CRM's Adaptive Global AI Copilot.
 Current user: "${params.user.name}" (role: "${params.user.role}", isOps: ${ops}, currentView: "${params.currentView || "leads"}").
 
-Live CRM Context (schema fields, ALL unique facet values + counts, fuzzy prompt matches, users, and history):
+${historyText ? `Recent Conversation History (use this to resolve follow-ups like "break it down day wise" or "assign those"):\n${historyText}\n` : ""}
+Live CRM Context (schema fields, ALL unique facet values + counts, fuzzy prompt matches, users, 7-day day-wise caller report, and history):
 ${JSON.stringify(metrics, null, 2)}
 
-CRITICAL FILTERING RULES:
+CRITICAL FILTERING & ADAPTIVE UI RULES:
 - Always check "promptFacetMatches" and "schemaAndFacets" FIRST!
-- If the user mentions a location, school, stream, board, course, or custom attribute (even with spelling variations like "hoogly" -> "Hooghly"), put the EXACT matched value under "facets": { "<facet_key>": ["<exact_value>"] } (e.g. "facets": { "district": ["Hooghly"] }). Do NOT put location/attribute names into "search"!
+- If the user mentions a location, school, stream, board, course, or custom attribute (even with spelling variations like "hoogly" -> "Hooghly"), put the EXACT matched value under "facets": { "<facet_key>": ["<exact_value>"] }. Do NOT put location/attribute names into "search"!
 - Reserve "search" ONLY for a person's name, phone number, email, or LD- lead code.
-- Use "status": ["New"] for lead stage, "campaign_id": [...] for campaign, "disposition_id": [...] for disposition, "tags": [...] for tags, "assigned_to": ["unassigned"] or [user_id], and "calling_recency": "never_called" | "uncalled_today" | "called_today".
+- Use "status", "campaign_id", "disposition_id", "tags", "assigned_to", and "calling_recency".
+- ADAPTIVE UI ("blocks"): NEVER end "answer" with "Here is the report:" without actually putting the data inside "blocks"! Choose the best UI blocks for the question:
+  1. "table": Use for day-wise calling reports, caller comparisons, or multi-column breakdowns. Example: { "type": "table", "title": "Keshab Thapa — Last 7 Days", "columns": ["Date", "Call Attempts", "Dispositions", "WhatsApp", "Total"], "rows": [["2026-11-27", 18, 5, 2, 25]] }
+  2. "bars": Use for rankings, distributions, campaign counts, district counts, or workload charts. Example: { "type": "bars", "title": "Counselor Lead Load", "items": [{ "label": "Keshab Thapa", "value": 164, "badge": "available" }] }
+  3. "kpis": Use for 2-4 headline metrics. Example: { "type": "kpis", "items": [{ "label": "Assigned", "value": "164", "tone": "good" }] }
+  4. "list": Use for prioritized call lists, bottlenecks, or recent assignment batches. Example: { "type": "list", "title": "Recent Batches", "items": [{ "title": "Batch Name", "subtitle": "Filters...", "badge": "50 leads" }] }
 
 Capabilities you can return in JSON:
-1. Analytical Answers & Reports: Answer questions about leads, unique values, counts, counselor workload/activity/login, campaigns, WhatsApp inbox, tasks, or assignment/activity history using the live metrics above.
-2. Smart Filters / Navigation ("applyFilters"): Help the user jump to a view ("leads", "whatsapp", "tasks", "dashboard", "assignments", "team", "analytics") or filter the Leads table with exact "facets", "status", "campaign_id", "assigned_to", "tags", "calling_recency", "search".
+1. Analytical Answers & Adaptive Reports: Answer using live metrics + rich "blocks".
+2. Smart Filters / Navigation ("applyFilters"): Help the user jump to a view or filter Leads with exact "facets", "status", "campaign_id", "assigned_to", "tags", "calling_recency", "search".
 3. Confirmable Single Action ("proposedAction") OR Multi-Step Workflow ("proposedWorkflow"):
-   Use "proposedWorkflow" (an ordered array of 2-5 steps) whenever the user asks for a multi-step operation (e.g. filter + assign + tag + schedule tasks + update status). Use "proposedAction" for a single action.
+   Use "proposedWorkflow" (an ordered array of 2-5 steps) whenever the user asks for a multi-step operation. Use "proposedAction" for a single action.
    ${
      ops
        ? `Supported action types:
-   - "bulk_status": Update lead status for filtered leads. Payload: { "filter_params": { "facets"?, "status"?, "campaign_id"?, "disposition_id"?, "tags"?, "calling_recency"?, "assigned_to"?, "search"? }, "status": "New" | "Contacted" | "Follow-up" | "Interested" | "Converted" | "Cold" | "Not Interested" | string }
-   - "bulk_assign": Assign filtered leads to a counselor (mode: "single" with target_user_id from counselorWorkloads, or "auto" round-robin). Payload: { "filter_params": {...}, "mode": "single" | "auto", "target_user_id"?: string, "total_to_assign"?: number }
-   - "bulk_tag": Add tags to filtered leads. Payload: { "filter_params": {...}, "tags": ["string"] }
-   - "bulk_create_tasks": Schedule CRM follow-up tasks for filtered leads. Payload: { "filter_params": {...}, "title": "string", "priority": "low" | "normal" | "high" | "urgent", "due_date": "ISO-8601 string", "limit"?: number }`
+   - "bulk_status": Payload: { "filter_params": { "facets"?, "status"?, "campaign_id"?, "disposition_id"?, "tags"?, "calling_recency"?, "assigned_to"?, "search"? }, "status": "..." }
+   - "bulk_assign": Payload: { "filter_params": {...}, "mode": "single" | "auto", "target_user_id"?: string, "total_to_assign"?: number }
+   - "bulk_tag": Payload: { "filter_params": {...}, "tags": ["string"] }
+   - "bulk_create_tasks": Payload: { "filter_params": {...}, "title": "string", "priority": "low" | "normal" | "high" | "urgent", "due_date": "ISO-8601 string", "limit"?: number }`
        : `- IMPORTANT: User is NOT an Admin/Team Lead. NEVER propose "bulk_assign", "bulk_status", "bulk_tag", or "bulk_create_tasks".`
    }
 
 Return strictly valid JSON:
 {
-  "answer": "Clear, concise answer or explanation of the plan.",
+  "answer": "Clear, concise summary.",
   "highlights": [{ "label": "string", "value": "string" }],
+  "blocks": [],
   "applyFilters": { "search"?: "string", "status"?: ["string"], "campaign_id"?: ["string"], "assigned_to"?: ["string"], "tags"?: ["string"], "calling_recency"?: "string", "facets"?: { "key": ["value"] }, "view"?: "string" } | null,
   "proposedAction": {
     "type": "bulk_status" | "bulk_assign" | "bulk_tag" | "bulk_create_tasks",
@@ -571,6 +589,10 @@ Return strictly valid JSON:
         ? normalizeStep(parsed?.proposedAction)
         : null;
 
+    const blocks: AiUiBlock[] = Array.isArray(parsed?.blocks)
+      ? parsed.blocks.filter((b: any) => b && ["table", "bars", "kpis", "list"].includes(b.type))
+      : [];
+
     return {
       answer: String(parsed?.answer || "Done."),
       highlights: Array.isArray(parsed?.highlights)
@@ -579,6 +601,7 @@ Return strictly valid JSON:
             value: String(h?.value || ""),
           }))
         : [],
+      blocks,
       applyFilters: parsed?.applyFilters || null,
       proposedAction,
       proposedWorkflow: proposedWorkflow && proposedWorkflow.length > 0 ? proposedWorkflow : null,

@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
     const result = await AiCommandService.planCommand({
       prompt,
       currentView: body?.current_view ? String(body.current_view) : undefined,
+      history: Array.isArray(body?.history) ? body.history : undefined,
       user: session.user,
     });
     return NextResponse.json({ success: true, result });

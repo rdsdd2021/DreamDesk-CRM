@@ -941,9 +941,32 @@ export interface AiWorkflowStepResult {
   affectedCount?: number;
 }
 
+export type AiUiBlock =
+  | {
+      type: 'table';
+      title?: string;
+      columns: string[];
+      rows: (string | number)[][];
+    }
+  | {
+      type: 'bars';
+      title?: string;
+      items: { label: string; value: number; badge?: string }[];
+    }
+  | {
+      type: 'kpis';
+      items: { label: string; value: string; tone?: 'default' | 'good' | 'warn' }[];
+    }
+  | {
+      type: 'list';
+      title?: string;
+      items: { title: string; subtitle?: string; badge?: string }[];
+    };
+
 export interface AiCommandResponse {
   answer: string;
   highlights?: { label: string; value: string }[];
+  blocks?: AiUiBlock[];
   applyFilters?: {
     search?: string;
     status?: string[];
