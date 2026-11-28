@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { formatPhoneDisplay } from "@/lib/utils/phoneNormalizer";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -945,7 +946,7 @@ export function LeadsTable({
                                 ) : (
                                   <PhoneCall className="w-3.5 h-3.5 text-muted-foreground/70 group-hover/phone:text-primary" />
                                 )}
-                                <span>{lead.phone}</span>
+                                <span>{formatPhoneDisplay(lead.phone)}</span>
                               </button>
                               {lead.whatsapp_status !== "invalid" && (
                                 <button

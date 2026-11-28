@@ -121,14 +121,16 @@ export function normalizeAndValidatePhone(raw?: string | null): PhoneValidationR
 }
 
 /**
- * Formats a stored phone number consistently for UI display (e.g., "+91 86959 11105").
+ * Formats a stored phone number consistently for UI display (e.g., "+91 8695911105").
  */
 export function formatPhoneDisplay(raw?: string | null): string {
   if (!raw) return "";
-  const res = normalizeAndValidatePhone(raw);
-  if (!res.valid) return String(raw);
+  const s = String(raw).trim();
+  if (s.includes("•") || s.includes("*")) return s;
+  const res = normalizeAndValidatePhone(s);
+  if (!res.valid) return s;
   if (res.e164.startsWith("+91") && res.local10.length === 10) {
-    return `+91 ${res.local10.slice(0, 5)} ${res.local10.slice(5)}`;
+    return `+91 ${res.local10}`;
   }
   return res.e164;
 }

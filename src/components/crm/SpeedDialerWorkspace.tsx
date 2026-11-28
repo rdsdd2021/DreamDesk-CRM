@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { LeadAiCopilotBar } from "@/components/crm/LeadAiCopilotBar";
+import { formatPhoneDisplay } from "@/lib/utils/phoneNormalizer";
 import {
   Phone,
   MessageSquare,
@@ -392,7 +393,7 @@ export function SpeedDialerWorkspace({
                 )}
               </div>
               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <span className="font-mono font-semibold text-foreground">{currentLead.phone}</span>
+                <span className="font-mono font-semibold text-foreground">{formatPhoneDisplay(currentLead.phone)}</span>
                 {currentLead.email && <span className="hidden sm:inline truncate max-w-[150px]">• {currentLead.email}</span>}
               </div>
             </div>
