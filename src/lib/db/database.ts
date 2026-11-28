@@ -834,6 +834,42 @@ function initializeSchema(db: Database.Database) {
     if (!waSettingsCols.some((c) => c.name === "wa_checker_token")) {
       db.exec("ALTER TABLE whatsapp_settings ADD COLUMN wa_checker_token TEXT;");
     }
+
+    // One-time fix for Unix-second timestamps stored as strings (e.g. "1795846696") -> ISO-8601
+    const badMsgs = db
+      .prepare(`SELECT id, created_at FROM whatsapp_messages WHERE created_at GLOB '[0-9]*' AND LENGTH(created_at) BETWEEN 9 AND 11`)
+      .all() as { id: number; created_at: string }[];
+    if (badMsgs.length > 0) {
+      const updMsg = db.prepare(`UPDATE whatsapp_messages SET created_at = ? WHERE id = ?`);
+      db.transaction(() => {
+        for (const r of badMsgs) {
+          updMsg.run(new Date(Number(r.created_at) * 1000).toISOString(), r.id);
+        }
+      })();
+    }
+    const badConvs = db
+      .prepare(
+        `SELECT id, last_inbound_at, last_message_at FROM whatsapp_conversations
+         WHERE (last_inbound_at GLOB '[0-9]*' AND LENGTH(last_inbound_at) BETWEEN 9 AND 11)
+            OR (last_message_at GLOB '[0-9]*' AND LENGTH(last_message_at) BETWEEN 9 AND 11)`
+      )
+      .all() as { id: number; last_inbound_at: string | null; last_message_at: string | null }[];
+    if (badConvs.length > 0) {
+      const updConv = db.prepare(`UPDATE whatsapp_conversations SET last_inbound_at = ?, last_message_at = ? WHERE id = ?`);
+      db.transaction(() => {
+        for (const c of badConvs) {
+          const nextIn =
+            c.last_inbound_at && /^\d{9,11}$/.test(c.last_inbound_at)
+              ? new Date(Number(c.last_inbound_at) * 1000).toISOString()
+              : c.last_inbound_at;
+          const nextMsg =
+            c.last_message_at && /^\d{9,11}$/.test(c.last_message_at)
+              ? new Date(Number(c.last_message_at) * 1000).toISOString()
+              : c.last_message_at;
+          updConv.run(nextIn, nextMsg, c.id);
+        }
+      })();
+    }
   } catch {}
 
   try {

@@ -16,6 +16,17 @@ import { Badge } from "@/components/ui/badge";
 import { WhatsAppTemplateBubblePreview } from "@/components/crm/WhatsAppTemplateBubblePreview";
 import { Clock, Loader2, Lock, MessageSquare, Send, Sparkles } from "lucide-react";
 
+function parseWaTimestamp(val?: string | number | null): Date {
+  if (val === null || val === undefined || val === "") return new Date(NaN);
+  if (typeof val === "number") {
+    return new Date(val < 1e12 ? val * 1000 : val);
+  }
+  const s = String(val).trim();
+  if (/^\d{9,11}$/.test(s)) return new Date(Number(s) * 1000);
+  if (/^\d{12,14}$/.test(s)) return new Date(Number(s));
+  return new Date(s);
+}
+
 interface WhatsAppModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -48,12 +59,12 @@ export function WhatsAppModal({
   const windowStatus = useMemo(() => {
     const latestInboundFromMsgs = history
       .filter((m) => m.direction === "inbound")
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]?.created_at;
+      .sort((a, b) => parseWaTimestamp(b.created_at).getTime() - parseWaTimestamp(a.created_at).getTime())[0]?.created_at;
     const lastInbound = conversation?.last_inbound_at || latestInboundFromMsgs || null;
     if (!lastInbound) {
       return { isOpen: false, label: "No inbound reply yet · Template required" };
     }
-    const elapsedMs = Date.now() - new Date(lastInbound).getTime();
+    const elapsedMs = Date.now() - parseWaTimestamp(lastInbound).getTime();
     const limitMs = 24 * 60 * 60 * 1000;
     if (isNaN(elapsedMs) || elapsedMs >= limitMs) {
       return { isOpen: false, label: "24h window expired · Template required" };
@@ -90,7 +101,7 @@ export function WhatsAppModal({
           conv?.last_inbound_at ||
           msgs.filter((m) => m.direction === "inbound").slice(-1)[0]?.created_at;
         const open24h = Boolean(
-          lastIn && Date.now() - new Date(lastIn).getTime() < 24 * 60 * 60 * 1000
+          lastIn && Date.now() - parseWaTimestamp(lastIn).getTime() < 24 * 60 * 60 * 1000
         );
         if (!open24h) {
           setMode("template");

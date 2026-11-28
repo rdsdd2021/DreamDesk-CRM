@@ -24,6 +24,23 @@ function normalizePhoneDigits(raw: string): string {
   return digits;
 }
 
+function normalizeKapsoTimestamp(raw?: string | number | null, fallbackIso?: string): string {
+  if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
+    const str = String(raw).trim();
+    if (/^\d{9,11}$/.test(str)) {
+      return new Date(Number(str) * 1000).toISOString();
+    }
+    if (/^\d{12,14}$/.test(str)) {
+      return new Date(Number(str)).toISOString();
+    }
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString();
+    }
+  }
+  return fallbackIso || new Date().toISOString();
+}
+
 function maskKey(val?: string | null): string {
   if (!val) return "";
   if (val.length <= 8) return "••••••••";
@@ -714,7 +731,9 @@ export class KapsoWhatsappService {
         );
         const msgJson = await msgRes.json().catch(() => ({}));
         const msgs: any[] = Array.isArray(msgJson?.data) ? msgJson.data : [];
-        let latestInboundAt: string | null = null;
+        let latestInboundAt: string | null = c?.kapso?.last_inbound_at
+          ? normalizeKapsoTimestamp(c.kapso.last_inbound_at)
+          : null;
         let latestMsgAt: string | null = null;
         let latestPreview: string | null = null;
         let latestDir: string | null = null;
@@ -732,7 +751,7 @@ export class KapsoWhatsappService {
           }
           const direction = k?.direction === "outbound" ? "outbound" : "inbound";
           const bodyText = k?.content || m?.text?.body || "[WhatsApp Message]";
-          const createdAt = m?.timestamp || k?.timestamp || now;
+          const createdAt = normalizeKapsoTimestamp(m?.timestamp || k?.timestamp, now);
           if (direction === "inbound" && (!latestInboundAt || createdAt > latestInboundAt)) {
             latestInboundAt = createdAt;
           }
@@ -944,7 +963,7 @@ export class KapsoWhatsappService {
     }
 
     const messages = db
-      .prepare(`SELECT * FROM whatsapp_messages WHERE conversation_id = ? ORDER BY id ASC`)
+      .prepare(`SELECT * FROM whatsapp_messages WHERE conversation_id = ? ORDER BY datetime(created_at) ASC, id ASC`)
       .all(conversationId) as WhatsAppMessage[];
 
     if (conv.unread_count > 0) {
@@ -1379,7 +1398,7 @@ export class KapsoWhatsappService {
       const contactName = convData?.contact_name || convData?.username || null;
       const kapsoConvId = convData?.id || null;
       const kapsoMsgId = msg?.id || null;
-      const now = new Date().toISOString();
+      const now = normalizeKapsoTimestamp(msg?.timestamp || kapsoMsg?.timestamp);
 
       if (kapsoMsgId) {
         const dup = db

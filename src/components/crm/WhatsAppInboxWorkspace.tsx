@@ -39,6 +39,17 @@ import {
   XCircle,
 } from "lucide-react";
 
+function parseWaTimestamp(val?: string | number | null): Date {
+  if (val === null || val === undefined || val === "") return new Date(NaN);
+  if (typeof val === "number") {
+    return new Date(val < 1e12 ? val * 1000 : val);
+  }
+  const s = String(val).trim();
+  if (/^\d{9,11}$/.test(s)) return new Date(Number(s) * 1000);
+  if (/^\d{12,14}$/.test(s)) return new Date(Number(s));
+  return new Date(s);
+}
+
 interface WhatsAppInboxWorkspaceProps {
   currentUser: User | null;
   users: User[];
@@ -579,7 +590,7 @@ export function WhatsAppInboxWorkspace({
                   const selected = c.id === selectedConvId;
                   const is24h = Boolean(
                     c.last_inbound_at &&
-                      Date.now() - new Date(c.last_inbound_at).getTime() < 24 * 60 * 60 * 1000
+                      Date.now() - parseWaTimestamp(c.last_inbound_at).getTime() < 24 * 60 * 60 * 1000
                   );
                   return (
                     <button
@@ -609,7 +620,7 @@ export function WhatsAppInboxWorkspace({
                             {c.contact_name || c.lead_name || c.phone_number}
                           </span>
                           <span className="text-[10px] text-muted-foreground shrink-0 font-mono">
-                            {new Date(c.last_message_at).toLocaleTimeString("en-IN", {
+                            {parseWaTimestamp(c.last_message_at).toLocaleTimeString("en-IN", {
                               hour: "2-digit",
                               minute: "2-digit",
                             })}
@@ -716,7 +727,7 @@ export function WhatsAppInboxWorkspace({
                       const lastIn =
                         activeConv.last_inbound_at ||
                         messages.filter((m) => m.direction === "inbound").slice(-1)[0]?.created_at;
-                      const diffMs = lastIn ? Date.now() - new Date(lastIn).getTime() : Infinity;
+                      const diffMs = lastIn ? Date.now() - parseWaTimestamp(lastIn).getTime() : Infinity;
                       const is24hOpen = diffMs < 24 * 60 * 60 * 1000;
                       const hrsLeft = is24hOpen ? Math.max(0, Math.floor((24 * 3600000 - diffMs) / 3600000)) : 0;
                       const minsLeft = is24hOpen ? Math.max(0, Math.floor(((24 * 3600000 - diffMs) % 3600000) / 60000)) : 0;
@@ -776,8 +787,9 @@ export function WhatsAppInboxWorkspace({
                     <>
                       {messages.map((m, idx) => {
                         const isOutbound = m.direction === "outbound";
-                        const curDay = new Date(m.created_at).toDateString();
-                        const prevDay = idx > 0 ? new Date(messages[idx - 1].created_at).toDateString() : null;
+                        const msgDate = parseWaTimestamp(m.created_at);
+                        const curDay = msgDate.toDateString();
+                        const prevDay = idx > 0 ? parseWaTimestamp(messages[idx - 1].created_at).toDateString() : null;
                         const showDatePill = curDay !== prevDay;
                         const todayStr = new Date().toDateString();
                         const yesterdayStr = new Date(Date.now() - 86400000).toDateString();
@@ -786,7 +798,7 @@ export function WhatsAppInboxWorkspace({
                             ? "Today"
                             : curDay === yesterdayStr
                             ? "Yesterday"
-                            : new Date(m.created_at).toLocaleDateString("en-IN", {
+                            : msgDate.toLocaleDateString("en-IN", {
                                 day: "numeric",
                                 month: "short",
                                 year: "numeric",
@@ -837,7 +849,7 @@ export function WhatsAppInboxWorkspace({
                                 >
                                   {m.sent_by_name && isOutbound && <span>{m.sent_by_name} ·</span>}
                                   <span>
-                                    {new Date(m.created_at).toLocaleTimeString("en-IN", {
+                                    {msgDate.toLocaleTimeString("en-IN", {
                                       hour: "2-digit",
                                       minute: "2-digit",
                                     })}
@@ -1012,7 +1024,7 @@ export function WhatsAppInboxWorkspace({
                         activeConv?.last_inbound_at ||
                         messages.filter((m) => m.direction === "inbound").slice(-1)[0]?.created_at;
                       const is24hOpen = Boolean(
-                        lastIn && Date.now() - new Date(lastIn).getTime() < 24 * 60 * 60 * 1000
+                        lastIn && Date.now() - parseWaTimestamp(lastIn).getTime() < 24 * 60 * 60 * 1000
                       );
                       return is24hOpen ? (
                         <Input
