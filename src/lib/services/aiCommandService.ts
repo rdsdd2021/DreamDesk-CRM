@@ -365,13 +365,53 @@ function getScopedMetrics(user: User, prompt?: string) {
         .all() as any[];
     } catch {}
 
+    const callerDailyReport7d = db
+      .prepare(
+        `SELECT date(created_at) as day,
+                COALESCE(performed_by_name, 'System') as caller,
+                activity_type,
+                COUNT(*) as count
+         FROM lead_activities
+         WHERE created_at >= datetime('now', '-7 days')
+         GROUP BY date(created_at), COALESCE(performed_by_name, 'System'), activity_type
+         ORDER BY day DESC, count DESC`
+      )
+      .all() as any[];
+
+    const callerDispositionBreakdown7d = db
+      .prepare(
+        `SELECT COALESCE(performed_by_name, 'System') as caller,
+                COALESCE(new_value, title) as outcome,
+                COUNT(*) as count
+         FROM lead_activities
+         WHERE created_at >= datetime('now', '-7 days')
+           AND activity_type IN ('call_outcome', 'disposition', 'status_change')
+         GROUP BY COALESCE(performed_by_name, 'System'), COALESCE(new_value, title)
+         ORDER BY count DESC
+         LIMIT 100`
+      )
+      .all() as any[];
+
     opsExtra = {
       unassignedCount,
       counselorWorkloads,
       campaigns,
       recentAssignmentBatches,
       recentSystemLogs,
+      callerDailyReport7d,
+      callerDispositionBreakdown7d,
     };
+  } else {
+    const myDailyReport7d = db
+      .prepare(
+        `SELECT date(created_at) as day, activity_type, COUNT(*) as count
+         FROM lead_activities
+         WHERE created_at >= datetime('now', '-7 days') AND performed_by_name = ?
+         GROUP BY date(created_at), activity_type
+         ORDER BY day DESC, count DESC`
+      )
+      .all(user.name) as any[];
+    opsExtra = { myDailyReport7d };
   }
 
   return {
