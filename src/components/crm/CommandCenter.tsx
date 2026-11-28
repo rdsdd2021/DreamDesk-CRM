@@ -214,7 +214,7 @@ export function CommandCenter({
                 className="text-xs cursor-pointer"
               >
                 <MessageSquare className="w-4 h-4 mr-2 text-emerald-500" />
-                <span>WhatsApp Templates Studio</span>
+                <span>WhatsApp Inbox</span>
               </CommandItem>
             )}
 

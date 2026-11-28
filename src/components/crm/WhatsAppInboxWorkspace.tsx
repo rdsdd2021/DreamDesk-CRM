@@ -137,11 +137,38 @@ export function WhatsAppInboxWorkspace({
       const res = await fetch(`/api/whatsapp/conversations/${convId}`, { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
-        setActiveConv(data.conversation || null);
-        setMessages(data.messages || []);
-        setConversations((prev) =>
-          prev.map((c) => (c.id === convId ? { ...c, unread_count: 0 } : c))
+        const nextConv = data.conversation || null;
+        const nextMsgs: WhatsAppMessage[] = data.messages || [];
+        setActiveConv((prev) =>
+          prev &&
+          nextConv &&
+          prev.id === nextConv.id &&
+          prev.last_inbound_at === nextConv.last_inbound_at &&
+          prev.status === nextConv.status &&
+          prev.assigned_to === nextConv.assigned_to &&
+          prev.lead_id === nextConv.lead_id
+            ? prev
+            : nextConv
         );
+        setMessages((prev) => {
+          if (
+            prev.length === nextMsgs.length &&
+            prev.every(
+              (m, i) =>
+                m.id === nextMsgs[i]?.id &&
+                m.status === nextMsgs[i]?.status &&
+                m.error_message === nextMsgs[i]?.error_message
+            )
+          ) {
+            return prev;
+          }
+          return nextMsgs;
+        });
+        setConversations((prev) => {
+          const target = prev.find((c) => c.id === convId);
+          if (!target || target.unread_count === 0) return prev;
+          return prev.map((c) => (c.id === convId ? { ...c, unread_count: 0 } : c));
+        });
       }
     } finally {
       if (!silent) setLoadingMsgs(false);
@@ -199,7 +226,7 @@ export function WhatsAppInboxWorkspace({
         "success"
       );
       await loadConversations();
-      if (selectedConvId) await loadThread(selectedConvId);
+      if (selectedConvId) await loadThread(selectedConvId, true);
     } catch (err: any) {
       onShowToast?.(err?.message || "Failed to sync Kapso chat history", "error");
     } finally {
@@ -709,7 +736,7 @@ export function WhatsAppInboxWorkspace({
                             if (res.ok) {
                               onShowToast?.(`Saved as Lead ${data.leadCode}`, "success");
                               await loadConversations();
-                              await loadThread(activeConv.id);
+                              await loadThread(activeConv.id, true);
                             } else {
                               onShowToast?.(data.error || "Failed to save lead", "error");
                             }
@@ -774,7 +801,7 @@ export function WhatsAppInboxWorkspace({
 
                 {/* Messages Feed */}
                 <div className="flex-1 min-h-0 p-4 space-y-2.5 overflow-y-auto">
-                  {loadingMsgs ? (
+                  {loadingMsgs && messages.length === 0 ? (
                     <div className="py-10 text-center text-xs text-muted-foreground">
                       <Loader2 className="w-5 h-5 animate-spin mx-auto mb-1" />
                       Loading messages...
