@@ -917,3 +917,30 @@ export interface WhatsAppAiAssistResult {
   extractedFields: WhatsAppAiExtractedField[];
   suggestedTask?: WhatsAppAiSuggestedTask | null;
 }
+
+export type AiActionType =
+  | 'bulk_status'
+  | 'bulk_assign'
+  | 'bulk_tag'
+  | 'set_presence';
+
+export interface AiProposedAction {
+  type: AiActionType;
+  title: string;
+  summary: string;
+  affectedCount: number;
+  payload: Record<string, any>;
+}
+
+export interface AiCommandResponse {
+  answer: string;
+  highlights?: { label: string; value: string }[];
+  applyFilters?: {
+    search?: string;
+    status?: string[];
+    campaign?: string[];
+    assigned_to?: string[];
+    view?: string;
+  } | null;
+  proposedAction?: AiProposedAction | null;
+}

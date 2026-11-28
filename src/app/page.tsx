@@ -55,6 +55,7 @@ import { ActivityWorkspace } from "@/components/crm/ActivityWorkspace";
 import { PoliciesWorkspace } from "@/components/crm/PoliciesWorkspace";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { SystemDiagnosticsDrawer } from "@/components/crm/SystemDiagnosticsDrawer";
+import { GlobalAiCopilotDrawer } from "@/components/crm/GlobalAiCopilotDrawer";
 import { GlobalErrorBoundary } from "@/components/ui/GlobalErrorBoundary";
 import { WorkspaceErrorBoundary } from "@/components/ui/WorkspaceErrorBoundary";
 import { NetworkStatusPill } from "@/components/ui/NetworkStatusPill";
@@ -235,6 +236,18 @@ export default function CRMPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isCommandCenterOpen, setIsCommandCenterOpen] = useState(false);
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
+  const [isAiCopilotOpen, setIsAiCopilotOpen] = useState(false);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "j") {
+        e.preventDefault();
+        setIsAiCopilotOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const canAccessView = useCallback(
     (viewId: string) => {
@@ -1671,6 +1684,19 @@ export default function CRMPage() {
               </div>
             )}
 
+            {/* AI Copilot Trigger */}
+            {currentUser && (
+              <button
+                type="button"
+                onClick={() => setIsAiCopilotOpen(true)}
+                title="DreamDesk AI Copilot (Ctrl+J)"
+                className="h-8 px-2.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer shrink-0 transition-colors"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">AI Copilot</span>
+              </button>
+            )}
+
             {/* 1. Status Button */}
             {currentUser && (
               <DailyPresencePill
@@ -2327,6 +2353,35 @@ export default function CRMPage() {
       <SystemDiagnosticsDrawer
         isOpen={isDiagnosticsOpen}
         onClose={() => setIsDiagnosticsOpen(false)}
+      />
+
+      {/* Global CRM-Wide AI Copilot Drawer */}
+      <GlobalAiCopilotDrawer
+        isOpen={isAiCopilotOpen}
+        onOpenChange={setIsAiCopilotOpen}
+        currentUser={currentUser}
+        currentView={currentView}
+        onApplyFilters={(filters) => {
+          if (filters.view && canAccessView(filters.view)) {
+            setCurrentView(filters.view);
+          } else {
+            setCurrentView("leads");
+          }
+          if (filters.search !== undefined) setSearch(filters.search);
+          const nextFacets: Record<string, string[]> = {};
+          if (filters.status && filters.status.length > 0) nextFacets.status = filters.status;
+          if (filters.campaign && filters.campaign.length > 0) nextFacets.campaign = filters.campaign;
+          if (filters.assigned_to && filters.assigned_to.length > 0) nextFacets.assigned_to = filters.assigned_to;
+          if (Object.keys(nextFacets).length > 0) {
+            setSelectedFacets(nextFacets);
+          }
+          setPage(1);
+        }}
+        onActionExecuted={(_actionType, message) => {
+          showToast(message, "success");
+          fetchLeads(true);
+          loadMetaAndUsers();
+        }}
       />
 
       {/* Non-Blocking Server Background Jobs Tracker */}
