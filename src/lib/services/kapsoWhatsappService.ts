@@ -16,6 +16,34 @@ import {
 
 const KAPSO_API_BASE = "https://api.kapso.ai";
 
+function stripKapsoMediaMetadata(text?: string | null): string {
+  if (!text) return "";
+  return String(text)
+    .replace(/\s*(?:Image|Video|Audio|Document|Media|File)\s+attached\s*\([^)]*\)\s*\[Size:[^\]]*\]\s*URL:\s*\S+/gi, "")
+    .trim();
+}
+
+function detectKapsoMessageType(
+  m: any,
+  k: any
+): "image" | "video" | "audio" | "document" | "text" {
+  const rawType = String(m?.type || "").toLowerCase();
+  if (rawType === "image" || rawType === "video" || rawType === "audio" || rawType === "document") {
+    return rawType;
+  }
+  const mime = String(k?.media_data?.content_type || "").toLowerCase();
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+  if (mime.startsWith("audio/")) return "audio";
+  if (mime) return "document";
+  const content = String(k?.content || "");
+  if (/Video attached/i.test(content)) return "video";
+  if (/Audio attached/i.test(content)) return "audio";
+  if (/Document attached/i.test(content)) return "document";
+  if (/Image attached/i.test(content) || k?.has_media) return "image";
+  return "text";
+}
+
 function normalizePhoneDigits(raw: string): string {
   const res = normalizeAndValidatePhone(raw);
   if (res.valid) return res.digits;
@@ -750,14 +778,16 @@ export class KapsoWhatsappService {
             if (exists) continue;
           }
           const direction = k?.direction === "outbound" ? "outbound" : "inbound";
-          const bodyText = k?.content || m?.text?.body || "[WhatsApp Message]";
+          const msgType = detectKapsoMessageType(m, k);
+          const rawBody = stripKapsoMediaMetadata(k?.content || m?.text?.body || "");
+          const bodyText = rawBody || (msgType === "text" ? "[WhatsApp Message]" : "");
           const createdAt = normalizeKapsoTimestamp(m?.timestamp || k?.timestamp, now);
           if (direction === "inbound" && (!latestInboundAt || createdAt > latestInboundAt)) {
             latestInboundAt = createdAt;
           }
           if (!latestMsgAt || createdAt > latestMsgAt) {
             latestMsgAt = createdAt;
-            latestPreview = String(bodyText).slice(0, 120);
+            latestPreview = String(bodyText || `[${msgType}]`).slice(0, 120);
             latestDir = direction;
           }
           db.prepare(
@@ -772,7 +802,7 @@ export class KapsoWhatsappService {
             kapsoMsgId,
             matchedLead?.id || localConv.lead_id || null,
             direction,
-            k?.has_media ? "image" : "text",
+            msgType,
             bodyText,
             k?.media_url || null,
             k?.status || (direction === "inbound" ? "delivered" : "sent"),
@@ -1054,7 +1084,7 @@ export class KapsoWhatsappService {
     leadId?: number;
     conversationId?: number;
     toPhone?: string;
-    messageType?: "text" | "template" | "image" | "document" | "video";
+    messageType?: "text" | "template" | "image" | "document" | "video" | "audio";
     body: string;
     templateName?: string;
     languageCode?: string;
@@ -1152,9 +1182,9 @@ export class KapsoWhatsappService {
           ...(components.length > 0 ? { components } : {}),
         },
       };
-    } else if (["image", "document", "video"].includes(msgType) && (params.mediaId || params.mediaUrl)) {
+    } else if (["image", "document", "video", "audio"].includes(msgType) && (params.mediaId || params.mediaUrl)) {
       const mediaObj: any = params.mediaId ? { id: params.mediaId } : { link: params.mediaUrl };
-      if (textBody) mediaObj.caption = textBody;
+      if (textBody && msgType !== "audio") mediaObj.caption = textBody;
       kapsoPayload = {
         messaging_product: "whatsapp",
         recipient_type: "individual",
@@ -1198,7 +1228,8 @@ export class KapsoWhatsappService {
       WhatsappCheckerService.markStatus(toDigits, "invalid", "131026", "webhook");
     }
 
-    const displayBody = textBody || `[Template: ${params.templateName}]`;
+    const displayBody =
+      textBody || (params.templateName ? `[Template: ${params.templateName}]` : "");
     const resolvedMediaUrl =
       params.mediaUrl || (params.mediaId ? `/api/whatsapp/media?id=${encodeURIComponent(params.mediaId)}` : null);
     const insertRes = db
@@ -1482,6 +1513,8 @@ export class KapsoWhatsappService {
         );
       }
 
+      const whMsgType = detectKapsoMessageType(msg, kapsoMsg);
+      const cleanWhBody = stripKapsoMediaMetadata(bodyText);
       db.prepare(
         `
         INSERT INTO whatsapp_messages (
@@ -1494,8 +1527,8 @@ export class KapsoWhatsappService {
         kapsoMsgId,
         matchedLead?.id || conv.lead_id || null,
         direction,
-        kapsoMsg?.has_media ? "image" : "text",
-        bodyText,
+        whMsgType,
+        cleanWhBody || (whMsgType === "text" ? bodyText : ""),
         kapsoMsg?.media_url || null,
         direction === "inbound" ? "delivered" : "sent",
         now

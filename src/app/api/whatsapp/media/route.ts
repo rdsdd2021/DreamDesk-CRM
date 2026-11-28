@@ -29,20 +29,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Media URL not found" }, { status: 404 });
     }
 
+    const upstreamHeaders: Record<string, string> = { "X-API-Key": cfg.kapso_api_key };
+    const range = request.headers.get("range");
+    if (range) upstreamHeaders["Range"] = range;
+
     const binRes = await fetch(downloadUrl, {
-      headers: { "X-API-Key": cfg.kapso_api_key },
+      headers: upstreamHeaders,
     });
-    if (!binRes.ok || !binRes.body) {
+    if ((!binRes.ok && binRes.status !== 206) || !binRes.body) {
       return NextResponse.json({ error: "Failed to fetch media binary" }, { status: 502 });
     }
 
     const contentType = binRes.headers.get("content-type") || metaJson?.mime_type || "application/octet-stream";
+    const resHeaders: Record<string, string> = {
+      "Content-Type": contentType,
+      "Accept-Ranges": binRes.headers.get("accept-ranges") || "bytes",
+      "Cache-Control": "private, max-age=3600",
+    };
+    const contentLength = binRes.headers.get("content-length");
+    if (contentLength) resHeaders["Content-Length"] = contentLength;
+    const contentRange = binRes.headers.get("content-range");
+    if (contentRange) resHeaders["Content-Range"] = contentRange;
+
     return new NextResponse(binRes.body, {
-      status: 200,
-      headers: {
-        "Content-Type": contentType,
-        "Cache-Control": "private, max-age=3600",
-      },
+      status: binRes.status === 206 ? 206 : 200,
+      headers: resHeaders,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || "Media proxy error" }, { status: 500 });

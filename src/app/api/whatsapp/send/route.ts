@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       leadId: body?.lead_id ? Number(body.lead_id) : undefined,
       conversationId: body?.conversation_id ? Number(body.conversation_id) : undefined,
       toPhone: body?.to_phone ? String(body.to_phone) : undefined,
-      messageType: ["template", "image", "document", "video"].includes(body?.message_type)
+      messageType: ["template", "image", "document", "video", "audio"].includes(body?.message_type)
         ? body.message_type
         : "text",
       body: String(body?.body || body?.message || ""),

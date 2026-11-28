@@ -868,7 +868,7 @@ export interface WhatsAppMessage {
   kapso_message_id?: string | null;
   lead_id?: number | null;
   direction: 'inbound' | 'outbound';
-  message_type: 'text' | 'template' | 'image' | 'document' | 'audio';
+  message_type: 'text' | 'template' | 'image' | 'video' | 'document' | 'audio';
   body: string;
   template_name?: string | null;
   media_url?: string | null;

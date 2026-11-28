@@ -85,7 +85,7 @@ export function WhatsAppInboxWorkspace({
   const [selectedTemplate, setSelectedTemplate] = useState<WhatsAppTemplate | null>(null);
   const [templateVarValues, setTemplateVarValues] = useState<Record<string, string>>({});
   const [attachedMedia, setAttachedMedia] = useState<{
-    type: "image" | "document" | "video";
+    type: "image" | "document" | "video" | "audio";
     id?: string;
     url?: string;
     name: string;
@@ -243,10 +243,12 @@ export function WhatsAppInboxWorkspace({
       const res = await fetch("/api/whatsapp/media", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Upload failed");
-      const type: "image" | "video" | "document" = file.type.startsWith("image/")
+      const type: "image" | "video" | "audio" | "document" = file.type.startsWith("image/")
         ? "image"
         : file.type.startsWith("video/")
         ? "video"
+        : file.type.startsWith("audio/")
+        ? "audio"
         : "document";
       setAttachedMedia({
         type,
@@ -320,7 +322,7 @@ export function WhatsAppInboxWorkspace({
           message_type: attachedMedia.type,
           media_id: attachedMedia.id,
           media_url: attachedMedia.url,
-          body: replyText.trim() || `[${attachedMedia.type}: ${attachedMedia.name}]`,
+          body: replyText.trim(),
         };
       } else {
         if (!replyText.trim()) return;
@@ -857,13 +859,64 @@ export function WhatsAppInboxWorkspace({
                                   </div>
                                 )}
                                 {m.media_url && m.message_type === "image" && (
-                                  <img
+                                  <a href={m.media_url} target="_blank" rel="noopener noreferrer" className="block">
+                                    <img
+                                      src={m.media_url}
+                                      alt="Attachment"
+                                      className="rounded-lg max-h-52 object-cover border border-black/10"
+                                    />
+                                  </a>
+                                )}
+                                {m.media_url && m.message_type === "video" && (
+                                  <video
                                     src={m.media_url}
-                                    alt="Attachment"
-                                    className="rounded-lg max-h-44 object-cover border border-black/10"
+                                    controls
+                                    playsInline
+                                    preload="metadata"
+                                    className="rounded-lg max-h-56 w-full bg-black/90 border border-black/10"
                                   />
                                 )}
-                                <p className="whitespace-pre-wrap leading-relaxed">{m.body}</p>
+                                {m.media_url &&
+                                  (m.message_type === "audio" ||
+                                    (m.message_type === "document" &&
+                                      /\.(mp3|ogg|wav|aac|m4a)(\b|$)/i.test(`${m.media_url} ${m.body || ""}`))) && (
+                                    <audio
+                                      src={m.media_url}
+                                      controls
+                                      preload="metadata"
+                                      className="w-full min-w-[220px] max-w-[300px] h-9"
+                                    />
+                                  )}
+                                {m.media_url &&
+                                  m.message_type === "document" &&
+                                  !/\.(mp3|ogg|wav|aac|m4a)(\b|$)/i.test(`${m.media_url} ${m.body || ""}`) && (
+                                    <a
+                                      href={m.media_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-[11px] font-medium ${
+                                        isOutbound
+                                          ? "bg-black/15 border-white/20 text-white hover:bg-black/25"
+                                          : "bg-muted/60 border-border text-foreground hover:bg-muted"
+                                      }`}
+                                    >
+                                      <FileText className="w-4 h-4 shrink-0" />
+                                      <span className="truncate">Open Document</span>
+                                    </a>
+                                  )}
+                                {(() => {
+                                  const cleaned = (m.body || "")
+                                    .replace(/\s*(?:Image|Video|Audio|Document|Media|File)\s+attached\s*\([^)]*\)\s*\[Size:[^\]]*\]\s*URL:\s*\S+/gi, "")
+                                    .replace(/^\[(?:image|video|audio|document):\s*[^\]]+\]\s*/i, "")
+                                    .trim();
+                                  if (!cleaned) {
+                                    if (!m.media_url && m.body) {
+                                      return <p className="whitespace-pre-wrap leading-relaxed">{m.body}</p>;
+                                    }
+                                    return null;
+                                  }
+                                  return <p className="whitespace-pre-wrap leading-relaxed">{cleaned}</p>;
+                                })()}
                                 {m.status === "failed" && m.error_message && (
                                   <div className="text-[10px] text-rose-100 bg-black/20 px-2 py-0.5 rounded">
                                     Failed: {m.error_message}
