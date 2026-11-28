@@ -166,7 +166,7 @@ function getScopedMetrics(user: User) {
                 (SELECT dc.presence_status FROM daily_checkins dc WHERE dc.user_id = u.id AND dc.checkin_date = ? LIMIT 1) as presence
          FROM users u
          LEFT JOIN leads l ON l.assigned_to = u.id
-         WHERE u.is_active = 1 AND u.role IN ('counselor', 'senior_counselor', 'telecaller')
+         WHERE u.status = 'active' AND u.role IN ('counselor', 'senior_counselor', 'telecaller')
          GROUP BY u.id
          ORDER BY lead_count DESC`
       )
