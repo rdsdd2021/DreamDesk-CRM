@@ -29,6 +29,17 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+    if (body?.mode === "execute_workflow") {
+      if (!Array.isArray(body?.steps) || body.steps.length === 0) {
+        return NextResponse.json({ error: "Workflow steps are required" }, { status: 400 });
+      }
+      const res = await AiCommandService.executeWorkflow({
+        steps: body.steps,
+        user: session.user,
+      });
+      return NextResponse.json(res);
+    }
+
     if (body?.mode === "execute") {
       if (!body?.action) {
         return NextResponse.json({ error: "Action payload is required" }, { status: 400 });

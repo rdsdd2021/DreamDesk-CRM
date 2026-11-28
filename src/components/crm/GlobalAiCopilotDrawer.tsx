@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { AiCommandResponse, AiProposedAction, User } from "@/types/crm";
+import { AiCommandResponse, AiProposedAction, AiWorkflowStepResult, User } from "@/types/crm";
 import {
   Sheet,
   SheetContent,
@@ -28,6 +28,7 @@ interface ChatTurn {
   text: string;
   response?: AiCommandResponse;
   executedMsg?: string;
+  workflowResults?: AiWorkflowStepResult[];
 }
 
 interface GlobalAiCopilotDrawerProps {
@@ -59,16 +60,13 @@ export function GlobalAiCopilotDrawer({
 
   const quickPrompts = isOps
     ? [
-        "Summarize today's counselor workload and campaign breakdown",
-        "Show unassigned New Leads so I can review them",
-        "Set my status to available",
-        "Tag all Cold leads as Follow-up Needed",
+        "Auto-distribute 50 unassigned New leads across counselors, tag them 'Batch Priority', and schedule follow-up tasks for tomorrow 11 AM",
+        "Analyze counselor workload bottlenecks & campaign pipeline, and highlight where leads are stuck",
+        "Tag all Follow-up leads as 'Priority Callback' and create high-priority callback tasks",
       ]
     : [
-        "What are my top priorities right now?",
-        "Show my Follow-up leads",
-        "Set my status to on_break",
-        "Open my WhatsApp Inbox",
+        "Summarize my overdue tasks, unread WhatsApp chats & hot leads into a prioritized call order",
+        "Find my Follow-up leads and suggest which ones need immediate attention today",
       ];
 
   const loadShiftBrief = async () => {
@@ -140,6 +138,32 @@ export function GlobalAiCopilotDrawer({
       onActionExecuted(action.type, data.message || "Action executed");
     } catch (err: any) {
       setError(err?.message || "Failed to execute action");
+    } finally {
+      setExecutingId(null);
+    }
+  };
+
+  const handleExecuteWorkflow = async (turnId: string, steps: AiProposedAction[]) => {
+    setExecutingId(turnId);
+    setError(null);
+    try {
+      const res = await fetch("/api/ai/command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "execute_workflow", steps }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Workflow execution failed");
+      setTurns((prev) =>
+        prev.map((t) =>
+          t.id === turnId
+            ? { ...t, executedMsg: data.summary, workflowResults: data.results }
+            : t
+        )
+      );
+      onActionExecuted("bulk_assign", data.summary || "Multi-step workflow executed");
+    } catch (err: any) {
+      setError(err?.message || "Failed to execute workflow");
     } finally {
       setExecutingId(null);
     }
@@ -277,6 +301,77 @@ export function GlobalAiCopilotDrawer({
                     <Filter className="w-3 h-3 text-indigo-600" />
                     <span>Apply Filters & Open View</span>
                   </Button>
+                )}
+
+                {turn.response?.proposedWorkflow && turn.response.proposedWorkflow.length > 0 && (
+                  <div className="rounded-xl border border-indigo-500/35 bg-indigo-500/5 p-2.5 space-y-2">
+                    <div className="text-[11px] font-bold text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>Multi-Step Workflow Plan ({turn.response.proposedWorkflow.length} steps)</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {turn.response.proposedWorkflow.map((step, idx) => {
+                        const stepRes = turn.workflowResults?.find((r) => r.stepIndex === idx);
+                        return (
+                          <div
+                            key={idx}
+                            className="rounded-lg bg-card border border-border/70 px-2.5 py-1.5 text-[11px] space-y-0.5"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-semibold text-foreground">
+                                {idx + 1}. {step.title}
+                              </span>
+                              <span className="text-[10px] font-mono text-muted-foreground shrink-0">
+                                {stepRes
+                                  ? stepRes.success
+                                    ? `Done (${stepRes.affectedCount ?? 0})`
+                                    : "Failed"
+                                  : `${step.affectedCount.toLocaleString()} leads`}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-muted-foreground">{step.summary}</div>
+                            {stepRes && (
+                              <div
+                                className={`text-[10px] font-medium ${
+                                  stepRes.success
+                                    ? "text-emerald-600 dark:text-emerald-400"
+                                    : "text-rose-600 dark:text-rose-400"
+                                }`}
+                              >
+                                {stepRes.message}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {turn.executedMsg ? (
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>{turn.executedMsg}</span>
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={executingId === turn.id}
+                        onClick={() =>
+                          handleExecuteWorkflow(turn.id, turn.response!.proposedWorkflow!)
+                        }
+                        className="h-7 text-[11px] bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer"
+                      >
+                        {executingId === turn.id ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                            Running Workflow...
+                          </>
+                        ) : (
+                          `Confirm & Run All ${turn.response.proposedWorkflow.length} Steps`
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 )}
 
                 {turn.response?.proposedAction && (

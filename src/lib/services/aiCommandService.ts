@@ -6,6 +6,7 @@ import { SyncService } from "@/lib/services/syncService";
 import {
   AiCommandResponse,
   AiProposedAction,
+  AiWorkflowStepResult,
   FilterParams,
   PresenceStatus,
   User,
@@ -252,57 +253,71 @@ ${JSON.stringify(metrics, null, 2)}
 Capabilities you can return in JSON:
 1. Analytical Answers & Reports: Answer questions about leads, workload, campaigns, WhatsApp inbox, tasks, or team status using the live metrics above.
 2. Smart Filters / Navigation ("applyFilters"): Help the user jump to a view ("leads", "whatsapp", "tasks", "dashboard", "assignments", "team", "analytics") or filter the Leads table by search, status[], campaign[], assigned_to[].
-3. Confirmable Actions ("proposedAction"):
-   - "set_presence": Change the current user's availability status. Valid presence values: "available", "on_break", "in_meeting", "away", "offline".
+3. Confirmable Single Action ("proposedAction") OR Multi-Step Workflow ("proposedWorkflow"):
+   Use "proposedWorkflow" (an ordered array of 2-5 steps) whenever the user asks for a multi-step operation (e.g. filter + assign + tag + schedule tasks + update status). Use "proposedAction" for a single action.
    ${
      ops
-       ? `- "bulk_status": Update lead status for filtered leads. Payload: { "filter_params": { "search"?, "status"?, "campaign"?, "assigned_to"? }, "status": "New Lead" | "Contacted" | "Follow-up" | "Interested" | "Converted" | "Cold" | "Not Interested" | string }
+       ? `Supported action types:
+   - "bulk_status": Update lead status for filtered leads. Payload: { "filter_params": { "search"?, "status"?, "campaign_id"?, "assigned_to"? }, "status": "New" | "Contacted" | "Follow-up" | "Interested" | "Converted" | "Cold" | "Not Interested" | string }
    - "bulk_assign": Assign filtered leads to a counselor (mode: "single" with target_user_id from counselorWorkloads, or "auto" round-robin). Payload: { "filter_params": {...}, "mode": "single" | "auto", "target_user_id"?: string, "total_to_assign"?: number }
-   - "bulk_tag": Add tags to filtered leads. Payload: { "filter_params": {...}, "tags": ["string"] }`
-       : `- IMPORTANT: User is NOT an Admin/Team Lead. NEVER propose "bulk_assign", "bulk_status", or "bulk_tag". If they ask to bulk reassign or view team-wide admin reports, politely explain that it requires Admin or Team Lead access.`
+   - "bulk_tag": Add tags to filtered leads. Payload: { "filter_params": {...}, "tags": ["string"] }
+   - "bulk_create_tasks": Schedule CRM follow-up tasks for filtered leads (assigned to each lead's counselor or fallback_user_id). Payload: { "filter_params": {...}, "title": "string", "priority": "low" | "normal" | "high" | "urgent", "due_date": "ISO-8601 string", "limit"?: number }`
+       : `- IMPORTANT: User is NOT an Admin/Team Lead. NEVER propose "bulk_assign", "bulk_status", "bulk_tag", or "bulk_create_tasks".`
    }
 
 Return strictly valid JSON:
 {
-  "answer": "Clear, concise answer or explanation of the proposed action.",
+  "answer": "Clear, concise answer or explanation of the multi-step plan.",
   "highlights": [{ "label": "string", "value": "string" }],
   "applyFilters": { "search"?: "string", "status"?: ["string"], "campaign"?: ["string"], "assigned_to"?: ["string"], "view"?: "string" } | null,
   "proposedAction": {
-    "type": "bulk_status" | "bulk_assign" | "bulk_tag" | "set_presence",
+    "type": "bulk_status" | "bulk_assign" | "bulk_tag" | "bulk_create_tasks",
     "title": "Short button/card title",
     "summary": "Exact human-readable summary of what will change",
     "payload": {}
-  } | null
+  } | null,
+  "proposedWorkflow": [
+    {
+      "type": "bulk_assign" | "bulk_tag" | "bulk_status" | "bulk_create_tasks",
+      "title": "Step title",
+      "summary": "What this step does",
+      "payload": {}
+    }
+  ] | null
 }`;
 
     const parsed = await callGeminiJson(systemPrompt, params.prompt);
 
-    let proposedAction: AiProposedAction | null = null;
-    if (parsed?.proposedAction?.type) {
-      const pType = String(parsed.proposedAction.type);
-      const rawPayload = parsed.proposedAction.payload || {};
+    const normalizeStep = (rawStep: any): AiProposedAction | null => {
+      if (!rawStep?.type) return null;
+      const pType = String(rawStep.type);
+      const rawPayload = rawStep.payload || {};
 
       if (pType === "set_presence") {
         const validPresences = new Set(["available", "on_break", "in_meeting", "away", "offline"]);
         const presence = validPresences.has(rawPayload?.presence) ? rawPayload.presence : "available";
-        proposedAction = {
+        return {
           type: "set_presence",
-          title: String(parsed.proposedAction.title || `Set status to ${presence}`),
-          summary: String(parsed.proposedAction.summary || `Update your CRM presence status to "${presence}".`),
+          title: String(rawStep.title || `Set status to ${presence}`),
+          summary: String(rawStep.summary || `Update your CRM presence status to "${presence}".`),
           affectedCount: 1,
           payload: { presence },
         };
-      } else if (ops && ["bulk_status", "bulk_assign", "bulk_tag"].includes(pType)) {
+      }
+
+      if (ops && ["bulk_status", "bulk_assign", "bulk_tag", "bulk_create_tasks"].includes(pType)) {
         const filterParams = buildFilterParams(rawPayload.filter_params || {}, params.user);
         const limit =
-          pType === "bulk_assign" && rawPayload.total_to_assign
+          (pType === "bulk_assign" && rawPayload.total_to_assign)
             ? Number(rawPayload.total_to_assign)
+            : (pType === "bulk_create_tasks" && rawPayload.limit)
+            ? Number(rawPayload.limit)
             : undefined;
         const targetIds = LeadsService.getTargetLeadIds(filterParams, limit);
-        proposedAction = {
+        return {
           type: pType as any,
-          title: String(parsed.proposedAction.title || "Proposed Bulk Action"),
-          summary: String(parsed.proposedAction.summary || "Apply bulk update to matching leads."),
+          title: String(rawStep.title || "Workflow Step"),
+          summary: String(rawStep.summary || "Apply update to matching leads."),
           affectedCount: targetIds.length,
           payload: {
             ...rawPayload,
@@ -310,7 +325,17 @@ Return strictly valid JSON:
           },
         };
       }
-    }
+      return null;
+    };
+
+    const proposedWorkflow = Array.isArray(parsed?.proposedWorkflow)
+      ? parsed.proposedWorkflow.map(normalizeStep).filter(Boolean) as AiProposedAction[]
+      : null;
+
+    const proposedAction =
+      !proposedWorkflow || proposedWorkflow.length === 0
+        ? normalizeStep(parsed?.proposedAction)
+        : null;
 
     return {
       answer: String(parsed?.answer || "Done."),
@@ -322,6 +347,7 @@ Return strictly valid JSON:
         : [],
       applyFilters: parsed?.applyFilters || null,
       proposedAction,
+      proposedWorkflow: proposedWorkflow && proposedWorkflow.length > 0 ? proposedWorkflow : null,
     };
   },
 
@@ -409,6 +435,89 @@ Return strictly valid JSON:
       };
     }
 
+    if (action.type === "bulk_create_tasks") {
+      const title = String(action.payload?.title || "AI Follow-up").trim();
+      const priority = ["low", "normal", "high", "urgent"].includes(action.payload?.priority)
+        ? String(action.payload.priority)
+        : "normal";
+      const dueDate = action.payload?.due_date
+        ? String(action.payload.due_date)
+        : new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+      const limit = action.payload?.limit ? Math.min(200, Number(action.payload.limit)) : 200;
+
+      const targetIds = LeadsService.getTargetLeadIds(filterParams, limit);
+      if (targetIds.length === 0) {
+        return { success: true, message: "No matching leads found for task creation.", affectedCount: 0 };
+      }
+
+      const db = getDatabase();
+      const placeholders = targetIds.map(() => "?").join(",");
+      const leads = db
+        .prepare(`SELECT id, assigned_to FROM leads WHERE id IN (${placeholders})`)
+        .all(...targetIds) as { id: number; assigned_to: string | null }[];
+
+      const insertTask = db.prepare(`
+        INSERT INTO crm_tasks (
+          lead_id, assigned_to, title, description, priority, due_date, status, created_by, source_action
+        ) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, 'ai_workflow')
+      `);
+
+      const tx = db.transaction(() => {
+        for (const l of leads) {
+          insertTask.run(
+            l.id,
+            l.assigned_to || user.id,
+            title,
+            `Created via AI Workflow by ${user.name}`,
+            priority,
+            dueDate,
+            user.name
+          );
+        }
+      });
+      tx();
+
+      SyncService.publish("task_updated", "AI_BULK_TASKS", { userId: user.id, data: { affected: leads.length } });
+      return {
+        success: true,
+        message: `Created ${leads.length} follow-up task(s): "${title}".`,
+        affectedCount: leads.length,
+      };
+    }
+
     throw new Error(`Unsupported AI action type: ${action.type}`);
+  },
+
+  async executeWorkflow(params: {
+    steps: AiProposedAction[];
+    user: User;
+  }): Promise<{ success: boolean; results: AiWorkflowStepResult[]; summary: string }> {
+    const results: AiWorkflowStepResult[] = [];
+    for (let i = 0; i < params.steps.length; i++) {
+      const step = params.steps[i];
+      try {
+        const res = await this.executeAction({ action: step, user: params.user });
+        results.push({
+          stepIndex: i,
+          title: step.title,
+          success: true,
+          message: res.message,
+          affectedCount: res.affectedCount,
+        });
+      } catch (err: any) {
+        results.push({
+          stepIndex: i,
+          title: step.title,
+          success: false,
+          message: err?.message || "Step failed",
+        });
+      }
+    }
+    const okCount = results.filter((r) => r.success).length;
+    return {
+      success: okCount === results.length,
+      results,
+      summary: `Completed ${okCount}/${results.length} workflow step(s).`,
+    };
   },
 };

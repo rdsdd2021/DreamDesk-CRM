@@ -922,6 +922,7 @@ export type AiActionType =
   | 'bulk_status'
   | 'bulk_assign'
   | 'bulk_tag'
+  | 'bulk_create_tasks'
   | 'set_presence';
 
 export interface AiProposedAction {
@@ -930,6 +931,14 @@ export interface AiProposedAction {
   summary: string;
   affectedCount: number;
   payload: Record<string, any>;
+}
+
+export interface AiWorkflowStepResult {
+  stepIndex: number;
+  title: string;
+  success: boolean;
+  message: string;
+  affectedCount?: number;
 }
 
 export interface AiCommandResponse {
@@ -943,6 +952,7 @@ export interface AiCommandResponse {
     view?: string;
   } | null;
   proposedAction?: AiProposedAction | null;
+  proposedWorkflow?: AiProposedAction[] | null;
 }
 
 export interface LeadAiBriefResult {
