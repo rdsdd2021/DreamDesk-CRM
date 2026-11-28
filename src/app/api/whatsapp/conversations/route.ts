@@ -25,7 +25,10 @@ export async function GET(request: NextRequest) {
     const leadId = Number(leadIdParam);
     if (leadId > 0) {
       try {
-        const conv = KapsoWhatsappService.getOrCreateConversationForLead(leadId);
+        const conv = KapsoWhatsappService.getExistingConversationForLead(leadId);
+        if (!conv) {
+          return NextResponse.json({ conversation: null, messages: [] });
+        }
         const detail = KapsoWhatsappService.getConversationMessages(conv.id, userScope);
         return NextResponse.json({
           conversation: detail?.conversation || conv,
@@ -39,4 +42,16 @@ export async function GET(request: NextRequest) {
 
   const conversations = KapsoWhatsappService.listConversations(userScope, { filter, search });
   return NextResponse.json({ conversations });
+}
+
+export async function DELETE(request: NextRequest) {
+  const { session, errorResponse } = AuthService.requireAuth(request);
+  if (errorResponse) {
+    return NextResponse.json({ error: errorResponse.error }, { status: errorResponse.status });
+  }
+  if (session.user.role !== "admin") {
+    return NextResponse.json({ error: "Only Admins can purge WhatsApp chat cache." }, { status: 403 });
+  }
+  const res = KapsoWhatsappService.purgeStaleConversations();
+  return NextResponse.json({ success: true, ...res });
 }

@@ -148,7 +148,7 @@ export function WhatsAppInboxWorkspace({
 
   useEffect(() => {
     loadConversations();
-    const timer = setInterval(loadConversations, 12000);
+    const timer = setInterval(loadConversations, 5000);
     return () => clearInterval(timer);
   }, [loadConversations]);
 
@@ -157,11 +157,12 @@ export function WhatsAppInboxWorkspace({
   }, [loadSettingsAndTemplates]);
 
   useEffect(() => {
-    if (selectedConvId) {
-      loadThread(selectedConvId);
-      setSelectedTemplate(null);
-      setAttachedMedia(null);
-    }
+    if (!selectedConvId) return;
+    loadThread(selectedConvId);
+    setSelectedTemplate(null);
+    setAttachedMedia(null);
+    const threadTimer = setInterval(() => loadThread(selectedConvId), 3500);
+    return () => clearInterval(threadTimer);
   }, [selectedConvId, loadThread]);
 
   const handleSyncHistory = async () => {
@@ -270,19 +271,40 @@ export function WhatsAppInboxWorkspace({
         };
       }
 
+      // Optimistic instant message bubble
+      const tempId = -Date.now();
+      const optimisticMsg: WhatsAppMessage = {
+        id: tempId,
+        conversation_id: activeConv.id,
+        lead_id: activeConv.lead_id || null,
+        direction: "outbound",
+        message_type: payload.message_type || "text",
+        body: payload.body,
+        template_name: payload.template_name || null,
+        status: "sending" as any,
+        sent_by_name: currentUser?.name || "You",
+        created_at: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, optimisticMsg]);
+      setReplyText("");
+      setSelectedTemplate(null);
+      setAttachedMedia(null);
+
       const res = await fetch("/api/whatsapp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to send message");
+      if (!res.ok) {
+        setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, status: "failed" } : m)));
+        throw new Error(data.error || "Failed to send message");
+      }
 
-      setReplyText("");
-      setSelectedTemplate(null);
-      setAttachedMedia(null);
-      if (data.message) setMessages((prev) => [...prev, data.message]);
-      await loadConversations();
+      if (data.message) {
+        setMessages((prev) => prev.map((m) => (m.id === tempId ? data.message : m)));
+      }
+      loadConversations();
     } catch (err: any) {
       onShowToast?.(err?.message || "Failed to send WhatsApp message", "error");
     } finally {
@@ -401,6 +423,27 @@ export function WhatsAppInboxWorkspace({
             >
               <RefreshCw className={`w-3.5 h-3.5 ${syncingHistory ? "animate-spin" : ""}`} />
               <span>{syncingHistory ? "Syncing..." : "Sync Kapso History"}</span>
+            </Button>
+          )}
+          {isAdmin && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                if (!confirm("Clear all cached WhatsApp chats & messages from local CRM cache? You can re-sync from Kapso right after.")) return;
+                const res = await fetch("/api/whatsapp/conversations", { method: "DELETE" });
+                if (res.ok) {
+                  setConversations([]);
+                  setSelectedConvId(null);
+                  setActiveConv(null);
+                  setMessages([]);
+                  onShowToast?.("Cleared stale WhatsApp cache. Click Sync Kapso History to pull fresh chats.", "success");
+                }
+              }}
+              className="h-8 text-xs text-rose-600 border-rose-500/30 hover:bg-rose-500/10 cursor-pointer"
+            >
+              Purge Stale Chats
             </Button>
           )}
 
@@ -688,6 +731,7 @@ export function WhatsAppInboxWorkspace({
                               </span>
                               {isOutbound && (
                                 <>
+                                  {(m.status as any) === "sending" && <Loader2 className="w-3 h-3 animate-spin" />}
                                   {m.status === "read" && <CheckCheck className="w-3 h-3 text-sky-200" />}
                                   {m.status === "delivered" && <CheckCheck className="w-3 h-3" />}
                                   {m.status === "sent" && <Check className="w-3 h-3" />}

@@ -710,7 +710,8 @@ export class KapsoWhatsappService {
 
         for (const m of msgs) {
           const k = m?.kapso || {};
-          if (k?.conversation_id && k.conversation_id !== c.id) continue;
+          const msgConvId = k?.whatsapp_conversation_id || k?.conversation_id;
+          if (msgConvId && msgConvId !== c.id) continue;
           const kapsoMsgId = m?.id ? String(m.id) : null;
           if (kapsoMsgId) {
             const exists = db
@@ -763,7 +764,41 @@ export class KapsoWhatsappService {
       }
     }
 
+    // Clean up any empty ghost conversations with 0 messages
+    db.prepare(
+      `DELETE FROM whatsapp_conversations WHERE NOT EXISTS (SELECT 1 FROM whatsapp_messages wm WHERE wm.conversation_id = whatsapp_conversations.id)`
+    ).run();
+
     return { conversationsSynced, messagesSynced };
+  }
+
+  static getExistingConversationForLead(leadId: number): WhatsAppConversation | null {
+    const db = getDatabase();
+    const lead = db
+      .prepare(`SELECT id, phone, whatsapp_phone FROM leads WHERE id = ?`)
+      .get(leadId) as any;
+    if (!lead) return null;
+    const rawTarget = lead.whatsapp_phone || lead.phone;
+    const phoneDigits = rawTarget ? normalizePhoneDigits(rawTarget) : "";
+    const conv = db
+      .prepare(
+        `SELECT * FROM whatsapp_conversations
+         WHERE (lead_id = ? OR (? != '' AND phone_digits = ?))
+         ORDER BY last_message_at DESC, id DESC LIMIT 1`
+      )
+      .get(lead.id, phoneDigits, phoneDigits) as any;
+    return conv ? (conv as WhatsAppConversation) : null;
+  }
+
+  static purgeStaleConversations(): { deletedConversations: number; deletedMessages: number } {
+    const db = getDatabase();
+    const msgRes = db.prepare(`DELETE FROM whatsapp_messages`).run();
+    const convRes = db.prepare(`DELETE FROM whatsapp_conversations`).run();
+    SyncService.publish("system", "wa_purged");
+    return {
+      deletedConversations: Number(convRes.changes || 0),
+      deletedMessages: Number(msgRes.changes || 0),
+    };
   }
 
   static getOrCreateConversationForLead(leadId: number, preferredPhone?: string): WhatsAppConversation {
@@ -814,7 +849,9 @@ export class KapsoWhatsappService {
     options?: { filter?: "all" | "unread" | "open" | "resolved"; search?: string; limit?: number }
   ): WhatsAppConversation[] {
     const db = getDatabase();
-    const conditions: string[] = [];
+    const conditions: string[] = [
+      `EXISTS (SELECT 1 FROM whatsapp_messages wm WHERE wm.conversation_id = wc.id)`,
+    ];
     const params: any[] = [];
 
     // Counselors strictly see ALL chat history for leads currently assigned to them (only their assigned leads)
