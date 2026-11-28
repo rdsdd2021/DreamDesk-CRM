@@ -195,9 +195,43 @@ export default function CRMPage() {
     }
   };
 
-  // Navigation & View State
+  // Navigation & View State (persisted in localStorage so refresh resumes where you left off)
   const [currentView, setCurrentView] = useState<string>("leads");
   const [studioTab, setStudioTab] = useState<"fields" | "campaigns" | "dispositions" | "matrix">("fields");
+  const [viewHydrated, setViewHydrated] = useState(false);
+
+  useEffect(() => {
+    try {
+      const savedView = localStorage.getItem("dreamdesk_current_view");
+      if (savedView) setCurrentView(savedView);
+      const savedStudio = localStorage.getItem("dreamdesk_studio_tab");
+      if (savedStudio && ["fields", "campaigns", "dispositions", "matrix"].includes(savedStudio)) {
+        setStudioTab(savedStudio as any);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setViewHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!viewHydrated) return;
+    try {
+      localStorage.setItem("dreamdesk_current_view", currentView);
+    } catch {
+      // ignore
+    }
+  }, [currentView, viewHydrated]);
+
+  useEffect(() => {
+    if (!viewHydrated) return;
+    try {
+      localStorage.setItem("dreamdesk_studio_tab", studioTab);
+    } catch {
+      // ignore
+    }
+  }, [studioTab, viewHydrated]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isCommandCenterOpen, setIsCommandCenterOpen] = useState(false);
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);

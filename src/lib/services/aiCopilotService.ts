@@ -154,7 +154,9 @@ export const AiCopilotService = {
       : [];
 
     const schemaFields = db
-      .prepare(`SELECT field_key, field_label, field_type, options_json FROM schema_definitions WHERE is_active = 1`)
+      .prepare(
+        `SELECT key_name, display_label, data_type FROM lead_schema_meta WHERE is_visible = 1 ORDER BY display_order ASC`
+      )
       .all() as any[];
 
     const approvedTemplates = db
@@ -177,8 +179,8 @@ export const AiCopilotService = {
       ["whatsapp_phone", "WhatsApp Phone"],
     ]);
     for (const sf of schemaFields) {
-      if (sf?.field_key) {
-        validFieldMap.set(sf.field_key, sf.field_label || sf.field_key);
+      if (sf?.key_name) {
+        validFieldMap.set(sf.key_name, sf.display_label || sf.key_name);
       }
     }
 

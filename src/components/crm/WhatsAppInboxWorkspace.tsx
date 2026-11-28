@@ -53,6 +53,14 @@ function parseWaTimestamp(val?: string | number | null): Date {
   return new Date(s);
 }
 
+function resolveMediaSrc(url?: string | null): string | undefined {
+  if (!url) return undefined;
+  if (/^https?:\/\/([^/]+\.)?kapso\.ai\//i.test(url)) {
+    return `/api/whatsapp/media?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
+
 interface WhatsAppInboxWorkspaceProps {
   currentUser: User | null;
   users: User[];
@@ -76,7 +84,16 @@ export function WhatsAppInboxWorkspace({
   const [search, setSearch] = useState("");
   const [loadingConvs, setLoadingConvs] = useState(true);
   const [syncingHistory, setSyncingHistory] = useState(false);
-  const [selectedConvId, setSelectedConvId] = useState<number | null>(null);
+  const [selectedConvId, setSelectedConvId] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const saved = localStorage.getItem("dreamdesk_wa_selected_conv");
+      const n = saved ? Number(saved) : NaN;
+      return Number.isFinite(n) && n > 0 ? n : null;
+    } catch {
+      return null;
+    }
+  });
   const [activeConv, setActiveConv] = useState<WhatsAppConversation | null>(null);
   const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
@@ -232,6 +249,18 @@ export function WhatsAppInboxWorkspace({
   useEffect(() => {
     loadSettingsAndTemplates();
   }, [loadSettingsAndTemplates]);
+
+  useEffect(() => {
+    try {
+      if (selectedConvId) {
+        localStorage.setItem("dreamdesk_wa_selected_conv", String(selectedConvId));
+      } else {
+        localStorage.removeItem("dreamdesk_wa_selected_conv");
+      }
+    } catch {
+      // ignore
+    }
+  }, [selectedConvId]);
 
   useEffect(() => {
     if (!selectedConvId) return;
@@ -962,9 +991,9 @@ export function WhatsAppInboxWorkspace({
                                   </div>
                                 )}
                                 {m.media_url && m.message_type === "image" && (
-                                  <a href={m.media_url} target="_blank" rel="noopener noreferrer" className="block">
+                                  <a href={resolveMediaSrc(m.media_url)} target="_blank" rel="noopener noreferrer" className="block">
                                     <img
-                                      src={m.media_url}
+                                      src={resolveMediaSrc(m.media_url)}
                                       alt="Attachment"
                                       className="rounded-lg max-h-52 object-cover border border-black/10"
                                     />
@@ -972,7 +1001,7 @@ export function WhatsAppInboxWorkspace({
                                 )}
                                 {m.media_url && m.message_type === "video" && (
                                   <video
-                                    src={m.media_url}
+                                    src={resolveMediaSrc(m.media_url)}
                                     controls
                                     playsInline
                                     preload="metadata"
@@ -984,7 +1013,7 @@ export function WhatsAppInboxWorkspace({
                                     (m.message_type === "document" &&
                                       /\.(mp3|ogg|wav|aac|m4a)(\b|$)/i.test(`${m.media_url} ${m.body || ""}`))) && (
                                     <audio
-                                      src={m.media_url}
+                                      src={resolveMediaSrc(m.media_url)}
                                       controls
                                       preload="metadata"
                                       className="w-full min-w-[220px] max-w-[300px] h-9"
@@ -994,7 +1023,7 @@ export function WhatsAppInboxWorkspace({
                                   m.message_type === "document" &&
                                   !/\.(mp3|ogg|wav|aac|m4a)(\b|$)/i.test(`${m.media_url} ${m.body || ""}`) && (
                                     <a
-                                      href={m.media_url}
+                                      href={resolveMediaSrc(m.media_url)}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-[11px] font-medium ${

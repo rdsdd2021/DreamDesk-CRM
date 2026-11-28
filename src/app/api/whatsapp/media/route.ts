@@ -4,6 +4,23 @@ import { KapsoWhatsappService } from "@/lib/services/kapsoWhatsappService";
 
 export const dynamic = "force-dynamic";
 
+function inferMimeFromUrl(url: string): string | null {
+  const clean = url.split("?")[0].toLowerCase();
+  if (clean.endsWith(".mp4")) return "video/mp4";
+  if (clean.endsWith(".webm")) return "video/webm";
+  if (clean.endsWith(".3gp")) return "video/3gpp";
+  if (clean.endsWith(".mp3")) return "audio/mpeg";
+  if (clean.endsWith(".ogg")) return "audio/ogg";
+  if (clean.endsWith(".wav")) return "audio/wav";
+  if (clean.endsWith(".aac")) return "audio/aac";
+  if (clean.endsWith(".m4a")) return "audio/mp4";
+  if (clean.endsWith(".jpg") || clean.endsWith(".jpeg")) return "image/jpeg";
+  if (clean.endsWith(".png")) return "image/png";
+  if (clean.endsWith(".webp")) return "image/webp";
+  if (clean.endsWith(".pdf")) return "application/pdf";
+  return null;
+}
+
 export async function GET(request: NextRequest) {
   const { errorResponse } = AuthService.requireAuth(request);
   if (errorResponse) {
@@ -11,8 +28,9 @@ export async function GET(request: NextRequest) {
   }
 
   const mediaId = request.nextUrl.searchParams.get("id");
-  if (!mediaId) {
-    return NextResponse.json({ error: "Media id is required" }, { status: 400 });
+  const rawUrl = request.nextUrl.searchParams.get("url");
+  if (!mediaId && !rawUrl) {
+    return NextResponse.json({ error: "Media id or url is required" }, { status: 400 });
   }
 
   try {
@@ -20,40 +38,85 @@ export async function GET(request: NextRequest) {
     if (!cfg.kapso_api_key) {
       return NextResponse.json({ error: "Kapso API key missing" }, { status: 400 });
     }
-    const metaRes = await fetch(`https://api.kapso.ai/meta/whatsapp/v24.0/${encodeURIComponent(mediaId)}`, {
-      headers: { "X-API-Key": cfg.kapso_api_key },
-    });
-    const metaJson = await metaRes.json().catch(() => ({}));
-    const downloadUrl = metaJson?.url;
-    if (!metaRes.ok || !downloadUrl) {
-      return NextResponse.json({ error: "Media URL not found" }, { status: 404 });
+
+    let downloadUrl = "";
+    let metaMime: string | undefined;
+
+    if (mediaId) {
+      const metaRes = await fetch(`https://api.kapso.ai/meta/whatsapp/v24.0/${encodeURIComponent(mediaId)}`, {
+        headers: { "X-API-Key": cfg.kapso_api_key },
+      });
+      const metaJson = await metaRes.json().catch(() => ({}));
+      downloadUrl = metaJson?.url || "";
+      metaMime = metaJson?.mime_type;
+      if (!metaRes.ok || !downloadUrl) {
+        return NextResponse.json({ error: "Media URL not found" }, { status: 404 });
+      }
+    } else if (rawUrl) {
+      let parsed: URL;
+      try {
+        parsed = new URL(rawUrl);
+      } catch {
+        return NextResponse.json({ error: "Invalid media url" }, { status: 400 });
+      }
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        return NextResponse.json({ error: "Unsupported protocol" }, { status: 400 });
+      }
+      downloadUrl = parsed.toString();
     }
 
-    const upstreamHeaders: Record<string, string> = { "X-API-Key": cfg.kapso_api_key };
-    const range = request.headers.get("range");
-    if (range) upstreamHeaders["Range"] = range;
-
+    const isKapsoHost = /^https?:\/\/([^/]+\.)?kapso\.ai(\/|$)/i.test(downloadUrl);
     const binRes = await fetch(downloadUrl, {
-      headers: upstreamHeaders,
+      headers: isKapsoHost ? { "X-API-Key": cfg.kapso_api_key } : {},
     });
-    if ((!binRes.ok && binRes.status !== 206) || !binRes.body) {
-      return NextResponse.json({ error: "Failed to fetch media binary" }, { status: 502 });
+    if (!binRes.ok) {
+      return NextResponse.json({ error: `Failed to fetch media binary (${binRes.status})` }, { status: 502 });
     }
 
-    const contentType = binRes.headers.get("content-type") || metaJson?.mime_type || "application/octet-stream";
-    const resHeaders: Record<string, string> = {
-      "Content-Type": contentType,
-      "Accept-Ranges": binRes.headers.get("accept-ranges") || "bytes",
-      "Cache-Control": "private, max-age=3600",
-    };
-    const contentLength = binRes.headers.get("content-length");
-    if (contentLength) resHeaders["Content-Length"] = contentLength;
-    const contentRange = binRes.headers.get("content-range");
-    if (contentRange) resHeaders["Content-Range"] = contentRange;
+    const buffer = Buffer.from(await binRes.arrayBuffer());
+    const totalLength = buffer.byteLength;
+    const rawCt = binRes.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase();
+    const isGenericCt = !rawCt || rawCt === "application/octet-stream" || rawCt === "binary/octet-stream";
+    const contentType =
+      (!isGenericCt ? rawCt : null) ||
+      metaMime ||
+      inferMimeFromUrl(downloadUrl) ||
+      "application/octet-stream";
 
-    return new NextResponse(binRes.body, {
-      status: binRes.status === 206 ? 206 : 200,
-      headers: resHeaders,
+    const range = request.headers.get("range");
+    if (range) {
+      const match = /^bytes=(\d*)-(\d*)$/i.exec(range.trim());
+      if (match) {
+        const start = match[1] ? parseInt(match[1], 10) : 0;
+        const end = match[2] ? Math.min(parseInt(match[2], 10), totalLength - 1) : totalLength - 1;
+        if (start >= 0 && start <= end && end < totalLength) {
+          const chunk = buffer.subarray(start, end + 1);
+          return new NextResponse(chunk, {
+            status: 206,
+            headers: {
+              "Content-Type": contentType,
+              "Content-Range": `bytes ${start}-${end}/${totalLength}`,
+              "Accept-Ranges": "bytes",
+              "Content-Length": String(chunk.byteLength),
+              "Cache-Control": "private, max-age=3600",
+            },
+          });
+        }
+        return new NextResponse(null, {
+          status: 416,
+          headers: { "Content-Range": `bytes */${totalLength}` },
+        });
+      }
+    }
+
+    return new NextResponse(buffer, {
+      status: 200,
+      headers: {
+        "Content-Type": contentType,
+        "Accept-Ranges": "bytes",
+        "Content-Length": String(totalLength),
+        "Cache-Control": "private, max-age=3600",
+      },
     });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || "Media proxy error" }, { status: 500 });
