@@ -94,10 +94,16 @@ export function WhatsAppInboxWorkspace({
   const [testingConn, setTestingConn] = useState(false);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
+  const lastScrolledKeyRef = React.useRef<string>("");
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, selectedConvId]);
+    const lastId = messages.length > 0 ? messages[messages.length - 1]?.id : "empty";
+    const scrollKey = `${selectedConvId || "none"}:${lastId}`;
+    if (scrollKey !== lastScrolledKeyRef.current) {
+      lastScrolledKeyRef.current = scrollKey;
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, selectedConvId]);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -114,8 +120,8 @@ export function WhatsAppInboxWorkspace({
     }
   }, [convFilter, search]);
 
-  const loadThread = useCallback(async (convId: number) => {
-    setLoadingMsgs(true);
+  const loadThread = useCallback(async (convId: number, silent = false) => {
+    if (!silent) setLoadingMsgs(true);
     try {
       const res = await fetch(`/api/whatsapp/conversations/${convId}`, { cache: "no-store" });
       if (res.ok) {
@@ -127,7 +133,7 @@ export function WhatsAppInboxWorkspace({
         );
       }
     } finally {
-      setLoadingMsgs(false);
+      if (!silent) setLoadingMsgs(false);
     }
   }, []);
 
@@ -164,10 +170,10 @@ export function WhatsAppInboxWorkspace({
 
   useEffect(() => {
     if (!selectedConvId) return;
-    loadThread(selectedConvId);
+    loadThread(selectedConvId, false);
     setSelectedTemplate(null);
     setAttachedMedia(null);
-    const threadTimer = setInterval(() => loadThread(selectedConvId), 3500);
+    const threadTimer = setInterval(() => loadThread(selectedConvId, true), 4000);
     return () => clearInterval(threadTimer);
   }, [selectedConvId, loadThread]);
 
@@ -204,7 +210,12 @@ export function WhatsAppInboxWorkspace({
         : file.type.startsWith("video/")
         ? "video"
         : "document";
-      setAttachedMedia({ type, id: data.id, url: data.url, name: file.name });
+      setAttachedMedia({
+        type,
+        id: data.id,
+        url: data.url || (data.id ? `/api/whatsapp/media?id=${encodeURIComponent(data.id)}` : undefined),
+        name: file.name,
+      });
       onShowToast?.(
         compressed
           ? `Compressed & attached ${file.name} (${(file.size / (1024 * 1024)).toFixed(1)} MB)`
@@ -293,6 +304,7 @@ export function WhatsAppInboxWorkspace({
         message_type: payload.message_type || "text",
         body: payload.body,
         template_name: payload.template_name || null,
+        media_url: payload.media_url || null,
         status: "sending" as any,
         sent_by_name: currentUser?.name || "You",
         created_at: new Date().toISOString(),
@@ -392,9 +404,21 @@ export function WhatsAppInboxWorkspace({
     typeof window !== "undefined" ? `${window.location.origin}/api/whatsapp/webhook` : "/api/whatsapp/webhook";
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
+    <div
+      className={
+        activeTab === "inbox"
+          ? "h-full flex flex-col bg-card overflow-hidden"
+          : "p-4 sm:p-6 max-w-7xl mx-auto space-y-4 overflow-y-auto h-full"
+      }
+    >
       {/* Top Sub-Navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div
+        className={
+          activeTab === "inbox"
+            ? "flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 py-2.5 border-b border-border/70 bg-card shrink-0"
+            : "flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+        }
+      >
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-emerald-600/15 text-emerald-600 flex items-center justify-center">
             <MessageSquare className="w-5 h-5" />
@@ -500,7 +524,7 @@ export function WhatsAppInboxWorkspace({
 
       {/* TAB 1: 2-PANE INBOX */}
       {activeTab === "inbox" && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 bg-card border border-border/80 rounded-2xl overflow-hidden shadow-xs h-[calc(100vh-185px)] min-h-[560px]">
+        <div className="grid grid-cols-1 lg:grid-cols-12 bg-card overflow-hidden flex-1 min-h-0">
           {/* Left Pane: Conversation List */}
           <div className="lg:col-span-4 border-b lg:border-b-0 lg:border-r border-border/70 flex flex-col min-h-0">
             <div className="p-3 border-b border-border/60 space-y-2.5">

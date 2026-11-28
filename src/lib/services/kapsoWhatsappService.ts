@@ -1180,6 +1180,8 @@ export class KapsoWhatsappService {
     }
 
     const displayBody = textBody || `[Template: ${params.templateName}]`;
+    const resolvedMediaUrl =
+      params.mediaUrl || (params.mediaId ? `/api/whatsapp/media?id=${encodeURIComponent(params.mediaId)}` : null);
     const insertRes = db
       .prepare(
         `
@@ -1196,7 +1198,7 @@ export class KapsoWhatsappService {
         msgType,
         displayBody,
         params.templateName || null,
-        params.mediaUrl || null,
+        resolvedMediaUrl,
         status,
         errorMsg,
         params.user.id,

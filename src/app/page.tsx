@@ -1695,7 +1695,13 @@ export default function CRMPage() {
             </Sheet>
           )}
 
-          <main className="flex-1 overflow-y-auto p-3 sm:p-5 pb-24 md:pb-6 min-w-0">
+          <main
+            className={
+              currentView === "whatsapp"
+                ? "flex-1 overflow-hidden p-0 min-w-0 h-[calc(100vh-56px)]"
+                : "flex-1 overflow-y-auto p-3 sm:p-5 pb-24 md:pb-6 min-w-0"
+            }
+          >
           {/* VIEW 1: LEADS WORKSPACE */}
           {currentView === "leads" && (
             <div className="space-y-3.5 max-w-[1600px] mx-auto">
