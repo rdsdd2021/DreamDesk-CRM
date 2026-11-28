@@ -2378,9 +2378,18 @@ export default function CRMPage() {
           }
           if (filters.search !== undefined) setSearch(filters.search);
           const nextFacets: Record<string, string[]> = {};
+          if (filters.facets && typeof filters.facets === "object") {
+            for (const [k, vals] of Object.entries(filters.facets)) {
+              if (Array.isArray(vals) && vals.length > 0) nextFacets[k] = vals;
+            }
+          }
           if (filters.status && filters.status.length > 0) nextFacets.status = filters.status;
-          if (filters.campaign && filters.campaign.length > 0) nextFacets.campaign = filters.campaign;
+          if (filters.campaign && filters.campaign.length > 0) nextFacets.campaign_id = filters.campaign;
+          if (filters.campaign_id && filters.campaign_id.length > 0) nextFacets.campaign_id = filters.campaign_id;
           if (filters.assigned_to && filters.assigned_to.length > 0) nextFacets.assigned_to = filters.assigned_to;
+          if (filters.disposition_id && filters.disposition_id.length > 0) nextFacets.disposition_id = filters.disposition_id;
+          if (filters.tags && filters.tags.length > 0) nextFacets.tags = filters.tags;
+          if (filters.calling_recency) nextFacets.calling_recency = [filters.calling_recency];
           if (Object.keys(nextFacets).length > 0) {
             setSelectedFacets(nextFacets);
           }

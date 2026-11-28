@@ -24,11 +24,33 @@ function buildFilterParams(raw: any, user: User): FilterParams {
   if (Array.isArray(raw?.status) && raw.status.length > 0) {
     fp.status = raw.status.map(String);
   }
-  if (Array.isArray(raw?.campaign) && raw.campaign.length > 0) {
-    fp.facets = { ...(fp.facets || {}), campaign: raw.campaign.map(String) };
-  }
   if (Array.isArray(raw?.campaign_id) && raw.campaign_id.length > 0) {
     fp.campaign_id = raw.campaign_id.map(String);
+  } else if (Array.isArray(raw?.campaign) && raw.campaign.length > 0) {
+    fp.campaign_id = raw.campaign.map(String);
+  }
+  if (Array.isArray(raw?.disposition_id) && raw.disposition_id.length > 0) {
+    fp.disposition_id = raw.disposition_id.map(String);
+  }
+  if (Array.isArray(raw?.tags) && raw.tags.length > 0) {
+    fp.tags = raw.tags.map(String);
+  }
+  if (
+    raw?.calling_recency &&
+    ["uncalled_today", "never_called", "called_today", "all"].includes(String(raw.calling_recency))
+  ) {
+    fp.calling_recency = String(raw.calling_recency) as FilterParams["calling_recency"];
+  }
+  if (raw?.facets && typeof raw.facets === "object") {
+    const cleanFacets: Record<string, string[]> = {};
+    for (const [k, vals] of Object.entries(raw.facets)) {
+      if (Array.isArray(vals) && vals.length > 0) {
+        cleanFacets[k] = vals.map(String);
+      }
+    }
+    if (Object.keys(cleanFacets).length > 0) {
+      fp.facets = { ...(fp.facets || {}), ...cleanFacets };
+    }
   }
   if (Array.isArray(raw?.assigned_to) && raw.assigned_to.length > 0) {
     fp.assigned_to = raw.assigned_to.map(String);
@@ -38,6 +60,81 @@ function buildFilterParams(raw: any, user: User): FilterParams {
     fp.assigned_to = [user.id];
   }
   return fp;
+}
+
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const dp: number[] = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = i - 1;
+    dp[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = dp[j];
+      dp[j] = a[i - 1] === b[j - 1] ? prev : 1 + Math.min(prev, dp[j], dp[j - 1]);
+      prev = tmp;
+    }
+  }
+  return dp[b.length];
+}
+
+const STOPWORDS = new Set([
+  "the", "and", "for", "with", "from", "that", "this", "all", "are", "was", "have", "has",
+  "lead", "leads", "assign", "assigned", "unassigned", "matching", "match", "filter",
+  "show", "find", "give", "tell", "many", "how", "what", "which", "who", "status",
+  "counselor", "counselors", "today", "tomorrow", "create", "task", "tasks", "tag",
+  "tags", "move", "change", "set", "update", "into", "across", "batch", "report",
+]);
+
+function findPromptFacetMatches(
+  prompt: string,
+  facets: Array<{ key_name: string; display_label: string; options: { value: string; count: number }[] }>
+) {
+  const tokens = prompt
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((t) => t.length >= 3 && !STOPWORDS.has(t));
+
+  if (tokens.length === 0) return [];
+
+  const matches: Array<{ facet_key: string; display_label: string; value: string; count: number }> = [];
+  for (const fg of facets) {
+    for (const opt of fg.options || []) {
+      const val = String(opt.value || "").trim();
+      if (!val || val === "Unspecified" || val === "Unassigned") continue;
+      const valLower = val.toLowerCase();
+      const valWords = valLower.split(/[\s,._-]+/).filter((w) => w.length >= 3);
+
+      let matched = false;
+      for (const tok of tokens) {
+        if (valLower.includes(tok) || (tok.length >= 4 && valWords.some((w) => w.includes(tok)))) {
+          matched = true;
+          break;
+        }
+        if (tok.length >= 4) {
+          for (const vw of valWords) {
+            if (Math.abs(vw.length - tok.length) <= 2 && levenshtein(tok, vw) <= 2) {
+              matched = true;
+              break;
+            }
+          }
+          if (matched) break;
+        }
+      }
+
+      if (matched) {
+        matches.push({
+          facet_key: fg.key_name,
+          display_label: fg.display_label,
+          value: val,
+          count: opt.count,
+        });
+      }
+    }
+  }
+  return matches.sort((a, b) => b.count - a.count).slice(0, 30);
 }
 
 async function callGeminiJson(systemPrompt: string, userPrompt: string): Promise<any> {
@@ -86,10 +183,69 @@ async function callGeminiJson(systemPrompt: string, userPrompt: string): Promise
   }
 }
 
-function getScopedMetrics(user: User) {
+function getScopedMetrics(user: User, prompt?: string) {
   const db = getDatabase();
   const ops = isOpsRole(user);
   const todayStr = new Date().toISOString().slice(0, 10);
+
+  // Pull cached facets (all schema fields + unique values + counts)
+  const leadsMetaRes = LeadsService.getLeads(
+    { page: 1, limit: 1 },
+    { userId: user.id, role: user.role, canViewAllLeads: ops }
+  );
+  const allFacets = leadsMetaRes.facets || [];
+  const promptFacetMatches = prompt ? findPromptFacetMatches(prompt, allFacets) : [];
+
+  const schemaAndFacets = allFacets.map((fg) => {
+    const opts = fg.options || [];
+    const maxToSend = 250;
+    const head = opts.slice(0, maxToSend).map((o) => `${o.value} (${o.count})`);
+    return {
+      key: fg.key_name,
+      label: fg.display_label,
+      total_unique: opts.length,
+      values: head,
+    };
+  });
+
+  const recencyRow = db
+    .prepare(
+      ops
+        ? `SELECT
+             SUM(CASE WHEN attempt_count = 0 THEN 1 ELSE 0 END) as never_called,
+             SUM(CASE WHEN date(last_attempt_at) = ? THEN 1 ELSE 0 END) as called_today,
+             SUM(CASE WHEN last_attempt_at IS NULL OR date(last_attempt_at) != ? THEN 1 ELSE 0 END) as uncalled_today
+           FROM leads`
+        : `SELECT
+             SUM(CASE WHEN attempt_count = 0 THEN 1 ELSE 0 END) as never_called,
+             SUM(CASE WHEN date(last_attempt_at) = ? THEN 1 ELSE 0 END) as called_today,
+             SUM(CASE WHEN last_attempt_at IS NULL OR date(last_attempt_at) != ? THEN 1 ELSE 0 END) as uncalled_today
+           FROM leads WHERE assigned_to = ?`
+    )
+    .get(...(ops ? [todayStr, todayStr] : [todayStr, todayStr, user.id])) as any;
+
+  let uniqueTags: { tag: string; count: number }[] = [];
+  try {
+    uniqueTags = db
+      .prepare(
+        ops
+          ? `SELECT j.value as tag, COUNT(*) as count FROM leads, json_each(leads.tags) j WHERE leads.tags IS NOT NULL AND leads.tags != '[]' GROUP BY j.value ORDER BY count DESC LIMIT 100`
+          : `SELECT j.value as tag, COUNT(*) as count FROM leads, json_each(leads.tags) j WHERE leads.assigned_to = ? AND leads.tags IS NOT NULL AND leads.tags != '[]' GROUP BY j.value ORDER BY count DESC LIMIT 100`
+      )
+      .all(...(ops ? [] : [user.id])) as any[];
+  } catch {
+    uniqueTags = [];
+  }
+
+  const activitySummary7d = db
+    .prepare(
+      `SELECT activity_type, COUNT(*) as count
+       FROM lead_activities
+       WHERE created_at >= datetime('now', '-7 days')
+       GROUP BY activity_type
+       ORDER BY count DESC`
+    )
+    .all() as any[];
 
   const myLeadsCount = (
     db
@@ -164,30 +320,57 @@ function getScopedMetrics(user: User) {
     ).c;
     const counselorWorkloads = db
       .prepare(
-        `SELECT u.id, u.name, u.role, COUNT(l.id) as lead_count,
-                (SELECT dc.presence_status FROM daily_checkins dc WHERE dc.user_id = u.id AND dc.checkin_date = ? LIMIT 1) as presence
+        `SELECT u.id, u.name, u.role, u.status, u.last_login_at, COUNT(l.id) as lead_count,
+                (SELECT dc.presence_status FROM daily_checkins dc WHERE dc.user_id = u.id AND dc.checkin_date = ? LIMIT 1) as presence,
+                (SELECT dc.checked_in_at FROM daily_checkins dc WHERE dc.user_id = u.id AND dc.checkin_date = ? LIMIT 1) as checked_in_at,
+                (SELECT dc.morning_focus FROM daily_checkins dc WHERE dc.user_id = u.id AND dc.checkin_date = ? LIMIT 1) as morning_focus,
+                (SELECT COUNT(*) FROM lead_activities la WHERE la.performed_by_name = u.name AND date(la.created_at) = ?) as today_activities
          FROM users u
          LEFT JOIN leads l ON l.assigned_to = u.id
-         WHERE u.status = 'active' AND u.role IN ('counselor', 'senior_counselor', 'telecaller')
          GROUP BY u.id
          ORDER BY lead_count DESC`
       )
-      .all(todayStr) as any[];
+      .all(todayStr, todayStr, todayStr, todayStr) as any[];
     const campaigns = db
       .prepare(
         `SELECT c.id as campaign_id, COALESCE(c.name, 'Uncategorized') as campaign, COUNT(*) as count
          FROM leads l
          LEFT JOIN campaigns c ON l.campaign_id = c.id
          GROUP BY c.id, COALESCE(c.name, 'Uncategorized')
-         ORDER BY count DESC
-         LIMIT 10`
+         ORDER BY count DESC`
       )
       .all() as any[];
+
+    let recentAssignmentBatches: any[] = [];
+    try {
+      recentAssignmentBatches = db
+        .prepare(
+          `SELECT id, name, mode, filter_summary, total_assigned, created_by_name, created_at
+           FROM assignment_batches
+           ORDER BY created_at DESC
+           LIMIT 10`
+        )
+        .all() as any[];
+    } catch {}
+
+    let recentSystemLogs: any[] = [];
+    try {
+      recentSystemLogs = db
+        .prepare(
+          `SELECT action_type, description, affected_count, performed_by, created_at
+           FROM activity_logs
+           ORDER BY id DESC
+           LIMIT 10`
+        )
+        .all() as any[];
+    } catch {}
 
     opsExtra = {
       unassignedCount,
       counselorWorkloads,
       campaigns,
+      recentAssignmentBatches,
+      recentSystemLogs,
     };
   }
 
@@ -197,6 +380,11 @@ function getScopedMetrics(user: User) {
     todayDate: todayStr,
     myLeadsCount,
     statusBreakdown,
+    callingRecency: recencyRow,
+    uniqueTags,
+    promptFacetMatches,
+    schemaAndFacets,
+    activitySummary7d,
     pendingTasks,
     overdueTasks,
     openWaThreads,
@@ -241,35 +429,41 @@ Include 3 to 4 highlights.`;
     currentView?: string;
     user: User;
   }): Promise<AiCommandResponse> {
-    const metrics = getScopedMetrics(params.user);
+    const metrics = getScopedMetrics(params.user, params.prompt);
     const ops = isOpsRole(params.user);
 
     const systemPrompt = `You are DreamDesk CRM's Global AI Copilot.
 Current user: "${params.user.name}" (role: "${params.user.role}", isOps: ${ops}, currentView: "${params.currentView || "leads"}").
 
-Live CRM Context (use ONLY these real numbers, counselor IDs, statuses, and campaigns):
+Live CRM Context (schema fields, ALL unique facet values + counts, fuzzy prompt matches, users, and history):
 ${JSON.stringify(metrics, null, 2)}
 
+CRITICAL FILTERING RULES:
+- Always check "promptFacetMatches" and "schemaAndFacets" FIRST!
+- If the user mentions a location, school, stream, board, course, or custom attribute (even with spelling variations like "hoogly" -> "Hooghly"), put the EXACT matched value under "facets": { "<facet_key>": ["<exact_value>"] } (e.g. "facets": { "district": ["Hooghly"] }). Do NOT put location/attribute names into "search"!
+- Reserve "search" ONLY for a person's name, phone number, email, or LD- lead code.
+- Use "status": ["New"] for lead stage, "campaign_id": [...] for campaign, "disposition_id": [...] for disposition, "tags": [...] for tags, "assigned_to": ["unassigned"] or [user_id], and "calling_recency": "never_called" | "uncalled_today" | "called_today".
+
 Capabilities you can return in JSON:
-1. Analytical Answers & Reports: Answer questions about leads, workload, campaigns, WhatsApp inbox, tasks, or team status using the live metrics above.
-2. Smart Filters / Navigation ("applyFilters"): Help the user jump to a view ("leads", "whatsapp", "tasks", "dashboard", "assignments", "team", "analytics") or filter the Leads table by search, status[], campaign[], assigned_to[].
+1. Analytical Answers & Reports: Answer questions about leads, unique values, counts, counselor workload/activity/login, campaigns, WhatsApp inbox, tasks, or assignment/activity history using the live metrics above.
+2. Smart Filters / Navigation ("applyFilters"): Help the user jump to a view ("leads", "whatsapp", "tasks", "dashboard", "assignments", "team", "analytics") or filter the Leads table with exact "facets", "status", "campaign_id", "assigned_to", "tags", "calling_recency", "search".
 3. Confirmable Single Action ("proposedAction") OR Multi-Step Workflow ("proposedWorkflow"):
    Use "proposedWorkflow" (an ordered array of 2-5 steps) whenever the user asks for a multi-step operation (e.g. filter + assign + tag + schedule tasks + update status). Use "proposedAction" for a single action.
    ${
      ops
        ? `Supported action types:
-   - "bulk_status": Update lead status for filtered leads. Payload: { "filter_params": { "search"?, "status"?, "campaign_id"?, "assigned_to"? }, "status": "New" | "Contacted" | "Follow-up" | "Interested" | "Converted" | "Cold" | "Not Interested" | string }
+   - "bulk_status": Update lead status for filtered leads. Payload: { "filter_params": { "facets"?, "status"?, "campaign_id"?, "disposition_id"?, "tags"?, "calling_recency"?, "assigned_to"?, "search"? }, "status": "New" | "Contacted" | "Follow-up" | "Interested" | "Converted" | "Cold" | "Not Interested" | string }
    - "bulk_assign": Assign filtered leads to a counselor (mode: "single" with target_user_id from counselorWorkloads, or "auto" round-robin). Payload: { "filter_params": {...}, "mode": "single" | "auto", "target_user_id"?: string, "total_to_assign"?: number }
    - "bulk_tag": Add tags to filtered leads. Payload: { "filter_params": {...}, "tags": ["string"] }
-   - "bulk_create_tasks": Schedule CRM follow-up tasks for filtered leads (assigned to each lead's counselor or fallback_user_id). Payload: { "filter_params": {...}, "title": "string", "priority": "low" | "normal" | "high" | "urgent", "due_date": "ISO-8601 string", "limit"?: number }`
+   - "bulk_create_tasks": Schedule CRM follow-up tasks for filtered leads. Payload: { "filter_params": {...}, "title": "string", "priority": "low" | "normal" | "high" | "urgent", "due_date": "ISO-8601 string", "limit"?: number }`
        : `- IMPORTANT: User is NOT an Admin/Team Lead. NEVER propose "bulk_assign", "bulk_status", "bulk_tag", or "bulk_create_tasks".`
    }
 
 Return strictly valid JSON:
 {
-  "answer": "Clear, concise answer or explanation of the multi-step plan.",
+  "answer": "Clear, concise answer or explanation of the plan.",
   "highlights": [{ "label": "string", "value": "string" }],
-  "applyFilters": { "search"?: "string", "status"?: ["string"], "campaign"?: ["string"], "assigned_to"?: ["string"], "view"?: "string" } | null,
+  "applyFilters": { "search"?: "string", "status"?: ["string"], "campaign_id"?: ["string"], "assigned_to"?: ["string"], "tags"?: ["string"], "calling_recency"?: "string", "facets"?: { "key": ["value"] }, "view"?: "string" } | null,
   "proposedAction": {
     "type": "bulk_status" | "bulk_assign" | "bulk_tag" | "bulk_create_tasks",
     "title": "Short button/card title",

@@ -948,7 +948,12 @@ export interface AiCommandResponse {
     search?: string;
     status?: string[];
     campaign?: string[];
+    campaign_id?: string[];
     assigned_to?: string[];
+    disposition_id?: string[];
+    tags?: string[];
+    calling_recency?: string;
+    facets?: Record<string, string[]>;
     view?: string;
   } | null;
   proposedAction?: AiProposedAction | null;
