@@ -1,7 +1,14 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Lead, User, WhatsAppConversation, WhatsAppMessage, WhatsAppTemplate } from "@/types/crm";
+import {
+  Lead,
+  User,
+  WhatsAppAiAssistResult,
+  WhatsAppConversation,
+  WhatsAppMessage,
+  WhatsAppTemplate,
+} from "@/types/crm";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { WhatsAppTemplateBubblePreview } from "@/components/crm/WhatsAppTemplateBubblePreview";
+import { WhatsAppAiCopilotPanel } from "@/components/crm/WhatsAppAiCopilotPanel";
 import { Clock, Loader2, Lock, MessageSquare, Send, Sparkles } from "lucide-react";
 
 function parseWaTimestamp(val?: string | number | null): Date {
@@ -55,6 +63,10 @@ export function WhatsAppModal({
   const [selectedPhone, setSelectedPhone] = useState<string>("");
   const [mediaOverrideUrl, setMediaOverrideUrl] = useState<string>("");
   const [focusedVarName, setFocusedVarName] = useState<string | null>(null);
+  const [aiAssist, setAiAssist] = useState<WhatsAppAiAssistResult | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [showAiPanel, setShowAiPanel] = useState(false);
 
   const windowStatus = useMemo(() => {
     const latestInboundFromMsgs = history
@@ -83,6 +95,9 @@ export function WhatsAppModal({
     setSelectedTemplateId("");
     setMediaOverrideUrl("");
     setFocusedVarName(null);
+    setShowAiPanel(false);
+    setAiAssist(null);
+    setAiError(null);
     Promise.all([
       fetch("/api/whatsapp/templates?approved=1", { cache: "no-store" }).then((r) => r.json()),
       fetch(`/api/whatsapp/conversations?lead_id=${lead.id}`, { cache: "no-store" }).then((r) =>
@@ -327,7 +342,64 @@ export function WhatsAppModal({
               <Sparkles className="w-3 h-3" />
               <span>Approved Meta Template ({templates.length})</span>
             </button>
+            <button
+              type="button"
+              disabled={aiLoading}
+              onClick={async () => {
+                if (!lead?.id) return;
+                setShowAiPanel(true);
+                setAiLoading(true);
+                setAiError(null);
+                try {
+                  const res = await fetch("/api/whatsapp/ai-assist", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      conversation_id: conversation?.id,
+                      lead_id: lead.id,
+                      is_24h_open: windowStatus.isOpen,
+                    }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok) throw new Error(data.error || "AI Copilot failed");
+                  setAiAssist(data.assist);
+                } catch (err: any) {
+                  setAiError(err?.message || "Failed to generate AI draft");
+                } finally {
+                  setAiLoading(false);
+                }
+              }}
+              className="ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer border border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20"
+            >
+              {aiLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+              <span>AI Draft</span>
+            </button>
           </div>
+
+          {showAiPanel && (
+            <WhatsAppAiCopilotPanel
+              assist={aiAssist}
+              loading={aiLoading}
+              error={aiError}
+              leadId={lead?.id}
+              assignedTo={lead?.assigned_to}
+              currentUserId={currentUser?.id}
+              onUseDraft={(text) => {
+                setMode("text");
+                setFreeText(text);
+              }}
+              onUseTemplate={(tplName, vars) => {
+                const found = templates.find((t) => t.name === tplName);
+                if (found) {
+                  setMode("template");
+                  setMediaOverrideUrl("");
+                  handleSelectTemplate(found);
+                  setVarValues((prev) => ({ ...prev, ...vars }));
+                }
+              }}
+              onDismiss={() => setShowAiPanel(false)}
+            />
+          )}
 
           {!windowStatus.isOpen && (
             <div className="px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/25 text-[11px] text-amber-800 dark:text-amber-300 flex items-center gap-2">

@@ -878,3 +878,42 @@ export interface WhatsAppMessage {
   sent_by_name?: string | null;
   created_at: string;
 }
+
+export interface AiSettings {
+  provider: 'gemini';
+  gemini_api_key: string;
+  has_api_key?: boolean;
+  model: string;
+  tone: string;
+  knowledge_base: string;
+  guardrails: string;
+  is_enabled: boolean;
+  updated_at?: string;
+}
+
+export interface WhatsAppAiExtractedField {
+  field: string;
+  label: string;
+  value: string;
+  reason?: string;
+}
+
+export interface WhatsAppAiSuggestedTask {
+  title: string;
+  due_at: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  notes?: string;
+}
+
+export interface WhatsAppAiAssistResult {
+  summary: string;
+  intent: 'hot' | 'warm' | 'fee_inquiry' | 'callback_requested' | 'cold' | 'not_interested';
+  replyDrafts: string[];
+  recommendedTemplate?: {
+    name: string;
+    reason?: string;
+    variables: Record<string, string>;
+  } | null;
+  extractedFields: WhatsAppAiExtractedField[];
+  suggestedTask?: WhatsAppAiSuggestedTask | null;
+}

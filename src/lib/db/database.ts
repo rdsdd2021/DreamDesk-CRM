@@ -544,6 +544,18 @@ function initializeSchema(db: Database.Database) {
     );
     CREATE INDEX IF NOT EXISTS idx_wa_msg_conv ON whatsapp_messages(conversation_id, created_at ASC);
     CREATE INDEX IF NOT EXISTS idx_wa_msg_kapso_id ON whatsapp_messages(kapso_message_id);
+
+    CREATE TABLE IF NOT EXISTS ai_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      provider TEXT NOT NULL DEFAULT 'gemini',
+      gemini_api_key TEXT,
+      model TEXT NOT NULL DEFAULT 'gemini-2.5-flash',
+      tone TEXT NOT NULL DEFAULT 'Warm, helpful, concise admissions counselor',
+      knowledge_base TEXT,
+      guardrails TEXT,
+      is_enabled INTEGER NOT NULL DEFAULT 1,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // 12. Operational & Team Work Tasks (One-time, Recurring, Timed, Linked)

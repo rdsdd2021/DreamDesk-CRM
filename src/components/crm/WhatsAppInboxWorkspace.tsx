@@ -2,13 +2,16 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  AiSettings,
   User,
+  WhatsAppAiAssistResult,
   WhatsAppConversation,
   WhatsAppMessage,
   WhatsAppSettings,
   WhatsAppTemplate,
 } from "@/types/crm";
 import { MetaKapsoTemplateStudio } from "@/components/crm/MetaKapsoTemplateStudio";
+import { WhatsAppAiCopilotPanel } from "@/components/crm/WhatsAppAiCopilotPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -104,6 +107,23 @@ export function WhatsAppInboxWorkspace({
   const [savingSettings, setSavingSettings] = useState(false);
   const [testingConn, setTestingConn] = useState(false);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
+
+  // AI Copilot & Knowledge Base state
+  const [aiAssist, setAiAssist] = useState<WhatsAppAiAssistResult | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [showAiPanel, setShowAiPanel] = useState(false);
+  const [aiSettings, setAiSettings] = useState<AiSettings>({
+    provider: "gemini",
+    gemini_api_key: "",
+    model: "gemini-2.5-flash",
+    tone: "Warm, helpful, concise admissions counselor",
+    knowledge_base: "",
+    guardrails: "",
+    is_enabled: true,
+  });
+  const [savingAiSettings, setSavingAiSettings] = useState(false);
+  const [testingAiConn, setTestingAiConn] = useState(false);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const lastScrolledKeyRef = React.useRef<string>("");
 
@@ -177,10 +197,13 @@ export function WhatsAppInboxWorkspace({
 
   const loadSettingsAndTemplates = useCallback(async () => {
     try {
-      const [tplRes, setRes] = await Promise.all([
+      const [tplRes, setRes, aiRes] = await Promise.all([
         fetch("/api/whatsapp/templates?approved=1", { cache: "no-store" }),
         canManageTemplates
           ? fetch("/api/whatsapp/settings", { cache: "no-store" })
+          : Promise.resolve(null),
+        canManageTemplates
+          ? fetch("/api/whatsapp/ai-settings", { cache: "no-store" })
           : Promise.resolve(null),
       ]);
       if (tplRes.ok) {
@@ -190,6 +213,10 @@ export function WhatsAppInboxWorkspace({
       if (setRes && setRes.ok) {
         const sData = await setRes.json();
         if (sData?.settings) setSettings(sData.settings);
+      }
+      if (aiRes && aiRes.ok) {
+        const aData = await aiRes.json();
+        if (aData?.settings) setAiSettings(aData.settings);
       }
     } catch {
       // ignore
@@ -211,6 +238,9 @@ export function WhatsAppInboxWorkspace({
     loadThread(selectedConvId, false);
     setSelectedTemplate(null);
     setAttachedMedia(null);
+    setShowAiPanel(false);
+    setAiAssist(null);
+    setAiError(null);
     const threadTimer = setInterval(() => loadThread(selectedConvId, true), 4000);
     return () => clearInterval(threadTimer);
   }, [selectedConvId, loadThread]);
@@ -422,6 +452,79 @@ export function WhatsAppInboxWorkspace({
       onShowToast?.(err?.message || "Failed to save settings", "error");
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const handleAskAi = async () => {
+    if (!activeConv) return;
+    const lastIn =
+      activeConv.last_inbound_at ||
+      messages.filter((m) => m.direction === "inbound").slice(-1)[0]?.created_at;
+    const is24hOpen = Boolean(
+      lastIn && Date.now() - parseWaTimestamp(lastIn).getTime() < 24 * 60 * 60 * 1000
+    );
+    setShowAiPanel(true);
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const res = await fetch("/api/whatsapp/ai-assist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversation_id: activeConv.id,
+          lead_id: activeConv.lead_id || undefined,
+          is_24h_open: is24hOpen,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "AI Copilot failed");
+      setAiAssist(data.assist);
+    } catch (err: any) {
+      setAiError(err?.message || "Failed to generate AI suggestions");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleSaveAiSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingAiSettings(true);
+    try {
+      const res = await fetch("/api/whatsapp/ai-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(aiSettings),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save AI settings");
+      if (data.settings) setAiSettings(data.settings);
+      onShowToast?.("Gemini AI Copilot settings saved", "success");
+    } catch (err: any) {
+      onShowToast?.(err?.message || "Failed to save AI settings", "error");
+    } finally {
+      setSavingAiSettings(false);
+    }
+  };
+
+  const handleTestAiConnection = async () => {
+    setTestingAiConn(true);
+    try {
+      const res = await fetch("/api/whatsapp/ai-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "test",
+          gemini_api_key: aiSettings.gemini_api_key,
+          model: aiSettings.model,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gemini connection test failed");
+      onShowToast?.(data.message || "Gemini connected!", "success");
+    } catch (err: any) {
+      onShowToast?.(err?.message || "Gemini test failed", "error");
+    } finally {
+      setTestingAiConn(false);
     }
   };
 
@@ -1079,7 +1182,48 @@ export function WhatsAppInboxWorkspace({
                     </div>
                   )}
 
+                  {/* AI Copilot Panel */}
+                  {showAiPanel && (
+                    <WhatsAppAiCopilotPanel
+                      assist={aiAssist}
+                      loading={aiLoading}
+                      error={aiError}
+                      leadId={activeConv?.lead_id}
+                      assignedTo={activeConv?.assigned_to}
+                      currentUserId={currentUser?.id}
+                      onUseDraft={(text) => {
+                        setSelectedTemplate(null);
+                        setReplyText(text);
+                      }}
+                      onUseTemplate={(tplName, vars) => {
+                        const found = templates.find((t) => t.name === tplName);
+                        if (found) {
+                          handleSelectTemplate(found);
+                          setTemplateVarValues((prev) => ({ ...prev, ...vars }));
+                        }
+                      }}
+                      onDismiss={() => setShowAiPanel(false)}
+                      onNotify={onShowToast}
+                    />
+                  )}
+
                   <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={aiLoading}
+                      onClick={handleAskAi}
+                      title="Gemini AI Copilot (Reply drafts, summary & 1-click lead updates)"
+                      className="h-9 px-2.5 text-xs gap-1 border-indigo-500/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/10 cursor-pointer shrink-0"
+                    >
+                      {aiLoading ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-3.5 h-3.5" />
+                      )}
+                      <span className="hidden sm:inline">AI</span>
+                    </Button>
                     <label
                       className="h-9 w-9 rounded-lg border border-border bg-background hover:bg-muted flex items-center justify-center cursor-pointer shrink-0"
                       title="Attach Image / Video / PDF via Kapso Media"
@@ -1156,11 +1300,12 @@ export function WhatsAppInboxWorkspace({
         />
       )}
 
-      {/* TAB 3: KAPSO SETUP (ADMIN ONLY) */}
+      {/* TAB 3: KAPSO & AI SETUP (ADMIN ONLY) */}
       {activeTab === "setup" && isAdmin && (
+        <div className="space-y-5 max-w-2xl">
         <form
           onSubmit={handleSaveSettings}
-          className="bg-card border border-border/80 rounded-2xl p-5 space-y-4 max-w-2xl shadow-2xs"
+          className="bg-card border border-border/80 rounded-2xl p-5 space-y-4 shadow-2xs"
         >
           <div className="flex items-center justify-between border-b border-border/60 pb-3">
             <div className="flex items-center gap-2">
@@ -1285,6 +1430,110 @@ export function WhatsAppInboxWorkspace({
             {savingSettings ? "Saving..." : "Save Kapso Configuration"}
           </Button>
         </form>
+
+        {/* Gemini AI Copilot & College Knowledge Base */}
+        <form
+          onSubmit={handleSaveAiSettings}
+          className="bg-card border border-border/80 rounded-2xl p-5 space-y-4 shadow-2xs"
+        >
+          <div className="flex items-center justify-between border-b border-border/60 pb-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-indigo-600" />
+              <span className="text-sm font-bold text-foreground">Gemini AI Copilot & Knowledge Base</span>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={testingAiConn}
+              onClick={handleTestAiConnection}
+              className="h-8 text-xs gap-1.5 cursor-pointer"
+            >
+              {testingAiConn ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+              )}
+              <span>Test Gemini</span>
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="space-y-1 sm:col-span-2">
+              <label className="font-semibold text-foreground">Gemini API Key (Google AI Studio)</label>
+              <Input
+                value={aiSettings.gemini_api_key}
+                onChange={(e) => setAiSettings({ ...aiSettings, gemini_api_key: e.target.value })}
+                placeholder="AIza... (or set GEMINI_API_KEY env var)"
+                className="h-9 text-xs font-mono"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">Model</label>
+              <Input
+                value={aiSettings.model}
+                onChange={(e) => setAiSettings({ ...aiSettings, model: e.target.value })}
+                placeholder="gemini-2.5-flash"
+                className="h-9 text-xs font-mono"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">Counselor Tone</label>
+              <Input
+                value={aiSettings.tone}
+                onChange={(e) => setAiSettings({ ...aiSettings, tone: e.target.value })}
+                placeholder="Warm, helpful, concise admissions counselor"
+                className="h-9 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1 sm:col-span-2">
+              <label className="font-semibold text-foreground">
+                College Knowledge Base (Courses, Fees, Eligibility, Campus, Scholarships)
+              </label>
+              <textarea
+                rows={5}
+                value={aiSettings.knowledge_base}
+                onChange={(e) => setAiSettings({ ...aiSettings, knowledge_base: e.target.value })}
+                placeholder="Example: BBA (3 Years) - ₹1.2L/yr, 50% in 12th. MBA (2 Years) - ₹2.4L/yr. Campus: Salt Lake Sector V, Kolkata. Hostel available..."
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              />
+            </div>
+
+            <div className="space-y-1 sm:col-span-2">
+              <label className="font-semibold text-foreground">Guardrails & Reply Rules</label>
+              <textarea
+                rows={2}
+                value={aiSettings.guardrails}
+                onChange={(e) => setAiSettings({ ...aiSettings, guardrails: e.target.value })}
+                placeholder="Never invent fee figures or deadlines not listed above."
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <label className="inline-flex items-center gap-2 text-xs font-medium cursor-pointer">
+              <input
+                type="checkbox"
+                checked={aiSettings.is_enabled}
+                onChange={(e) => setAiSettings({ ...aiSettings, is_enabled: e.target.checked })}
+                className="rounded border-border"
+              />
+              <span>Enable AI Copilot for Counselors</span>
+            </label>
+            <Button
+              type="submit"
+              disabled={savingAiSettings}
+              className="h-9 px-5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer"
+            >
+              {savingAiSettings ? "Saving..." : "Save AI Settings"}
+            </Button>
+          </div>
+        </form>
+        </div>
       )}
     </div>
   );
